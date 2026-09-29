@@ -26,7 +26,7 @@ export default function LoginPage() {
     resolver: zodResolver(loginSchema)
   });
 
-  async function handleLogin(data: LoginForm) {
+ async function handleLogin(data: LoginForm) {
     setIsLoading(true);
     setError('');
 
@@ -40,8 +40,15 @@ export default function LoginPage() {
         path: '/',
       });
 
-      // Redireciona para o Dashboard do Master
-      router.push('/dashboard');
+      // Redirecionamento inteligente baseado na role (papel) do utilizador
+      if (user?.role === 'MASTER' || user?.isMaster) {
+        router.push('/dashboard'); // Vai para o Painel do Dono do SaaS
+      } else if (user?.role === 'REAL_ESTATE' || user?.role === 'BROKER') {
+        router.push('/imobiliaria/dashboard'); // Vai para o Painel isolado da Loja/Corretor
+      } else {
+        router.push('/dashboard'); // Fallback de segurança
+      }
+      
     } catch (err: any) {
       setError(err.response?.data?.error || 'Erro ao conectar no servidor.');
     } finally {

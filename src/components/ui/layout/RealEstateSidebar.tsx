@@ -1,79 +1,65 @@
 'use client';
 
-import { useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { 
-  Home, 
-  Users, 
-  Key, 
-  LayoutDashboard, 
-  Settings, 
-  LogOut,
-  ChevronLeft,
-  ChevronRight,
-  MessageSquare
-} from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation';
+import { LayoutDashboard, Home, Users, Settings, LogOut } from 'lucide-react';
 import { destroyCookie } from 'nookies';
 
 export function RealEstateSidebar() {
-  const [isCollapsed, setIsCollapsed] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
 
-  const links = [
-    { name: 'Visão Geral', href: '/imobiliaria/dashboard', icon: LayoutDashboard },
-    { name: 'Meus Corretores', href: '/imobiliaria/corretores', icon: Users },
-    { name: 'Imóveis', href: '/imobiliaria/imoveis', icon: Home },
-    { name: 'Leads / Contatos', href: '/imobiliaria/leads', icon: MessageSquare },
+  const menuItems = [
+    { name: 'Dashboard', icon: LayoutDashboard, path: '/imobiliaria/dashboard' },
+    { name: 'Meus Imóveis', icon: Home, path: '/imobiliaria/imoveis' },
+    { name: 'Leads (CRM)', icon: Users, path: '/imobiliaria/leads' },
+    { name: 'Configurações', icon: Settings, path: '/imobiliaria/configuracoes' },
   ];
 
-  const handleLogout = () => {
-    destroyCookie(null, 'zeniximob.token');
-    window.location.href = '/login';
-  };
+  function handleLogout() {
+    destroyCookie(null, 'zeniximob.token', { path: '/' });
+    router.push('/login');
+  }
 
   return (
-    <aside className={`relative bg-slate-900 text-slate-300 transition-all duration-300 flex flex-col ${isCollapsed ? 'w-20' : 'w-64'} min-h-screen`}>
-      <button 
-        onClick={() => setIsCollapsed(!isCollapsed)}
-        className="absolute -right-3 top-6 bg-slate-800 border border-slate-700 rounded-full p-1 text-slate-400 hover:text-white shadow-sm"
-      >
-        {isCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
-      </button>
-
-      <div className="h-20 flex items-center justify-center border-b border-slate-800">
-        <div className="flex items-center gap-2 text-white">
-          <Key size={24} className="text-emerald-500" />
-          {!isCollapsed && <h1 className="font-bold text-xl">Minha Loja</h1>}
+    <aside className="w-64 bg-slate-900 text-white min-h-screen p-4 flex flex-col hidden md:flex fixed h-full z-10">
+      <div className="flex items-center gap-3 px-2 py-4 mb-6 border-b border-slate-800">
+        <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center font-bold">
+          Z
+        </div>
+        <div>
+          <h2 className="font-bold text-lg leading-tight">Painel da Loja</h2>
+          <p className="text-xs text-slate-400">Gestão Imobiliária</p>
         </div>
       </div>
 
-      <nav className="flex-1 pt-6 px-3 flex flex-col gap-2">
-        {links.map((link) => {
-          const isActive = pathname.startsWith(link.href);
-          const Icon = link.icon;
+      <nav className="flex-1 space-y-1">
+        {menuItems.map((item) => {
+          const isActive = pathname.startsWith(item.path);
           return (
-            <Link 
-              key={link.name} 
-              href={link.href}
-              className={`flex items-center gap-3 px-3 py-3 rounded-lg transition-colors ${
-                isActive ? 'bg-emerald-500/10 text-emerald-400 font-medium' : 'hover:bg-slate-800 hover:text-white'
+            <Link
+              key={item.path}
+              href={item.path}
+              className={`flex items-center gap-3 px-3 py-3 rounded-lg transition-colors text-sm font-medium ${
+                isActive 
+                  ? 'bg-blue-600 text-white' 
+                  : 'text-slate-400 hover:bg-slate-800 hover:text-white'
               }`}
             >
-              <Icon size={20} className="shrink-0" />
-              {!isCollapsed && <span>{link.name}</span>}
+              <item.icon size={18} />
+              {item.name}
             </Link>
           );
         })}
       </nav>
 
-      <div className="p-3 border-t border-slate-800">
+      <div className="pt-4 border-t border-slate-800 mt-auto">
         <button 
           onClick={handleLogout}
-          className="w-full flex items-center gap-3 px-3 py-3 rounded-lg text-red-400 hover:bg-slate-800 transition-colors mt-1"
+          className="flex items-center gap-3 px-3 py-3 rounded-lg transition-colors text-sm font-medium text-red-400 hover:bg-slate-800 hover:text-red-300 w-full"
         >
-          <LogOut size={20} className="shrink-0" />
-          {!isCollapsed && <span>Sair</span>}
+          <LogOut size={18} />
+          Terminar Sessão
         </button>
       </div>
     </aside>
