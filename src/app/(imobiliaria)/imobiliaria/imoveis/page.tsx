@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { api } from '../../../../lib/api';
@@ -9,24 +9,46 @@ import { api } from '../../../../lib/api';
 import { Plus, Power, X, Loader2, Home, Edit, Search, Filter, MapPin, Image as ImageIcon, UserSquare } from 'lucide-react';
 import { maskCep } from '@/src/utils/mask';
 
+// Lista de comodidades disponíveis para selecionar
+const AMENITIES_OPTIONS = [
+  'Piscina', 'Academia', 'Churrasqueira', 'Salão de Festas', 'Playground', 
+  'Portaria 24h', 'Elevador', 'Varanda Gourmet', 'Ar Condicionado', 'Móveis Planejados',
+  'Área de Serviço', 'Quadra Poliesportiva', 'Permite Animais'
+];
+
 const propertySchema = z.object({
   title: z.string().min(5, 'Título deve ter no mínimo 5 caracteres'),
   type: z.string().min(1, 'Selecione o tipo de imóvel'),
   category: z.string().min(1, 'Selecione a categoria (Residencial/Comercial)'),
   transaction: z.string().min(1, 'Selecione a modalidade (Venda/Aluguel)'),
+  
+  // Valores
   price: z.coerce.number().min(1, 'O valor é obrigatório'),
+  condoFee: z.coerce.number().optional().default(0),
+  iptu: z.coerce.number().optional().default(0),
+  
+  // Características
   area: z.coerce.number().min(1, 'Área obrigatória'),
   bedrooms: z.coerce.number().min(0).default(0),
   bathrooms: z.coerce.number().min(0).default(0),
   garage: z.coerce.number().min(0).default(0),
+  yearBuilt: z.coerce.number().optional(),
+  amenities: z.array(z.string()).optional().default([]),
+  
+  // Endereço
   cep: z.string().min(9, 'CEP incompleto'),
   address: z.string().min(5, 'Endereço obrigatório'),
+  neighborhood: z.string().optional(),
+  city: z.string().optional(),
+  state: z.string().optional(),
+  latitude: z.coerce.number().optional(),
+  longitude: z.coerce.number().optional(),
+  
   description: z.string().optional(),
-  imageUrlsStr: z.string().optional(), // URLs separadas por vírgula para múltiplas fotos
-  brokerId: z.string().optional(), // NOVO: Relacionar imóvel a um corretor
+  imageUrlsStr: z.string().optional(),
+  brokerId: z.string().optional(),
 });
 
-// Use the schema's input type because fields with defaults are optional before validation.
 type PropertyForm = z.input<typeof propertySchema>;
 
 export default function ImoveisPage() {
@@ -41,9 +63,9 @@ export default function ImoveisPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
 
-  const { register, handleSubmit, setValue, reset, formState: { errors } } = useForm<PropertyForm>({
+  const { register, handleSubmit, setValue, reset, control, formState: { errors } } = useForm<PropertyForm>({
     resolver: zodResolver(propertySchema),
-    defaultValues: { bedrooms: 0, bathrooms: 0, garage: 0, category: 'Residencial', brokerId: '' }
+    defaultValues: { bedrooms: 0, bathrooms: 0, garage: 0, category: 'Residencial', brokerId: '', amenities: [] }
   });
 
   async function fetchData() {
@@ -54,7 +76,6 @@ export default function ImoveisPage() {
         api.get('/brokers').catch(() => ({ data: [] }))
       ]);
       setProperties(propRes.data);
-      // Filtra apenas corretores ativos para aparecerem no select
       setBrokers(brokerRes.data.filter((b: any) => b.isActive));
     } catch (error) {
       console.error('Erro ao buscar dados:', error);
@@ -76,23 +97,30 @@ export default function ImoveisPage() {
 
   function handleEdit(prop: any) {
     setEditingId(prop.id);
-    // Converte o array de imagens de volta para string separada por vírgulas para edição fácil
-    const urlsString = Array.isArray(prop.imageUrls) 
-      ? prop.imageUrls.join(', ') 
-      : (prop.imageUrl || '');
+    const urlsString = Array.isArray(prop.imageUrls) ? prop.imageUrls.join(', ') : (prop.imageUrl || '');
 
+    // CORREÇÃO: Usando undefined em vez de '' para números opcionais
     reset({
       title: prop.title || '',
       type: prop.type || '',
       category: prop.category || 'Residencial',
       transaction: prop.transaction || '',
       price: prop.price || 0,
+      condoFee: prop.condoFee || 0,
+      iptu: prop.iptu || 0,
       area: prop.area || 0,
       bedrooms: prop.bedrooms || 0,
       bathrooms: prop.bathrooms || 0,
       garage: prop.garage || 0,
+      yearBuilt: prop.yearBuilt ?? undefined,
+      amenities: prop.amenities || [],
       cep: maskCep(prop.cep) || '',
       address: prop.address || '',
+      neighborhood: prop.neighborhood || '',
+      city: prop.city || '',
+      state: prop.state || '',
+      latitude: prop.latitude ?? undefined,
+      longitude: prop.longitude ?? undefined,
       description: prop.description || '',
       imageUrlsStr: urlsString,
       brokerId: prop.brokerId || '',
@@ -102,9 +130,13 @@ export default function ImoveisPage() {
 
   function handleCreateNew() {
     setEditingId(null);
+    
+    // CORREÇÃO: Usando undefined em vez de '' para números opcionais
     reset({
-      title: '', type: '', category: 'Residencial', transaction: '', price: 0, area: 0,
-      bedrooms: 0, bathrooms: 0, garage: 0, cep: '', address: '', description: '', imageUrlsStr: '', brokerId: ''
+      title: '', type: '', category: 'Residencial', transaction: '', price: 0, condoFee: 0, iptu: 0, area: 0,
+      bedrooms: 0, bathrooms: 0, garage: 0, yearBuilt: undefined, amenities: [], cep: '', address: '', 
+      neighborhood: '', city: '', state: '', latitude: undefined, longitude: undefined,
+      description: '', imageUrlsStr: '', brokerId: ''
     });
     setIsModalOpen(true);
   }
@@ -119,8 +151,12 @@ export default function ImoveisPage() {
         const rawCep = masked.replace(/\D/g, '');
         const response = await api.get(`/integrations/cep/${rawCep}`);
         const data = response.data;
-        const fullAddress = `${data.street}, ${data.neighborhood}, ${data.city} - ${data.state}`;
+        const fullAddress = `${data.street}, ${data.neighborhood}`;
+        
         setValue('address', fullAddress, { shouldValidate: true });
+        setValue('neighborhood', data.neighborhood, { shouldValidate: true });
+        setValue('city', data.city, { shouldValidate: true });
+        setValue('state', data.state, { shouldValidate: true });
       } catch (error) {
         console.log('CEP não encontrado.');
       } finally {
@@ -132,7 +168,6 @@ export default function ImoveisPage() {
   async function onSubmit(data: PropertyForm) {
     setIsSubmitting(true);
     try {
-      // Transforma a string de URLs separadas por vírgula num array limpo
       const urlsArray = data.imageUrlsStr 
         ? data.imageUrlsStr.split(',').map((u) => u.trim()).filter(Boolean)
         : [];
@@ -179,21 +214,22 @@ export default function ImoveisPage() {
           <h1 className="text-2xl font-bold text-slate-800">Gestão de Imóveis</h1>
           <p className="text-slate-500 text-sm">Gerencie o seu catálogo de propriedades e ordene a vitrine.</p>
         </div>
-        <button onClick={handleCreateNew} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-all shadow-sm">
+        <button onClick={handleCreateNew} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-all shadow-sm">
           <Plus size={20} /> Adicionar Imóvel
         </button>
       </div>
 
+      {/* Barra de Filtros e Busca */}
       <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex flex-col md:flex-row gap-4 items-center justify-between">
         <div className="relative w-full md:w-96">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
             <Search size={18} />
           </div>
-          <input type="text" placeholder="Buscar por Título ou Endereço..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-sm" />
+          <input type="text" placeholder="Buscar por Título ou Endereço..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
         </div>
         <div className="flex items-center gap-2 w-full md:w-auto">
           <Filter size={18} className="text-slate-400" />
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none w-full md:w-48 bg-white">
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none w-full md:w-48 bg-white">
             <option value="all">Todos os Status</option>
             <option value="active">Disponíveis (Ativos)</option>
             <option value="inactive">Inativos</option>
@@ -201,6 +237,7 @@ export default function ImoveisPage() {
         </div>
       </div>
 
+      {/* Tabela de Imóveis */}
       <div className="bg-white border border-slate-100 rounded-xl shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm text-slate-600">
@@ -248,7 +285,7 @@ export default function ImoveisPage() {
                           </div>
                           <div>
                             <span className="font-medium text-slate-800 line-clamp-1">{prop.title}</span>
-                            <span className="text-xs text-slate-400 flex items-center gap-1 mt-0.5"><MapPin size={12}/> {prop.address}</span>
+                            <span className="text-xs text-slate-400 flex items-center gap-1 mt-0.5"><MapPin size={12}/> {prop.neighborhood || prop.address}</span>
                           </div>
                         </div>
                       </td>
@@ -266,20 +303,20 @@ export default function ImoveisPage() {
                           <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-xs font-medium">
                             {prop.transaction}
                           </span>
-                          <span className="font-semibold text-emerald-600">{formatCurrency(prop.price)}</span>
+                          <span className="font-semibold text-blue-600">{formatCurrency(prop.price)}</span>
                         </div>
                       </td>
                       <td className="px-6 py-4 text-center">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${ prop.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500' }`}>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${ prop.isActive ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500' }`}>
                           {prop.isActive ? 'Disponível' : 'Inativo'}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex justify-end gap-1">
-                          <button onClick={() => handleEdit(prop)} className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors" title="Editar">
+                          <button onClick={() => handleEdit(prop)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Editar">
                             <Edit size={18} />
                           </button>
-                          <button onClick={() => toggleStatus(prop.id)} className={`p-2 rounded-lg transition-colors ${ prop.isActive ? 'text-red-500 hover:bg-red-50' : 'text-emerald-500 hover:bg-emerald-50' }`} title="Alterar Status">
+                          <button onClick={() => toggleStatus(prop.id)} className={`p-2 rounded-lg transition-colors ${ prop.isActive ? 'text-red-500 hover:bg-red-50' : 'text-green-500 hover:bg-green-50' }`} title="Alterar Status">
                             <Power size={18} />
                           </button>
                         </div>
@@ -293,19 +330,22 @@ export default function ImoveisPage() {
         </div>
       </div>
 
+      {/* Modal de Cadastro/Edição de Imóvel */}
       <div className={`fixed inset-0 bg-black/40 backdrop-blur-sm items-center justify-center z-50 p-4 ${isModalOpen ? 'flex animate-in fade-in zoom-in duration-200' : 'hidden'}`}>
-        <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+        <div className="bg-white rounded-2xl shadow-xl w-full max-w-5xl max-h-[90vh] overflow-y-auto">
           <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 sticky top-0 z-10">
             <h2 className="text-xl font-semibold text-slate-800">{editingId ? 'Editar Imóvel' : 'Cadastrar Novo Imóvel'}</h2>
             <button type="button" onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 transition-colors"><X size={20}/></button>
           </div>
           
           <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-6">
-            <div className="bg-emerald-50/50 p-4 rounded-xl border border-emerald-100">
-              <label className="flex items-center gap-2 text-sm font-medium text-emerald-900 mb-1">
-                <UserSquare size={16} className="text-emerald-600" /> Corretor Responsável (Opcional)
+            
+            {/* Bloco: Corretor Responsável */}
+            <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100">
+              <label className="flex items-center gap-2 text-sm font-medium text-blue-900 mb-1">
+                <UserSquare size={16} className="text-blue-600" /> Corretor Responsável (Opcional)
               </label>
-              <select {...register('brokerId')} className="w-full px-3 py-2 border border-emerald-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none bg-white">
+              <select {...register('brokerId')} className="w-full px-3 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white">
                 <option value="">Selecione um corretor da sua equipa...</option>
                 {brokers.map((broker) => (
                   <option key={broker.id} value={broker.id}>{broker.name} (CRECI: {broker.creci})</option>
@@ -313,16 +353,17 @@ export default function ImoveisPage() {
               </select>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="md:col-span-3">
+            {/* Bloco: Informações Básicas */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="md:col-span-4">
                 <label className="block text-sm font-medium text-slate-700 mb-1">Título do Imóvel</label>
-                <input type="text" {...register('title')} placeholder="Ex: Casa Residencial com Piscina" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none" />
+                <input type="text" {...register('title')} placeholder="Ex: Casa Espetacular em Condomínio Fechado" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
                 {errors.title && <span className="text-red-500 text-xs">{errors.title.message}</span>}
               </div>
               
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Categoria</label>
-                <select {...register('category')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none bg-white font-medium">
+                <select {...register('category')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white font-medium">
                   <option value="Residencial">Residencial</option>
                   <option value="Comercial">Comercial</option>
                 </select>
@@ -330,7 +371,7 @@ export default function ImoveisPage() {
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Tipo de Imóvel</label>
-                <select {...register('type')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none bg-white">
+                <select {...register('type')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white">
                   <option value="">Selecione...</option>
                   <option value="Casa">Casa</option>
                   <option value="Apartamento">Apartamento</option>
@@ -343,63 +384,144 @@ export default function ImoveisPage() {
               
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Modalidade</label>
-                <select {...register('transaction')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none bg-white">
+                <select {...register('transaction')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white">
                   <option value="">Selecione...</option>
                   <option value="Venda">Venda</option>
                   <option value="Aluguel">Aluguel</option>
                 </select>
                 {errors.transaction && <span className="text-red-500 text-xs">{errors.transaction.message}</span>}
               </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Ano de Construção</label>
+                <input type="number" {...register('yearBuilt')} placeholder="Ex: 2022" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white" />
+              </div>
             </div>
 
-            {/* Campo de Múltiplas Fotos */}
-            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-              <label className="block text-sm font-medium text-slate-700 mb-1">URLs das Fotos (Separe por vírgula para adicionar várias)</label>
+            {/* Bloco: Valores Financeiros */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
+              <div>
+                <label className="block text-sm font-medium text-slate-900 mb-1">Valor do Imóvel (R$)</label>
+                <input type="number" step="0.01" {...register('price')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white font-semibold text-blue-700" />
+                {errors.price && <span className="text-red-500 text-xs">{errors.price.message}</span>}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Condomínio (R$)</label>
+                <input type="number" step="0.01" {...register('condoFee')} placeholder="Opcional" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">IPTU Mensal (R$)</label>
+                <input type="number" step="0.01" {...register('iptu')} placeholder="Opcional" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white" />
+              </div>
+            </div>
+
+            {/* Bloco: Características (Metragens e Cômodos) */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Área Útil (m²)</label>
+                <input type="number" {...register('area')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white" />
+                {errors.area && <span className="text-red-500 text-xs">{errors.area.message}</span>}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Quartos</label>
+                <input type="number" {...register('bedrooms')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Banheiros</label>
+                <input type="number" {...register('bathrooms')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Vagas de Garagem</label>
+                <input type="number" {...register('garage')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white" />
+              </div>
+            </div>
+
+            {/* Bloco: Amenidades (Comodidades do Imóvel) */}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Comodidades e Infraestrutura</label>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                <Controller
+                  name="amenities"
+                  control={control}
+                  render={({ field }) => {
+                    // CORREÇÃO: Garante que o valor inicial nunca seja undefined para o array
+                    const currentValues = field.value || []; 
+                    
+                    return (
+                      <>
+                        {AMENITIES_OPTIONS.map((amenity) => (
+                          <label key={amenity} className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
+                            <input 
+                              type="checkbox" 
+                              className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                              checked={currentValues.includes(amenity)}
+                              onChange={(e) => {
+                                const updatedValue = e.target.checked 
+                                  ? [...currentValues, amenity] 
+                                  : currentValues.filter((val: string) => val !== amenity);
+                                field.onChange(updatedValue);
+                              }}
+                            />
+                            {amenity}
+                          </label>
+                        ))}
+                      </>
+                    );
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Bloco: Endereço Mapeado */}
+            <div className="space-y-4">
+              <h3 className="font-semibold text-slate-700 border-b border-slate-100 pb-2">Localização</h3>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div>
+                  <label className="flex items-center gap-2 text-sm font-medium text-slate-700 mb-1">
+                    CEP {isFetchingCep && <Loader2 size={14} className="animate-spin text-blue-500" />}
+                  </label>
+                  <input type="text" {...register('cep')} onChange={handleCepManualChange} placeholder="00000-000" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                </div>
+                <div className="md:col-span-3">
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Rua / Logradouro</label>
+                  <input type="text" {...register('address')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50" />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Bairro (Usado no Mapa)</label>
+                  <input type="text" {...register('neighborhood')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Cidade</label>
+                  <input type="text" {...register('city')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Estado</label>
+                  <input type="text" {...register('state')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50" />
+                </div>
+              </div>
+            </div>
+
+            {/* Bloco: Mídia (Fotos) e Descrição */}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">URLs das Fotos da Galeria</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400"><ImageIcon size={18} /></div>
-                <input type="text" {...register('imageUrlsStr')} placeholder="https://site.com/foto1.jpg, https://site.com/foto2.jpg" className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none bg-white text-slate-700" />
+                <input type="text" {...register('imageUrlsStr')} placeholder="https://site.com/foto1.jpg, https://site.com/foto2.jpg" className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-slate-700" />
               </div>
-              <p className="text-xs text-slate-400 mt-1.5">A primeira foto informada será usada como imagem de capa na vitrine.</p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
-              <div className="lg:col-span-2">
-                <label className="block text-sm font-medium text-slate-900 mb-1">Valor (R$)</label>
-                <input type="number" step="0.01" {...register('price')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none bg-white" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-900 mb-1">Área (m²)</label>
-                <input type="number" {...register('area')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none bg-white" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-900 mb-1">Quartos</label>
-                <input type="number" {...register('bedrooms')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none bg-white" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-900 mb-1">Vagas</label>
-                <input type="number" {...register('garage')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none bg-white" />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">CEP</label>
-                <input type="text" {...register('cep')} onChange={handleCepManualChange} placeholder="00000-000" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none" />
-              </div>
-              <div className="md:col-span-3">
-                <label className="block text-sm font-medium text-slate-700 mb-1">Endereço Completo</label>
-                <input type="text" {...register('address')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none bg-slate-50" />
-              </div>
+              <p className="text-xs text-slate-400 mt-1.5">Separe as fotos por vírgula. A primeira será o destaque.</p>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Descrição</label>
-              <textarea {...register('description')} rows={3} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none resize-none"></textarea>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Descrição do Imóvel</label>
+              <textarea {...register('description')} rows={5} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none"></textarea>
             </div>
 
+            {/* Botões de Ação */}
             <div className="pt-4 flex justify-end gap-3 border-t border-slate-100">
-              <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg">Cancelar</button>
-              <button type="submit" disabled={isSubmitting} className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-lg font-medium flex items-center">
+              <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg transition-colors">Cancelar</button>
+              <button type="submit" disabled={isSubmitting} className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-2 rounded-lg font-bold flex items-center shadow-md transition-all disabled:opacity-70">
                 {isSubmitting ? <Loader2 className="animate-spin" size={20} /> : 'Salvar Imóvel'}
               </button>
             </div>
