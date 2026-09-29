@@ -1,20 +1,8 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
-@layer base {
-  :root {
-    --background: 210 40% 98%; /* Fundo cinza super claro/gelo */
-    --foreground: 222.2 84% 4.9%; /* Texto escuro elegante */
-    
-    --primary: 221.2 83.2% 53.3%; /* Azul corporativo moderno */
-    --primary-foreground: 210 40% 98%;
-    
-    --surface: 0 0% 100%; /* Cartões brancos */
-    --border: 214.3 31.8% 91.4%; /* Bordas sutis */
-    
-    --radius: 0.5rem;
-  }
+:root {
+  --background: 210 40% 98%;
+  --foreground: 222.2 84% 4.9%;
 }
 
 body {
