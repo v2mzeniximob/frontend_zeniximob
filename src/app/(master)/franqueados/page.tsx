@@ -5,7 +5,8 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { api } from '../../../lib/api';
-import { maskCnpj, maskCep, maskPhone, maskCpf } from '@/src/utils/mask';
+import { maskCep, maskCnpj, maskCpf, maskPhone } from '@/src/utils/mask';
+
 import { Plus, Power, X, Loader2, Link as LinkIcon, Edit, Search, Filter } from 'lucide-react';
 
 const franchiseeSchema = z.object({
@@ -40,12 +41,9 @@ export default function FranqueadosPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
 
-  const { register, handleSubmit, watch, setValue, reset, formState: { errors } } = useForm<FranchiseeForm>({
+  const { register, handleSubmit, setValue, reset, formState: { errors } } = useForm<FranchiseeForm>({
     resolver: zodResolver(franchiseeSchema)
   });
-
-  const watchCnpj = watch('cnpj');
-  const watchCep = watch('cep');
 
   async function fetchFranchisees() {
     try {
@@ -109,48 +107,50 @@ export default function FranqueadosPage() {
     setIsModalOpen(true);
   }
 
-  useEffect(() => {
-    async function autoFillCnpj() {
-      if (watchCnpj?.length === 18 && !editingId) { 
-        setIsFetchingCnpj(true);
-        try {
-          const rawCnpj = watchCnpj.replace(/\D/g, '');
-          const response = await api.get(`/integrations/cnpj/${rawCnpj}`);
-          const data = response.data;
-          setValue('corporateName', data.razao_social, { shouldValidate: true });
-          setValue('tradeName', data.nome_fantasia, { shouldValidate: true });
-          setValue('cep', maskCep(data.cep), { shouldValidate: true });
-          setValue('address', data.endereco, { shouldValidate: true });
-          if (data.telefone) setValue('phone', maskPhone(data.telefone), { shouldValidate: true });
-        } catch (error) {
-          console.log('CNPJ não encontrado na BrasilAPI.');
-        } finally {
-          setIsFetchingCnpj(false);
-        }
-      }
-    }
-    autoFillCnpj();
-  }, [watchCnpj, setValue, editingId]);
+  // --- NOVA ESTRATÉGIA ANTI-FANTASMA ---
+  // Buscamos os dados apenas quando o utilizador DIGITA manualmente
+  async function handleCnpjManualChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const masked = maskCnpj(e.target.value);
+    setValue('cnpj', masked, { shouldValidate: true });
 
-  useEffect(() => {
-    async function autoFillCep() {
-      if (watchCep?.length === 9) {
-        setIsFetchingCep(true);
-        try {
-          const rawCep = watchCep.replace(/\D/g, '');
-          const response = await api.get(`/integrations/cep/${rawCep}`);
-          const data = response.data;
-          const fullAddress = `${data.street}, - ${data.neighborhood}, ${data.city} - ${data.state}`;
-          setValue('address', fullAddress, { shouldValidate: true });
-        } catch (error) {
-          console.log('CEP não encontrado.');
-        } finally {
-          setIsFetchingCep(false);
-        }
+    if (masked.length === 18 && !editingId) {
+      setIsFetchingCnpj(true);
+      try {
+        const rawCnpj = masked.replace(/\D/g, '');
+        const response = await api.get(`/integrations/cnpj/${rawCnpj}`);
+        const data = response.data;
+        setValue('corporateName', data.razao_social, { shouldValidate: true });
+        setValue('tradeName', data.nome_fantasia, { shouldValidate: true });
+        setValue('cep', maskCep(data.cep), { shouldValidate: true });
+        setValue('address', data.endereco, { shouldValidate: true });
+        if (data.telefone) setValue('phone', maskPhone(data.telefone), { shouldValidate: true });
+      } catch (error) {
+        console.log('CNPJ não encontrado.');
+      } finally {
+        setIsFetchingCnpj(false);
       }
     }
-    autoFillCep();
-  }, [watchCep, setValue]);
+  }
+
+  async function handleCepManualChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const masked = maskCep(e.target.value);
+    setValue('cep', masked, { shouldValidate: true });
+
+    if (masked.length === 9) {
+      setIsFetchingCep(true);
+      try {
+        const rawCep = masked.replace(/\D/g, '');
+        const response = await api.get(`/integrations/cep/${rawCep}`);
+        const data = response.data;
+        const fullAddress = `${data.street}, - ${data.neighborhood}, ${data.city} - ${data.state}`;
+        setValue('address', fullAddress, { shouldValidate: true });
+      } catch (error) {
+        console.log('CEP não encontrado.');
+      } finally {
+        setIsFetchingCep(false);
+      }
+    }
+  }
 
   async function onSubmit(data: FranchiseeForm) {
     if (!editingId && (!data.password || data.password.length < 6)) {
@@ -200,16 +200,11 @@ export default function FranqueadosPage() {
           <h1 className="text-2xl font-bold text-slate-800">Gestão de Franqueados</h1>
           <p className="text-slate-500 text-sm">Administre as franquias da sua rede.</p>
         </div>
-        <button 
-          onClick={handleCreateNew}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-all shadow-sm"
-        >
-          <Plus size={20} />
-          Nova Franquia
+        <button onClick={handleCreateNew} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-all shadow-sm">
+          <Plus size={20} /> Nova Franquia
         </button>
       </div>
 
-      {/* BARRA DE FILTROS */}
       <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex flex-col md:flex-row gap-4 items-center justify-between">
         <div className="relative w-full md:w-96">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
@@ -249,9 +244,7 @@ export default function FranqueadosPage() {
                 </tr>
               ) : filteredFranchisees.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-slate-400">
-                    Nenhum franqueado encontrado.
-                  </td>
+                  <td colSpan={6} className="px-6 py-8 text-center text-slate-400">Nenhum franqueado encontrado.</td>
                 </tr>
               ) : (
                 filteredFranchisees.map((fran) => (
@@ -268,9 +261,7 @@ export default function FranqueadosPage() {
                         <a href={fran.contractUrl} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline flex items-center gap-1 text-xs">
                           <LinkIcon size={14} /> Ver Doc
                         </a>
-                      ) : (
-                        <span className="text-slate-400 text-xs">Nenhum</span>
-                      )}
+                      ) : <span className="text-slate-400 text-xs">Nenhum</span>}
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex flex-col">
@@ -279,9 +270,7 @@ export default function FranqueadosPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4 text-center">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        fran.isActive ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'
-                      }`}>
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${ fran.isActive ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500' }`}>
                         {fran.isActive ? 'Ativo' : 'Inativo'}
                       </span>
                     </td>
@@ -303,21 +292,19 @@ export default function FranqueadosPage() {
         </div>
       </div>
 
-      {/* Alteração Crucial: O formulário fica "invisível" em vez de "destruído" para preservar os valores do React Hook Form */}
       <div className={`fixed inset-0 bg-black/40 backdrop-blur-sm items-center justify-center z-50 p-4 ${isModalOpen ? 'flex animate-in fade-in zoom-in duration-200' : 'hidden'}`}>
         <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
           <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 sticky top-0 z-10">
             <h2 className="text-xl font-semibold text-slate-800">
               {editingId ? 'Editar Franqueado' : 'Cadastrar Franqueado'}
             </h2>
-            <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 transition-colors">
+            <button type="button" onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 transition-colors">
               <X size={20} />
             </button>
           </div>
           
           <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-6">
             
-            {/* === DADOS DA EMPRESA === */}
             <div>
               <h3 className="text-sm font-semibold text-slate-800 border-b border-slate-100 pb-2 mb-4">Dados da Empresa</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
@@ -325,7 +312,7 @@ export default function FranqueadosPage() {
                   <label className="flex items-center gap-2 text-sm font-medium text-slate-700 mb-1">
                     CNPJ {isFetchingCnpj && <Loader2 size={14} className="animate-spin text-blue-500" />}
                   </label>
-                  <input type="text" {...register('cnpj')} onChange={(e) => setValue('cnpj', maskCnpj(e.target.value), { shouldValidate: true })} placeholder="00.000.000/0000-00" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                  <input type="text" {...register('cnpj')} onChange={handleCnpjManualChange} placeholder="00.000.000/0000-00" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
                   {errors.cnpj && <span className="text-red-500 text-xs">{errors.cnpj.message}</span>}
                 </div>
                 <div>
@@ -351,13 +338,12 @@ export default function FranqueadosPage() {
               </div>
             </div>
 
-            {/* === LOCALIZAÇÃO DA EMPRESA === */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div>
                 <label className="flex items-center gap-2 text-sm font-medium text-slate-700 mb-1">
                   CEP {isFetchingCep && <Loader2 size={14} className="animate-spin text-blue-500" />}
                 </label>
-                <input type="text" {...register('cep')} onChange={(e) => setValue('cep', maskCep(e.target.value), { shouldValidate: true })} placeholder="00000-000" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                <input type="text" {...register('cep')} onChange={handleCepManualChange} placeholder="00000-000" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
                 {errors.cep && <span className="text-red-500 text-xs">{errors.cep.message}</span>}
               </div>
               <div className="md:col-span-2">
@@ -372,7 +358,6 @@ export default function FranqueadosPage() {
               </div>
             </div>
 
-            {/* === DADOS DO RESPONSÁVEL === */}
             <div>
               <h3 className="text-sm font-semibold text-slate-800 border-b border-slate-100 pb-2 mb-4">Dados do Responsável</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
@@ -387,7 +372,7 @@ export default function FranqueadosPage() {
                   {errors.respCpf && <span className="text-red-500 text-xs">{errors.respCpf.message}</span>}
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Celular / WhatsApp (Resp.)</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Celular / WhatsApp</label>
                   <input type="text" {...register('respPhone')} onChange={(e) => setValue('respPhone', maskPhone(e.target.value), { shouldValidate: true })} placeholder="(00) 00000-0000" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
                   {errors.respPhone && <span className="text-red-500 text-xs">{errors.respPhone.message}</span>}
                 </div>
@@ -399,7 +384,6 @@ export default function FranqueadosPage() {
               </div>
             </div>
 
-            {/* === CONTRATO E ACESSO === */}
             <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100">
               <label className="block text-sm font-medium text-blue-800 mb-1">Link do Contrato Assinado (Opcional)</label>
               <div className="relative">
@@ -408,7 +392,6 @@ export default function FranqueadosPage() {
                 </div>
                 <input type="url" {...register('contractUrl')} placeholder="Ex: https://drive.google.com/..." className="w-full pl-10 pr-4 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-slate-700" />
               </div>
-              {errors.contractUrl && <span className="text-red-500 text-xs mt-1 block">{errors.contractUrl.message}</span>}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -422,7 +405,6 @@ export default function FranqueadosPage() {
                   {editingId ? 'Nova Senha (deixe em branco para não alterar)' : 'Senha Provisória'}
                 </label>
                 <input type="password" {...register('password')} placeholder="••••••••" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
-                {errors.password && <span className="text-red-500 text-xs">{errors.password.message}</span>}
               </div>
             </div>
 

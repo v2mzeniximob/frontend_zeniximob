@@ -1,17 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { api } from '../../../lib/api';
-import { 
-  Building2, 
-  Users, 
-  CreditCard, 
-  TrendingUp, 
-  Loader2, 
-  Activity,
-  ArrowUpRight
-} from 'lucide-react';
-import { maskCnpj } from '@/src/utils/mask';
+import { Building2, Users, CreditCard, TrendingUp, Loader2, Activity, ArrowUpRight, Edit } from 'lucide-react';
+import { maskCep, maskCnpj, maskCpf, maskPhone } from '@/src/utils/mask';
 
 export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
@@ -27,7 +20,6 @@ export default function DashboardPage() {
   useEffect(() => {
     async function fetchDashboardData() {
       try {
-        // Busca os dados de todas as rotas simultaneamente para calcular as métricas
         const [reRes, franRes, plansRes] = await Promise.all([
           api.get('/real-estates'),
           api.get('/franchisees'),
@@ -38,17 +30,18 @@ export default function DashboardPage() {
         const franchisees = franRes.data;
         const plans = plansRes.data;
 
-        // Cálculos de B.I.
         const activeRE = realEstates.filter((re: any) => re.isActive);
         
-        // Calcula a Receita Recorrente (MRR) somando o preço do plano de cada imobiliária ativa
+        // Cálculo MRR à prova de falhas
         const mrr = activeRE.reduce((acc: number, re: any) => {
-          const plan = plans.find((p: any) => p.id === re.planId);
-          return acc + (plan ? Number(plan.price) : 0);
+          // Se o backend enviar o plano aninhado, usa ele. Se não, busca na lista de planos.
+          if (re.plan && re.plan.price) {
+            return acc + Number(re.plan.price);
+          }
+          const planEncontrado = plans.find((p: any) => p.id === re.planId);
+          return acc + (planEncontrado ? Number(planEncontrado.price) : 0);
         }, 0);
 
-        // Pega as 5 imobiliárias mais recentes (assumindo que as últimas cadastradas vêm no fim ou início do array)
-        // Se a API não ordenar, ordenamos localmente (simulação rápida)
         const recent = [...realEstates].reverse().slice(0, 5);
 
         setMetrics({
@@ -90,10 +83,7 @@ export default function DashboardPage() {
         <p className="text-slate-500 text-sm">Visão geral do ecossistema ZenixImob em tempo real.</p>
       </div>
       
-      {/* Cards de Métricas (Top Level) */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        
-        {/* Card MRR */}
         <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm relative overflow-hidden group hover:border-blue-100 transition-colors">
           <div className="absolute -right-6 -top-6 bg-blue-50 w-24 h-24 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
             <TrendingUp size={24} className="text-blue-500 absolute bottom-6 left-6" />
@@ -106,7 +96,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Card Imobiliárias */}
         <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm relative overflow-hidden group hover:border-blue-100 transition-colors">
           <div className="absolute -right-6 -top-6 bg-emerald-50 w-24 h-24 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
             <Building2 size={24} className="text-emerald-500 absolute bottom-6 left-6" />
@@ -122,7 +111,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Card Franqueados */}
         <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm relative overflow-hidden group hover:border-blue-100 transition-colors">
           <div className="absolute -right-6 -top-6 bg-purple-50 w-24 h-24 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
             <Users size={24} className="text-purple-500 absolute bottom-6 left-6" />
@@ -135,7 +123,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Card Planos */}
         <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm relative overflow-hidden group hover:border-blue-100 transition-colors">
           <div className="absolute -right-6 -top-6 bg-orange-50 w-24 h-24 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
             <CreditCard size={24} className="text-orange-500 absolute bottom-6 left-6" />
@@ -147,10 +134,8 @@ export default function DashboardPage() {
             Pacotes comercializáveis
           </div>
         </div>
-
       </div>
 
-      {/* Tabela de Atividade Recente */}
       <div className="mt-8 bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
         <div className="p-6 border-b border-slate-100 flex items-center justify-between">
           <h2 className="text-lg font-bold text-slate-800">Últimas Imobiliárias Cadastradas</h2>
@@ -161,8 +146,8 @@ export default function DashboardPage() {
               <tr>
                 <th className="px-6 py-4">Imobiliária</th>
                 <th className="px-6 py-4">CNPJ</th>
-                <th className="px-6 py-4">Contato</th>
                 <th className="px-6 py-4 text-center">Status Inicial</th>
+                <th className="px-6 py-4 text-right">Ação</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -182,13 +167,17 @@ export default function DashboardPage() {
                       {re.tradeName}
                     </td>
                     <td className="px-6 py-4">{maskCnpj(re.cnpj)}</td>
-                    <td className="px-6 py-4">{re.email}</td>
                     <td className="px-6 py-4 text-center">
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                         re.isActive ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'
                       }`}>
                         {re.isActive ? 'Ativa' : 'Inativa'}
                       </span>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <Link href="/imobiliarias" className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors font-medium text-xs">
+                        <Edit size={14} /> Gerenciar
+                      </Link>
                     </td>
                   </tr>
                 ))
@@ -197,7 +186,6 @@ export default function DashboardPage() {
           </table>
         </div>
       </div>
-
     </div>
   );
 }
