@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { api } from '../../../lib/api';
+// Verifique se o caminho para o utils/mask está correto para este ficheiro
 import { maskCep, maskCnpj, maskCpf, maskPhone } from '@/src/utils/mask';
 import { Plus, Power, X, Loader2, Link as LinkIcon, Edit, Search, Filter } from 'lucide-react';
 
@@ -74,32 +75,26 @@ export default function FranqueadosPage() {
     return matchesSearch && matchesStatus;
   });
 
+  // CORREÇÃO: Função handleEdit baseada exatamente no ficheiro da Imobiliária que está a funcionar
   function handleEdit(fran: any) {
     setEditingId(fran.id);
-    
-    // Força os campos a preencherem com os valores exatos do banco
-    setTimeout(() => {
-      setValue('cnpj', fran.cnpj || '', { shouldValidate: true });
-      setValue('corporateName', fran.corporateName || '', { shouldValidate: true });
-      setValue('tradeName', fran.tradeName || '', { shouldValidate: true });
-      
-      setValue('stateRegistration', (fran.stateRegistration === 'ISENTO' ? '' : fran.stateRegistration) || '');
-      setValue('cityRegistration', (fran.cityRegistration === 'ISENTO' ? '' : fran.cityRegistration) || '');
-      
-      setValue('cep', fran.cep || '', { shouldValidate: true });
-      setValue('address', fran.address || '', { shouldValidate: true });
-      setValue('phone', fran.phone || '', { shouldValidate: true });
-      
-      setValue('respName', fran.respName || '', { shouldValidate: true });
-      setValue('respCpf', fran.respCpf || '', { shouldValidate: true });
-      setValue('respPhone', fran.respPhone || '', { shouldValidate: true });
-      setValue('respAddress', fran.respAddress || '', { shouldValidate: true });
-      
-      setValue('email', fran.email || '', { shouldValidate: true });
-      setValue('contractUrl', fran.contractUrl || '', { shouldValidate: true });
-      setValue('password', ''); // Senha sempre vazia na edição
-    }, 50);
-
+    reset({
+      cnpj: maskCnpj(fran.cnpj) || '',
+      corporateName: fran.corporateName || '',
+      tradeName: fran.tradeName || '',
+      stateRegistration: (fran.stateRegistration && fran.stateRegistration !== 'ISENTO') ? fran.stateRegistration : '',
+      cityRegistration: (fran.cityRegistration && fran.cityRegistration !== 'ISENTO') ? fran.cityRegistration : '',
+      cep: maskCep(fran.cep) || '',
+      address: fran.address || '',
+      phone: maskPhone(fran.phone) || '',
+      respName: fran.respName || '',
+      respCpf: maskCpf(fran.respCpf) || '',
+      respPhone: maskPhone(fran.respPhone) || '',
+      respAddress: fran.respAddress || '',
+      email: fran.email || '',
+      contractUrl: fran.contractUrl || '',
+      password: '', 
+    });
     setIsModalOpen(true);
   }
 
