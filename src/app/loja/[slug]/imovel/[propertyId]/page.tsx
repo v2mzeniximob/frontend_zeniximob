@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { MapPin, Phone, Mail, Home, Loader2, BedDouble, Bath, Car } from 'lucide-react';
 import Link from 'next/link';
 import { api } from '@/src/lib/api';
+import router from 'next/router';
 
 export default function VitrineLojaPage({ params }: { params: { slug: string } }) {
   const [storeData, setStoreData] = useState<any>(null);
@@ -116,12 +117,12 @@ export default function VitrineLojaPage({ params }: { params: { slug: string } }
                       <p className="text-xl font-bold text-blue-600">{formatCurrency(prop.price)}</p>
                     </div>
                     {/* AQUI ESTÁ O LINK QUE LEVA PARA A TELA DE DETALHES */}
-                    <Link 
-                      href={`/loja/${params.slug}/imovel/${prop.id}`}
-                      className="bg-slate-900 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                   <button 
+                      onClick={() => router.push(`/loja/${params.slug}/imovel/${prop.id}`)}
+                      className="bg-slate-900 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer"
                     >
                       Ver Detalhes
-                    </Link>
+                    </button>
                   </div>
                 </div>
               </div>
