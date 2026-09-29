@@ -5,8 +5,8 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { api } from '../../../lib/api';
-import { maskCep, maskCnpj, maskCpf, maskPhone } from '@/src/utils/mask';
-import { Plus, Power, X, Loader2, Link as LinkIcon } from 'lucide-react';
+import { maskCnpj, maskCep, maskPhone, maskCpf } from '@/src/utils/mask';
+import { Plus, Power, X, Loader2, Link as LinkIcon, Edit, Search, Filter } from 'lucide-react';
 
 const franchiseeSchema = z.object({
   cnpj: z.string().min(18, 'CNPJ incompleto'),
@@ -22,7 +22,7 @@ const franchiseeSchema = z.object({
   respPhone: z.string().min(14, 'Telefone do responsável incompleto'),
   respAddress: z.string().min(5, 'Endereço do responsável obrigatório'),
   email: z.string().email('E-mail inválido'),
-  password: z.string().min(6, 'A senha deve ter no mínimo 6 caracteres'),
+  password: z.string().optional(), // Opcional no frontend para permitir edição sem alterar senha
   contractUrl: z.string().url('URL inválida').optional().or(z.literal('')),
 });
 
@@ -35,6 +35,11 @@ export default function FranqueadosPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFetchingCnpj, setIsFetchingCnpj] = useState(false);
   const [isFetchingCep, setIsFetchingCep] = useState(false);
+  
+  // Estados para Filtros e Edição
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
 
   const { register, handleSubmit, watch, setValue, reset, formState: { errors } } = useForm<FranchiseeForm>({
     resolver: zodResolver(franchiseeSchema)
@@ -58,31 +63,75 @@ export default function FranqueadosPage() {
     fetchFranchisees();
   }, []);
 
+  // Filtros aplicados em tempo real
+  const filteredFranchisees = franchisees.filter(fran => {
+    const term = searchTerm.toLowerCase();
+    const matchesSearch = 
+      fran.tradeName.toLowerCase().includes(term) ||
+      fran.cnpj.includes(term) ||
+      (fran.respCpf && fran.respCpf.includes(term));
+      
+    const matchesStatus = 
+      statusFilter === 'all' ? true :
+      statusFilter === 'active' ? fran.isActive === true :
+      fran.isActive === false;
+
+    return matchesSearch && matchesStatus;
+  });
+
+  // Função para abrir modal em modo de EDIÇÃO
+  function handleEdit(fran: any) {
+    setEditingId(fran.id);
+    reset({
+      cnpj: maskCnpj(fran.cnpj),
+      corporateName: fran.corporateName,
+      tradeName: fran.tradeName,
+      stateRegistration: fran.stateRegistration !== 'ISENTO' ? fran.stateRegistration : '',
+      cityRegistration: fran.cityRegistration !== 'ISENTO' ? fran.cityRegistration : '',
+      cep: maskCep(fran.cep),
+      address: fran.address,
+      phone: maskPhone(fran.phone),
+      respName: fran.respName,
+      respCpf: maskCpf(fran.respCpf || ''),
+      respPhone: maskPhone(fran.respPhone || ''),
+      respAddress: fran.respAddress || '',
+      email: fran.email,
+      contractUrl: fran.contractUrl || '',
+      password: '', // Deixa em branco, backend não altera se não for enviado
+    });
+    setIsModalOpen(true);
+  }
+
+  // Função para abrir modal em modo de CRIAÇÃO
+  function handleCreateNew() {
+    setEditingId(null);
+    reset({}); // Limpa formulário
+    setIsModalOpen(true);
+  }
+
+  // Preenchimentos automáticos (CEP e CNPJ)...
   useEffect(() => {
     async function autoFillCnpj() {
-      if (watchCnpj?.length === 18) {
+      if (watchCnpj?.length === 18 && !editingId) { // Só busca auto se for novo
         setIsFetchingCnpj(true);
         try {
           const rawCnpj = watchCnpj.replace(/\D/g, '');
           const response = await api.get(`/integrations/cnpj/${rawCnpj}`);
           const data = response.data;
-          
           setValue('corporateName', data.razao_social, { shouldValidate: true });
           setValue('tradeName', data.nome_fantasia, { shouldValidate: true });
           setValue('cep', maskCep(data.cep), { shouldValidate: true });
           setValue('address', data.endereco, { shouldValidate: true });
-          if (data.telefone) {
-            setValue('phone', maskPhone(data.telefone), { shouldValidate: true });
-          }
+          if (data.telefone) setValue('phone', maskPhone(data.telefone), { shouldValidate: true });
         } catch (error) {
-          console.log('Aviso: CNPJ não encontrado na BrasilAPI.');
+          console.log('CNPJ não encontrado na BrasilAPI.');
         } finally {
           setIsFetchingCnpj(false);
         }
       }
     }
     autoFillCnpj();
-  }, [watchCnpj, setValue]);
+  }, [watchCnpj, setValue, editingId]);
 
   useEffect(() => {
     async function autoFillCep() {
@@ -92,11 +141,10 @@ export default function FranqueadosPage() {
           const rawCep = watchCep.replace(/\D/g, '');
           const response = await api.get(`/integrations/cep/${rawCep}`);
           const data = response.data;
-          
           const fullAddress = `${data.street}, - ${data.neighborhood}, ${data.city} - ${data.state}`;
           setValue('address', fullAddress, { shouldValidate: true });
         } catch (error) {
-          console.log('Aviso: CEP não encontrado.');
+          console.log('CEP não encontrado.');
         } finally {
           setIsFetchingCep(false);
         }
@@ -106,6 +154,11 @@ export default function FranqueadosPage() {
   }, [watchCep, setValue]);
 
   async function onSubmit(data: FranchiseeForm) {
+    if (!editingId && (!data.password || data.password.length < 6)) {
+      alert("Para um novo cadastro, a senha é obrigatória (mínimo 6 caracteres).");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const payload = {
@@ -113,14 +166,24 @@ export default function FranqueadosPage() {
         stateRegistration: data.stateRegistration || 'ISENTO',
         cityRegistration: data.cityRegistration || 'ISENTO',
         contractUrl: data.contractUrl || null,
+        // Se a senha estiver vazia na edição, o backend ignora ou a gente remove do payload
       };
 
-      await api.post('/franchisees', payload);
+      if (!payload.password) {
+        delete payload.password; // Remove para o backend não tentar criptografar vazio
+      }
+
+      if (editingId) {
+        await api.put(`/franchisees/${editingId}`, payload);
+      } else {
+        await api.post('/franchisees', payload);
+      }
+      
       await fetchFranchisees();
       setIsModalOpen(false);
       reset();
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Erro interno no servidor ao cadastrar.');
+      alert(error.response?.data?.error || 'Erro interno no servidor.');
     } finally {
       setIsSubmitting(false);
     }
@@ -143,12 +206,40 @@ export default function FranqueadosPage() {
           <p className="text-slate-500 text-sm">Administre as franquias da sua rede.</p>
         </div>
         <button 
-          onClick={() => setIsModalOpen(true)}
+          onClick={handleCreateNew}
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-all shadow-sm"
         >
           <Plus size={20} />
           Nova Franquia
         </button>
+      </div>
+
+      {/* BARRA DE FILTROS */}
+      <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex flex-col md:flex-row gap-4 items-center justify-between">
+        <div className="relative w-full md:w-96">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+            <Search size={18} />
+          </div>
+          <input
+            type="text"
+            placeholder="Buscar por Nome, CNPJ ou CPF..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+          />
+        </div>
+        <div className="flex items-center gap-2 w-full md:w-auto">
+          <Filter size={18} className="text-slate-400" />
+          <select 
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none w-full md:w-48 bg-white"
+          >
+            <option value="all">Todos os Status</option>
+            <option value="active">Apenas Ativos</option>
+            <option value="inactive">Apenas Inativos</option>
+          </select>
+        </div>
       </div>
 
       <div className="bg-white border border-slate-100 rounded-xl shadow-sm overflow-hidden">
@@ -157,9 +248,9 @@ export default function FranqueadosPage() {
             <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-100">
               <tr>
                 <th className="px-6 py-4">Nome Fantasia</th>
-                <th className="px-6 py-4">CNPJ</th>
+                <th className="px-6 py-4">CNPJ / CPF Resp.</th>
                 <th className="px-6 py-4">Contrato</th>
-                <th className="px-6 py-4">E-mail</th>
+                <th className="px-6 py-4">Contato</th>
                 <th className="px-6 py-4 text-center">Status</th>
                 <th className="px-6 py-4 text-right">Ações</th>
               </tr>
@@ -168,20 +259,25 @@ export default function FranqueadosPage() {
               {isLoading ? (
                 <tr>
                   <td colSpan={6} className="px-6 py-8 text-center text-slate-400">
-                    <Loader2 className="animate-spin inline-block mr-2" size={20} /> Carregando franqueados...
+                    <Loader2 className="animate-spin inline-block mr-2" size={20} /> Carregando...
                   </td>
                 </tr>
-              ) : franchisees.length === 0 ? (
+              ) : filteredFranchisees.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-6 py-8 text-center text-slate-400">
-                    Nenhuma franquia cadastrada.
+                    Nenhum franqueado encontrado.
                   </td>
                 </tr>
               ) : (
-                franchisees.map((fran) => (
+                filteredFranchisees.map((fran) => (
                   <tr key={fran.id} className="hover:bg-slate-50/50 transition-colors">
                     <td className="px-6 py-4 font-medium text-slate-800">{fran.tradeName}</td>
-                    <td className="px-6 py-4">{maskCnpj(fran.cnpj)}</td>
+                    <td className="px-6 py-4">
+                      <div className="flex flex-col">
+                        <span>{maskCnpj(fran.cnpj)}</span>
+                        <span className="text-xs text-slate-400 mt-1">CPF: {maskCpf(fran.respCpf || '')}</span>
+                      </div>
+                    </td>
                     <td className="px-6 py-4">
                       {fran.contractUrl ? (
                         <a href={fran.contractUrl} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline flex items-center gap-1 text-xs">
@@ -191,7 +287,12 @@ export default function FranqueadosPage() {
                         <span className="text-slate-400 text-xs">Nenhum</span>
                       )}
                     </td>
-                    <td className="px-6 py-4">{fran.email}</td>
+                    <td className="px-6 py-4">
+                      <div className="flex flex-col">
+                        <span>{fran.email}</span>
+                        <span className="text-xs text-slate-400 mt-1">{maskPhone(fran.phone)}</span>
+                      </div>
+                    </td>
                     <td className="px-6 py-4 text-center">
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                         fran.isActive ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'
@@ -200,14 +301,24 @@ export default function FranqueadosPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <button 
-                        onClick={() => toggleStatus(fran.id)}
-                        className={`p-2 rounded-lg transition-colors ${
-                          fran.isActive ? 'text-red-500 hover:bg-red-50' : 'text-green-500 hover:bg-green-50'
-                        }`}
-                      >
-                        <Power size={18} />
-                      </button>
+                      <div className="flex justify-end gap-1">
+                        <button 
+                          onClick={() => handleEdit(fran)}
+                          className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          title="Editar Cadastro"
+                        >
+                          <Edit size={18} />
+                        </button>
+                        <button 
+                          onClick={() => toggleStatus(fran.id)}
+                          className={`p-2 rounded-lg transition-colors ${
+                            fran.isActive ? 'text-red-500 hover:bg-red-50' : 'text-green-500 hover:bg-green-50'
+                          }`}
+                          title={fran.isActive ? 'Desativar' : 'Ativar'}
+                        >
+                          <Power size={18} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -221,7 +332,9 @@ export default function FranqueadosPage() {
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in duration-200">
             <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 sticky top-0 z-10">
-              <h2 className="text-xl font-semibold text-slate-800">Cadastrar Franqueado</h2>
+              <h2 className="text-xl font-semibold text-slate-800">
+                {editingId ? 'Editar Franqueado' : 'Cadastrar Franqueado'}
+              </h2>
               <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 transition-colors">
                 <X size={20} />
               </button>
@@ -330,7 +443,9 @@ export default function FranqueadosPage() {
                   {errors.email && <span className="text-red-500 text-xs">{errors.email.message}</span>}
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Senha Provisória</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    {editingId ? 'Nova Senha (deixe em branco para não alterar)' : 'Senha Provisória'}
+                  </label>
                   <input type="password" {...register('password')} placeholder="••••••••" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
                   {errors.password && <span className="text-red-500 text-xs">{errors.password.message}</span>}
                 </div>
@@ -341,7 +456,7 @@ export default function FranqueadosPage() {
                   Cancelar
                 </button>
                 <button type="submit" disabled={isSubmitting} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition-colors flex items-center disabled:opacity-70">
-                  {isSubmitting ? <Loader2 className="animate-spin" size={20} /> : 'Cadastrar Franquia'}
+                  {isSubmitting ? <Loader2 className="animate-spin" size={20} /> : (editingId ? 'Salvar Alterações' : 'Cadastrar Franquia')}
                 </button>
               </div>
             </form>

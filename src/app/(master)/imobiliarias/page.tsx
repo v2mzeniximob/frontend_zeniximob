@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { api } from '../../../lib/api';
 import { maskCnpj, maskCep, maskPhone, maskCpf } from '@/src/utils/mask';
-import { Plus, Power, X, Loader2, Building2, Link as LinkIcon } from 'lucide-react';
+import { Plus, Power, X, Loader2, Building2, Link as LinkIcon, Edit, Search, Filter } from 'lucide-react';
 
 const realEstateSchema = z.object({
   planId: z.string().min(1, 'Selecione um plano'),
@@ -24,7 +24,7 @@ const realEstateSchema = z.object({
   respPhone: z.string().min(14, 'Telefone do responsável incompleto'),
   respAddress: z.string().min(5, 'Endereço do responsável obrigatório'),
   email: z.string().email('E-mail inválido'),
-  password: z.string().min(6, 'A senha deve ter no mínimo 6 caracteres'),
+  password: z.string().optional(),
   contractUrl: z.string().url('URL inválida').optional().or(z.literal('')),
 });
 
@@ -40,6 +40,10 @@ export default function ImobiliariasPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFetchingCnpj, setIsFetchingCnpj] = useState(false);
   const [isFetchingCep, setIsFetchingCep] = useState(false);
+
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
 
   const { register, handleSubmit, watch, setValue, reset, formState: { errors } } = useForm<RealEstateForm>({
     resolver: zodResolver(realEstateSchema)
@@ -70,9 +74,54 @@ export default function ImobiliariasPage() {
     fetchData();
   }, []);
 
+  const filteredRealEstates = realEstates.filter(re => {
+    const term = searchTerm.toLowerCase();
+    const matchesSearch = 
+      re.tradeName.toLowerCase().includes(term) ||
+      re.cnpj.includes(term) ||
+      (re.respCpf && re.respCpf.includes(term));
+      
+    const matchesStatus = 
+      statusFilter === 'all' ? true :
+      statusFilter === 'active' ? re.isActive === true :
+      re.isActive === false;
+
+    return matchesSearch && matchesStatus;
+  });
+
+  function handleEdit(re: any) {
+    setEditingId(re.id);
+    reset({
+      planId: re.planId,
+      franchiseeId: re.franchiseeId || '',
+      cnpj: maskCnpj(re.cnpj),
+      corporateName: re.corporateName,
+      tradeName: re.tradeName,
+      stateRegistration: re.stateRegistration !== 'ISENTO' ? re.stateRegistration : '',
+      cityRegistration: re.cityRegistration !== 'ISENTO' ? re.cityRegistration : '',
+      cep: maskCep(re.cep),
+      address: re.address,
+      phone: maskPhone(re.phone),
+      respName: re.respName,
+      respCpf: maskCpf(re.respCpf || ''),
+      respPhone: maskPhone(re.respPhone || ''),
+      respAddress: re.respAddress || '',
+      email: re.email,
+      contractUrl: re.contractUrl || '',
+      password: '', 
+    });
+    setIsModalOpen(true);
+  }
+
+  function handleCreateNew() {
+    setEditingId(null);
+    reset({});
+    setIsModalOpen(true);
+  }
+
   useEffect(() => {
     async function autoFillCnpj() {
-      if (watchCnpj?.length === 18) {
+      if (watchCnpj?.length === 18 && !editingId) {
         setIsFetchingCnpj(true);
         try {
           const rawCnpj = watchCnpj.replace(/\D/g, '');
@@ -83,18 +132,16 @@ export default function ImobiliariasPage() {
           setValue('tradeName', data.nome_fantasia, { shouldValidate: true });
           setValue('cep', maskCep(data.cep), { shouldValidate: true });
           setValue('address', data.endereco, { shouldValidate: true });
-          if (data.telefone) {
-            setValue('phone', maskPhone(data.telefone), { shouldValidate: true });
-          }
+          if (data.telefone) setValue('phone', maskPhone(data.telefone), { shouldValidate: true });
         } catch (error) {
-          console.log('Aviso: CNPJ não encontrado na BrasilAPI.');
+          console.log('CNPJ não encontrado na BrasilAPI.');
         } finally {
           setIsFetchingCnpj(false);
         }
       }
     }
     autoFillCnpj();
-  }, [watchCnpj, setValue]);
+  }, [watchCnpj, setValue, editingId]);
 
   useEffect(() => {
     async function autoFillCep() {
@@ -104,11 +151,10 @@ export default function ImobiliariasPage() {
           const rawCep = watchCep.replace(/\D/g, '');
           const response = await api.get(`/integrations/cep/${rawCep}`);
           const data = response.data;
-          
           const fullAddress = `${data.street}, - ${data.neighborhood}, ${data.city} - ${data.state}`;
           setValue('address', fullAddress, { shouldValidate: true });
         } catch (error) {
-          console.log('Aviso: CEP não encontrado.');
+          console.log('CEP não encontrado.');
         } finally {
           setIsFetchingCep(false);
         }
@@ -118,6 +164,11 @@ export default function ImobiliariasPage() {
   }, [watchCep, setValue]);
 
   async function onSubmit(data: RealEstateForm) {
+    if (!editingId && (!data.password || data.password.length < 6)) {
+      alert("Para um novo cadastro, a senha é obrigatória (mínimo 6 caracteres).");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const payload = {
@@ -128,12 +179,19 @@ export default function ImobiliariasPage() {
         contractUrl: data.contractUrl || null,
       };
 
-      await api.post('/real-estates', payload);
+      if (!payload.password) delete payload.password;
+
+      if (editingId) {
+        await api.put(`/real-estates/${editingId}`, payload);
+      } else {
+        await api.post('/real-estates', payload);
+      }
+      
       await fetchData();
       setIsModalOpen(false);
       reset();
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Erro interno no servidor ao cadastrar.');
+      alert(error.response?.data?.error || 'Erro interno no servidor ao salvar.');
     } finally {
       setIsSubmitting(false);
     }
@@ -156,12 +214,40 @@ export default function ImobiliariasPage() {
           <p className="text-slate-500 text-sm">Gerencie as lojas, planos vinculados e acessos.</p>
         </div>
         <button 
-          onClick={() => setIsModalOpen(true)}
+          onClick={handleCreateNew}
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-all shadow-sm"
         >
           <Building2 size={20} />
           Nova Imobiliária
         </button>
+      </div>
+
+      {/* BARRA DE FILTROS */}
+      <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex flex-col md:flex-row gap-4 items-center justify-between">
+        <div className="relative w-full md:w-96">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+            <Search size={18} />
+          </div>
+          <input
+            type="text"
+            placeholder="Buscar por Nome, CNPJ ou CPF..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+          />
+        </div>
+        <div className="flex items-center gap-2 w-full md:w-auto">
+          <Filter size={18} className="text-slate-400" />
+          <select 
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none w-full md:w-48 bg-white"
+          >
+            <option value="all">Todos os Status</option>
+            <option value="active">Apenas Ativos</option>
+            <option value="inactive">Apenas Inativos</option>
+          </select>
+        </div>
       </div>
 
       <div className="bg-white border border-slate-100 rounded-xl shadow-sm overflow-hidden">
@@ -170,7 +256,7 @@ export default function ImobiliariasPage() {
             <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-100">
               <tr>
                 <th className="px-6 py-4">Imobiliária</th>
-                <th className="px-6 py-4">CNPJ</th>
+                <th className="px-6 py-4">CNPJ / CPF Resp.</th>
                 <th className="px-6 py-4">Plano Vinculado</th>
                 <th className="px-6 py-4">Contrato</th>
                 <th className="px-6 py-4 text-center">Status</th>
@@ -181,20 +267,25 @@ export default function ImobiliariasPage() {
               {isLoading ? (
                 <tr>
                   <td colSpan={6} className="px-6 py-8 text-center text-slate-400">
-                    <Loader2 className="animate-spin inline-block mr-2" size={20} /> Carregando imobiliárias...
+                    <Loader2 className="animate-spin inline-block mr-2" size={20} /> Carregando...
                   </td>
                 </tr>
-              ) : realEstates.length === 0 ? (
+              ) : filteredRealEstates.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-6 py-8 text-center text-slate-400">
-                    Nenhuma imobiliária cadastrada.
+                    Nenhuma imobiliária encontrada.
                   </td>
                 </tr>
               ) : (
-                realEstates.map((re) => (
+                filteredRealEstates.map((re) => (
                   <tr key={re.id} className="hover:bg-slate-50/50 transition-colors">
                     <td className="px-6 py-4 font-medium text-slate-800">{re.tradeName}</td>
-                    <td className="px-6 py-4">{maskCnpj(re.cnpj)}</td>
+                    <td className="px-6 py-4">
+                      <div className="flex flex-col">
+                        <span>{maskCnpj(re.cnpj)}</span>
+                        <span className="text-xs text-slate-400 mt-1">CPF: {maskCpf(re.respCpf || '')}</span>
+                      </div>
+                    </td>
                     <td className="px-6 py-4 text-blue-600 font-medium">{re.plan?.name || 'Sem plano'}</td>
                     <td className="px-6 py-4">
                       {re.contractUrl ? (
@@ -213,14 +304,24 @@ export default function ImobiliariasPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <button 
-                        onClick={() => toggleStatus(re.id)}
-                        className={`p-2 rounded-lg transition-colors ${
-                          re.isActive ? 'text-red-500 hover:bg-red-50' : 'text-green-500 hover:bg-green-50'
-                        }`}
-                      >
-                        <Power size={18} />
-                      </button>
+                      <div className="flex justify-end gap-1">
+                        <button 
+                          onClick={() => handleEdit(re)}
+                          className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          title="Editar Cadastro"
+                        >
+                          <Edit size={18} />
+                        </button>
+                        <button 
+                          onClick={() => toggleStatus(re.id)}
+                          className={`p-2 rounded-lg transition-colors ${
+                            re.isActive ? 'text-red-500 hover:bg-red-50' : 'text-green-500 hover:bg-green-50'
+                          }`}
+                          title={re.isActive ? 'Desativar' : 'Ativar'}
+                        >
+                          <Power size={18} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -234,7 +335,9 @@ export default function ImobiliariasPage() {
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in duration-200">
             <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 sticky top-0 z-10">
-              <h2 className="text-xl font-semibold text-slate-800">Cadastrar Nova Imobiliária</h2>
+              <h2 className="text-xl font-semibold text-slate-800">
+                {editingId ? 'Editar Imobiliária' : 'Cadastrar Nova Imobiliária'}
+              </h2>
               <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 transition-colors">
                 <X size={20} />
               </button>
@@ -348,7 +451,7 @@ export default function ImobiliariasPage() {
 
               {/* === CONTRATO E ACESSO === */}
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                <label className="block text-sm font-medium text-slate-700 mb-1">Link do Contrato Assinado (Opcional)</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">URL do Contrato Assinado (Opcional)</label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
                     <LinkIcon size={18} />
@@ -365,7 +468,9 @@ export default function ImobiliariasPage() {
                   {errors.email && <span className="text-red-500 text-xs">{errors.email.message}</span>}
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Senha Provisória</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    {editingId ? 'Nova Senha (deixe em branco para não alterar)' : 'Senha Provisória'}
+                  </label>
                   <input type="password" {...register('password')} placeholder="••••••••" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
                   {errors.password && <span className="text-red-500 text-xs">{errors.password.message}</span>}
                 </div>
@@ -376,7 +481,7 @@ export default function ImobiliariasPage() {
                   Cancelar
                 </button>
                 <button type="submit" disabled={isSubmitting} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition-colors flex items-center disabled:opacity-70">
-                  {isSubmitting ? <Loader2 className="animate-spin" size={20} /> : 'Cadastrar Imobiliária'}
+                  {isSubmitting ? <Loader2 className="animate-spin" size={20} /> : (editingId ? 'Salvar Alterações' : 'Cadastrar Imobiliária')}
                 </button>
               </div>
             </form>
