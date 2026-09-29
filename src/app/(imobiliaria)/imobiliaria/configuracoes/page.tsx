@@ -134,12 +134,12 @@ export default function ConfiguracoesLojaPage() {
             </label>
             <div className="flex items-center">
               <span className="bg-slate-200 text-slate-600 px-3 py-2 rounded-l-lg border border-r-0 border-slate-300 text-sm hidden sm:block">
-                zeniximob.com/loja/
+                zeniximob.vercel.app/loja/
               </span>
               <input type="text" {...register('slug')} className="w-full px-3 py-2 border border-slate-300 rounded-r-lg sm:rounded-l-none rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white font-medium text-blue-600" />
             </div>
             {errors.slug && <span className="text-red-500 text-xs block mt-1">{errors.slug.message}</span>}
-            <p className="text-xs text-slate-500 mt-2">Este será o link que você enviará para os seus clientes verem os seus imóveis. Ex: zeniximob.com/loja/<b>{currentSlug || 'sua-loja'}</b></p>
+            <p className="text-xs text-slate-500 mt-2">Este será o link que enviará para os seus clientes verem os seus imóveis. Ex: https://zeniximob.vercel.app/loja/<b>{currentSlug || 'sua-loja'}</b></p>
           </div>
         </div>
 
