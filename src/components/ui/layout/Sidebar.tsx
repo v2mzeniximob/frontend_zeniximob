@@ -1,4 +1,4 @@
-'use client'; // Indica que este componente usa estado (React no navegador)
+'use client';
 
 import { useState } from 'react';
 import Link from 'next/link';
@@ -37,7 +37,6 @@ export function Sidebar() {
         isCollapsed ? 'w-20' : 'w-64'
       } min-h-screen`}
     >
-      {/* Botão de Retrair */}
       <button 
         onClick={() => setIsCollapsed(!isCollapsed)}
         className="absolute -right-3 top-6 bg-white border border-slate-200 rounded-full p-1 text-slate-500 hover:text-blue-600 shadow-sm"
@@ -45,14 +44,12 @@ export function Sidebar() {
         {isCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
       </button>
 
-      {/* Logo */}
       <div className="h-20 flex items-center justify-center border-b border-slate-100">
         <h1 className={`font-bold text-blue-600 transition-all ${isCollapsed ? 'text-sm' : 'text-2xl'}`}>
           {isCollapsed ? 'Z' : 'ZenixImob'}
         </h1>
       </div>
 
-      {/* Links de Navegação */}
       <nav className="flex-1 pt-6 px-3 flex flex-col gap-2">
         {links.map((link) => {
           const isActive = pathname.startsWith(link.href);
@@ -75,7 +72,6 @@ export function Sidebar() {
         })}
       </nav>
 
-      {/* Rodapé do Menu */}
       <div className="p-3 border-t border-slate-100">
         <Link 
           href="/configuracoes"

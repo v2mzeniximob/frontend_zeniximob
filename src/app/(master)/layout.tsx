@@ -1,18 +1,12 @@
+
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
-
-function Sidebar() {
-  return (
-    <aside className="w-64 shrink-0 border-r border-slate-200 bg-white p-6">
-      <div className="text-lg font-semibold text-slate-800">Zenix Imob</div>
-    </aside>
-  );
-}
+import { Sidebar } from 'lucide-react';
 
 export default async function MasterLayout({ children }: { children: React.ReactNode }) {
-  // Proteção de rota básica (SSR)
-  const cookieStore = cookies();
-  const token = (await cookieStore).get('zeniximob.token');
+  // Ajuste para compatibilidade com Next.js 15
+  const cookieStore = await cookies();
+  const token = cookieStore.get('zeniximob.token');
 
   if (!token) {
     redirect('/login');
