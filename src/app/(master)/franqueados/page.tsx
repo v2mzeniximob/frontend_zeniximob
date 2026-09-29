@@ -5,9 +5,9 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { api } from '../../../lib/api';
-// Verifique se o caminho para o utils/mask está correto para este ficheiro
-import { maskCep, maskCnpj, maskCpf, maskPhone } from '@/src/utils/mask';
 import { Plus, Power, X, Loader2, Link as LinkIcon, Edit, Search, Filter } from 'lucide-react';
+// IMPORTANTE: Utilizando o mesmo caminho exato que funcionou na página de Imobiliárias
+import { maskCep, maskCnpj, maskCpf, maskPhone } from '@/src/utils/mask';
 
 const franchiseeSchema = z.object({
   cnpj: z.string().min(18, 'CNPJ incompleto'),
@@ -75,21 +75,21 @@ export default function FranqueadosPage() {
     return matchesSearch && matchesStatus;
   });
 
-  // CORREÇÃO: Função handleEdit baseada exatamente no ficheiro da Imobiliária que está a funcionar
+  // CORREÇÃO: reset() idêntico ao da Imobiliária, blindado contra nulls que travam o preenchimento!
   function handleEdit(fran: any) {
     setEditingId(fran.id);
     reset({
-      cnpj: maskCnpj(fran.cnpj) || '',
+      cnpj: fran.cnpj ? maskCnpj(fran.cnpj) : '',
       corporateName: fran.corporateName || '',
       tradeName: fran.tradeName || '',
       stateRegistration: (fran.stateRegistration && fran.stateRegistration !== 'ISENTO') ? fran.stateRegistration : '',
       cityRegistration: (fran.cityRegistration && fran.cityRegistration !== 'ISENTO') ? fran.cityRegistration : '',
-      cep: maskCep(fran.cep) || '',
+      cep: fran.cep ? maskCep(fran.cep) : '',
       address: fran.address || '',
-      phone: maskPhone(fran.phone) || '',
+      phone: fran.phone ? maskPhone(fran.phone) : '',
       respName: fran.respName || '',
-      respCpf: maskCpf(fran.respCpf) || '',
-      respPhone: maskPhone(fran.respPhone) || '',
+      respCpf: fran.respCpf ? maskCpf(fran.respCpf) : '',
+      respPhone: fran.respPhone ? maskPhone(fran.respPhone) : '',
       respAddress: fran.respAddress || '',
       email: fran.email || '',
       contractUrl: fran.contractUrl || '',
