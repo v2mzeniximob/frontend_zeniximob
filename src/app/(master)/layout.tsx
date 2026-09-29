@@ -1,7 +1,8 @@
 
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
-import { Sidebar } from 'lucide-react';
+import { Sidebar } from '@/src/components/ui/layout/Sidebar';
+
 
 export default async function MasterLayout({ children }: { children: React.ReactNode }) {
   // Ajuste para compatibilidade com Next.js 15
