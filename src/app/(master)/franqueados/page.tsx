@@ -74,26 +74,32 @@ export default function FranqueadosPage() {
     return matchesSearch && matchesStatus;
   });
 
-  // CORREÇÃO: Utiliza reset() direto com os dados da BD para preencher todos os campos sem falhas
   function handleEdit(fran: any) {
     setEditingId(fran.id);
-    reset({
-      cnpj: fran.cnpj || '',
-      corporateName: fran.corporateName || '',
-      tradeName: fran.tradeName || '',
-      stateRegistration: (fran.stateRegistration && fran.stateRegistration !== 'ISENTO') ? fran.stateRegistration : '',
-      cityRegistration: (fran.cityRegistration && fran.cityRegistration !== 'ISENTO') ? fran.cityRegistration : '',
-      cep: fran.cep || '',
-      address: fran.address || '',
-      phone: fran.phone || '',
-      respName: fran.respName || '',
-      respCpf: fran.respCpf || '',
-      respPhone: fran.respPhone || '',
-      respAddress: fran.respAddress || '',
-      email: fran.email || '',
-      contractUrl: fran.contractUrl || '',
-      password: '',
-    });
+    
+    // Força os campos a preencherem com os valores exatos do banco
+    setTimeout(() => {
+      setValue('cnpj', fran.cnpj || '', { shouldValidate: true });
+      setValue('corporateName', fran.corporateName || '', { shouldValidate: true });
+      setValue('tradeName', fran.tradeName || '', { shouldValidate: true });
+      
+      setValue('stateRegistration', (fran.stateRegistration === 'ISENTO' ? '' : fran.stateRegistration) || '');
+      setValue('cityRegistration', (fran.cityRegistration === 'ISENTO' ? '' : fran.cityRegistration) || '');
+      
+      setValue('cep', fran.cep || '', { shouldValidate: true });
+      setValue('address', fran.address || '', { shouldValidate: true });
+      setValue('phone', fran.phone || '', { shouldValidate: true });
+      
+      setValue('respName', fran.respName || '', { shouldValidate: true });
+      setValue('respCpf', fran.respCpf || '', { shouldValidate: true });
+      setValue('respPhone', fran.respPhone || '', { shouldValidate: true });
+      setValue('respAddress', fran.respAddress || '', { shouldValidate: true });
+      
+      setValue('email', fran.email || '', { shouldValidate: true });
+      setValue('contractUrl', fran.contractUrl || '', { shouldValidate: true });
+      setValue('password', ''); // Senha sempre vazia na edição
+    }, 50);
+
     setIsModalOpen(true);
   }
 
