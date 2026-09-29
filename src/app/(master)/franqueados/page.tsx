@@ -74,24 +74,26 @@ export default function FranqueadosPage() {
     return matchesSearch && matchesStatus;
   });
 
-  // Preenchimento explícito com setValue para garantir que todos os campos aparecem
+  // CORREÇÃO: Utiliza reset() direto com os dados da BD para preencher todos os campos sem falhas
   function handleEdit(fran: any) {
     setEditingId(fran.id);
-    setValue('cnpj', maskCnpj(fran.cnpj) || '');
-    setValue('corporateName', fran.corporateName || '');
-    setValue('tradeName', fran.tradeName || '');
-    setValue('stateRegistration', (fran.stateRegistration && fran.stateRegistration !== 'ISENTO') ? fran.stateRegistration : '');
-    setValue('cityRegistration', (fran.cityRegistration && fran.cityRegistration !== 'ISENTO') ? fran.cityRegistration : '');
-    setValue('cep', maskCep(fran.cep) || '');
-    setValue('address', fran.address || '');
-    setValue('phone', maskPhone(fran.phone) || '');
-    setValue('respName', fran.respName || '');
-    setValue('respCpf', maskCpf(fran.respCpf || '') || '');
-    setValue('respPhone', maskPhone(fran.respPhone || '') || '');
-    setValue('respAddress', fran.respAddress || '');
-    setValue('email', fran.email || '');
-    setValue('contractUrl', fran.contractUrl || '');
-    setValue('password', '');
+    reset({
+      cnpj: fran.cnpj || '',
+      corporateName: fran.corporateName || '',
+      tradeName: fran.tradeName || '',
+      stateRegistration: (fran.stateRegistration && fran.stateRegistration !== 'ISENTO') ? fran.stateRegistration : '',
+      cityRegistration: (fran.cityRegistration && fran.cityRegistration !== 'ISENTO') ? fran.cityRegistration : '',
+      cep: fran.cep || '',
+      address: fran.address || '',
+      phone: fran.phone || '',
+      respName: fran.respName || '',
+      respCpf: fran.respCpf || '',
+      respPhone: fran.respPhone || '',
+      respAddress: fran.respAddress || '',
+      email: fran.email || '',
+      contractUrl: fran.contractUrl || '',
+      password: '',
+    });
     setIsModalOpen(true);
   }
 
