@@ -5,9 +5,8 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { api } from '../../../lib/api';
-
-import { Plus, Power, X, Loader2, Building2 } from 'lucide-react';
 import { maskCep, maskCnpj, maskCpf, maskPhone } from '@/src/utils/mask';
+import { Plus, Power, X, Loader2, Building2, Link as LinkIcon } from 'lucide-react';
 
 const realEstateSchema = z.object({
   cnpj: z.string().min(18, 'CNPJ incompleto'),
@@ -22,6 +21,7 @@ const realEstateSchema = z.object({
   password: z.string().min(6, 'A senha deve ter no mínimo 6 caracteres'),
   planId: z.string().min(1, 'Selecione um plano'),
   franchiseeId: z.string().optional(),
+  contractUrl: z.string().url('URL inválida').optional().or(z.literal('')),
 });
 
 type RealEstateForm = z.infer<typeof realEstateSchema>;
@@ -44,7 +44,6 @@ export default function ImobiliariasPage() {
   const watchCnpj = watch('cnpj');
   const watchCep = watch('cep');
 
-  // Carregar todos os dados necessários (Imobiliárias, Planos ativos e Franqueados)
   async function fetchData() {
     setIsLoading(true);
     try {
@@ -54,7 +53,6 @@ export default function ImobiliariasPage() {
         api.get('/franchisees')
       ]);
       setRealEstates(reRes.data);
-      // Filtra apenas os planos ativos para aparecerem no select
       setPlans(plansRes.data.filter((p: any) => p.isActive)); 
       setFranchisees(franRes.data);
     } catch (error) {
@@ -68,7 +66,6 @@ export default function ImobiliariasPage() {
     fetchData();
   }, []);
 
-  // Preenchimento automático do CNPJ
   useEffect(() => {
     async function autoFillCnpj() {
       if (watchCnpj?.length === 18) {
@@ -86,7 +83,7 @@ export default function ImobiliariasPage() {
             setValue('phone', maskPhone(data.telefone), { shouldValidate: true });
           }
         } catch (error) {
-          alert('CNPJ não encontrado ou inválido.');
+          console.log('Aviso: CNPJ não encontrado na BrasilAPI.');
         } finally {
           setIsFetchingCnpj(false);
         }
@@ -95,7 +92,6 @@ export default function ImobiliariasPage() {
     autoFillCnpj();
   }, [watchCnpj, setValue]);
 
-  // Preenchimento automático do CEP
   useEffect(() => {
     async function autoFillCep() {
       if (watchCep?.length === 9) {
@@ -108,7 +104,7 @@ export default function ImobiliariasPage() {
           const fullAddress = `${data.street}, - ${data.neighborhood}, ${data.city} - ${data.state}`;
           setValue('address', fullAddress, { shouldValidate: true });
         } catch (error) {
-          console.error('CEP não encontrado.');
+          console.log('Aviso: CEP não encontrado.');
         } finally {
           setIsFetchingCep(false);
         }
@@ -122,8 +118,12 @@ export default function ImobiliariasPage() {
     try {
       const payload = {
         ...data,
-        // Se não escolher franquia, envia null para pertencer ao Master
-        franchiseeId: data.franchiseeId === "" ? null : data.franchiseeId 
+        franchiseeId: data.franchiseeId === "" ? null : data.franchiseeId,
+        stateRegistration: 'ISENTO',
+        cityRegistration: 'ISENTO',
+        respAddress: data.address, 
+        respPhone: data.phone,
+        contractUrl: data.contractUrl || null,
       };
 
       await api.post('/real-estates', payload);
@@ -131,7 +131,8 @@ export default function ImobiliariasPage() {
       setIsModalOpen(false);
       reset();
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Erro ao cadastrar imobiliária.');
+      alert(error.response?.data?.error || 'Erro interno no servidor ao cadastrar.');
+      console.error('Detalhes do erro:', error.response?.data);
     } finally {
       setIsSubmitting(false);
     }
@@ -170,7 +171,7 @@ export default function ImobiliariasPage() {
                 <th className="px-6 py-4">Imobiliária</th>
                 <th className="px-6 py-4">CNPJ</th>
                 <th className="px-6 py-4">Plano Vinculado</th>
-                <th className="px-6 py-4">Franquia / Origem</th>
+                <th className="px-6 py-4">Contrato</th>
                 <th className="px-6 py-4 text-center">Status</th>
                 <th className="px-6 py-4 text-right">Ações</th>
               </tr>
@@ -193,14 +194,14 @@ export default function ImobiliariasPage() {
                   <tr key={re.id} className="hover:bg-slate-50/50 transition-colors">
                     <td className="px-6 py-4 font-medium text-slate-800">{re.tradeName}</td>
                     <td className="px-6 py-4">{maskCnpj(re.cnpj)}</td>
-                    <td className="px-6 py-4 text-blue-600 font-medium">
-                      {re.plan?.name || 'Sem plano'}
-                    </td>
+                    <td className="px-6 py-4 text-blue-600 font-medium">{re.plan?.name || 'Sem plano'}</td>
                     <td className="px-6 py-4">
-                      {re.franchisee ? (
-                        <span className="text-slate-600 font-medium">{re.franchisee.tradeName}</span>
+                      {re.contractUrl ? (
+                        <a href={re.contractUrl} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline flex items-center gap-1 text-xs">
+                          <LinkIcon size={14} /> Ver Doc
+                        </a>
                       ) : (
-                        <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded text-xs font-semibold">Master</span>
+                        <span className="text-slate-400 text-xs">Nenhum</span>
                       )}
                     </td>
                     <td className="px-6 py-4 text-center">
@@ -240,39 +241,27 @@ export default function ImobiliariasPage() {
             
             <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-6">
               
-              {/* Seção Vínculos (Plano e Franquia) */}
               <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100 mb-6">
                 <h3 className="text-sm font-semibold text-blue-800 mb-3">Vínculos Operacionais</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Plano (Obrigatório)</label>
-                    <select
-                      {...register('planId')}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
-                    >
+                    <select {...register('planId')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white">
                       <option value="">Selecione um plano ativo...</option>
-                      {plans.map(p => (
-                        <option key={p.id} value={p.id}>{p.name} - R$ {p.price}</option>
-                      ))}
+                      {plans.map(p => <option key={p.id} value={p.id}>{p.name} - R$ {p.price}</option>)}
                     </select>
                     {errors.planId && <span className="text-red-500 text-xs">{errors.planId.message}</span>}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Franquia (Opcional)</label>
-                    <select
-                      {...register('franchiseeId')}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
-                    >
+                    <select {...register('franchiseeId')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white">
                       <option value="">Nenhuma (Pertence ao Master)</option>
-                      {franchisees.map(f => (
-                        <option key={f.id} value={f.id}>{f.tradeName}</option>
-                      ))}
+                      {franchisees.map(f => <option key={f.id} value={f.id}>{f.tradeName}</option>)}
                     </select>
                   </div>
                 </div>
               </div>
 
-              {/* Seção Empresa */}
               <div>
                 <h3 className="text-sm font-semibold text-slate-800 border-b border-slate-100 pb-2 mb-4">Dados da Empresa</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -280,13 +269,7 @@ export default function ImobiliariasPage() {
                     <label className="flex items-center gap-2 text-sm font-medium text-slate-700 mb-1">
                       CNPJ {isFetchingCnpj && <Loader2 size={14} className="animate-spin text-blue-500" />}
                     </label>
-                    <input
-                      type="text"
-                      {...register('cnpj')}
-                      onChange={(e) => setValue('cnpj', maskCnpj(e.target.value), { shouldValidate: true })}
-                      placeholder="00.000.000/0000-00"
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
+                    <input type="text" {...register('cnpj')} onChange={(e) => setValue('cnpj', maskCnpj(e.target.value), { shouldValidate: true })} placeholder="00.000.000/0000-00" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
                     {errors.cnpj && <span className="text-red-500 text-xs">{errors.cnpj.message}</span>}
                   </div>
                   <div>
@@ -302,19 +285,12 @@ export default function ImobiliariasPage() {
                 </div>
               </div>
 
-              {/* Seção Localização */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="flex items-center gap-2 text-sm font-medium text-slate-700 mb-1">
                     CEP {isFetchingCep && <Loader2 size={14} className="animate-spin text-blue-500" />}
                   </label>
-                  <input
-                    type="text"
-                    {...register('cep')}
-                    onChange={(e) => setValue('cep', maskCep(e.target.value), { shouldValidate: true })}
-                    placeholder="00000-000"
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                  />
+                  <input type="text" {...register('cep')} onChange={(e) => setValue('cep', maskCep(e.target.value), { shouldValidate: true })} placeholder="00000-000" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
                   {errors.cep && <span className="text-red-500 text-xs">{errors.cep.message}</span>}
                 </div>
                 <div className="md:col-span-2">
@@ -324,9 +300,8 @@ export default function ImobiliariasPage() {
                 </div>
               </div>
 
-              {/* Seção Responsável */}
               <div>
-                <h3 className="text-sm font-semibold text-slate-800 border-b border-slate-100 pb-2 mb-4">Responsável e Acesso</h3>
+                <h3 className="text-sm font-semibold text-slate-800 border-b border-slate-100 pb-2 mb-4">Responsável</h3>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-slate-700 mb-1">Nome do Responsável</label>
@@ -335,30 +310,29 @@ export default function ImobiliariasPage() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">CPF do Responsável</label>
-                    <input
-                      type="text"
-                      {...register('respCpf')}
-                      onChange={(e) => setValue('respCpf', maskCpf(e.target.value), { shouldValidate: true })}
-                      placeholder="000.000.000-00"
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
+                    <input type="text" {...register('respCpf')} onChange={(e) => setValue('respCpf', maskCpf(e.target.value), { shouldValidate: true })} placeholder="000.000.000-00" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
                     {errors.respCpf && <span className="text-red-500 text-xs">{errors.respCpf.message}</span>}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Telefone / WhatsApp</label>
-                    <input
-                      type="text"
-                      {...register('phone')}
-                      onChange={(e) => setValue('phone', maskPhone(e.target.value), { shouldValidate: true })}
-                      placeholder="(00) 00000-0000"
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
+                    <input type="text" {...register('phone')} onChange={(e) => setValue('phone', maskPhone(e.target.value), { shouldValidate: true })} placeholder="(00) 00000-0000" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
                     {errors.phone && <span className="text-red-500 text-xs">{errors.phone.message}</span>}
                   </div>
                 </div>
               </div>
 
-              {/* Login */}
+              {/* URL do Contrato - Imobiliária */}
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                <label className="block text-sm font-medium text-slate-700 mb-1">URL do Contrato Assinado (Opcional)</label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                    <LinkIcon size={18} />
+                  </div>
+                  <input type="url" {...register('contractUrl')} placeholder="https://link-do-contrato.com/pdf" className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-slate-700" />
+                </div>
+                {errors.contractUrl && <span className="text-red-500 text-xs mt-1 block">{errors.contractUrl.message}</span>}
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">E-mail de Login</label>
