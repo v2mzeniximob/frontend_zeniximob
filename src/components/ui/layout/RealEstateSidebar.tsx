@@ -11,6 +11,7 @@ export function RealEstateSidebar() {
 
   const menuItems = [
     { name: 'Dashboard', icon: LayoutDashboard, path: '/imobiliaria/dashboard' },
+    { name: 'Meus Corretores', icon: Users, path: '/imobiliaria/corretores' },
     { name: 'Meus Imóveis', icon: Home, path: '/imobiliaria/imoveis' },
     { name: 'Leads (CRM)', icon: Users, path: '/imobiliaria/leads' },
     { name: 'Configurações', icon: Settings, path: '/imobiliaria/configuracoes' },
