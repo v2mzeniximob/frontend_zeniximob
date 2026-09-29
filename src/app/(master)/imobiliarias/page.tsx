@@ -92,21 +92,21 @@ export default function ImobiliariasPage() {
   function handleEdit(re: any) {
     setEditingId(re.id);
     reset({
-      planId: re.planId,
+      planId: re.planId || '',
       franchiseeId: re.franchiseeId || '',
-      cnpj: maskCnpj(re.cnpj),
-      corporateName: re.corporateName,
-      tradeName: re.tradeName,
-      stateRegistration: re.stateRegistration !== 'ISENTO' ? re.stateRegistration : '',
-      cityRegistration: re.cityRegistration !== 'ISENTO' ? re.cityRegistration : '',
-      cep: maskCep(re.cep),
-      address: re.address,
-      phone: maskPhone(re.phone),
-      respName: re.respName,
-      respCpf: maskCpf(re.respCpf || ''),
-      respPhone: maskPhone(re.respPhone || ''),
+      cnpj: maskCnpj(re.cnpj) || '',
+      corporateName: re.corporateName || '',
+      tradeName: re.tradeName || '',
+      stateRegistration: (re.stateRegistration && re.stateRegistration !== 'ISENTO') ? re.stateRegistration : '',
+      cityRegistration: (re.cityRegistration && re.cityRegistration !== 'ISENTO') ? re.cityRegistration : '',
+      cep: maskCep(re.cep) || '',
+      address: re.address || '',
+      phone: maskPhone(re.phone) || '',
+      respName: re.respName || '',
+      respCpf: maskCpf(re.respCpf) || '',
+      respPhone: maskPhone(re.respPhone) || '',
       respAddress: re.respAddress || '',
-      email: re.email,
+      email: re.email || '',
       contractUrl: re.contractUrl || '',
       password: '', 
     });
@@ -115,7 +115,11 @@ export default function ImobiliariasPage() {
 
   function handleCreateNew() {
     setEditingId(null);
-    reset({});
+    reset({
+      planId: '', franchiseeId: '', cnpj: '', corporateName: '', tradeName: '', stateRegistration: '', cityRegistration: '',
+      cep: '', address: '', phone: '', respName: '', respCpf: '', respPhone: '', respAddress: '',
+      email: '', contractUrl: '', password: ''
+    });
     setIsModalOpen(true);
   }
 
@@ -189,7 +193,6 @@ export default function ImobiliariasPage() {
       
       await fetchData();
       setIsModalOpen(false);
-      reset();
     } catch (error: any) {
       alert(error.response?.data?.error || 'Erro interno no servidor ao salvar.');
     } finally {
@@ -222,27 +225,16 @@ export default function ImobiliariasPage() {
         </button>
       </div>
 
-      {/* BARRA DE FILTROS */}
       <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex flex-col md:flex-row gap-4 items-center justify-between">
         <div className="relative w-full md:w-96">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
             <Search size={18} />
           </div>
-          <input
-            type="text"
-            placeholder="Buscar por Nome, CNPJ ou CPF..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-          />
+          <input type="text" placeholder="Buscar por Nome, CNPJ ou CPF..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
         </div>
         <div className="flex items-center gap-2 w-full md:w-auto">
           <Filter size={18} className="text-slate-400" />
-          <select 
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none w-full md:w-48 bg-white"
-          >
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none w-full md:w-48 bg-white">
             <option value="all">Todos os Status</option>
             <option value="active">Apenas Ativos</option>
             <option value="inactive">Apenas Inativos</option>
@@ -305,20 +297,10 @@ export default function ImobiliariasPage() {
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end gap-1">
-                        <button 
-                          onClick={() => handleEdit(re)}
-                          className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                          title="Editar Cadastro"
-                        >
+                        <button onClick={() => handleEdit(re)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Editar Cadastro">
                           <Edit size={18} />
                         </button>
-                        <button 
-                          onClick={() => toggleStatus(re.id)}
-                          className={`p-2 rounded-lg transition-colors ${
-                            re.isActive ? 'text-red-500 hover:bg-red-50' : 'text-green-500 hover:bg-green-50'
-                          }`}
-                          title={re.isActive ? 'Desativar' : 'Ativar'}
-                        >
+                        <button onClick={() => toggleStatus(re.id)} className={`p-2 rounded-lg transition-colors ${ re.isActive ? 'text-red-500 hover:bg-red-50' : 'text-green-500 hover:bg-green-50' }`} title={re.isActive ? 'Desativar' : 'Ativar'}>
                           <Power size={18} />
                         </button>
                       </div>
@@ -331,163 +313,156 @@ export default function ImobiliariasPage() {
         </div>
       </div>
 
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in duration-200">
-            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 sticky top-0 z-10">
-              <h2 className="text-xl font-semibold text-slate-800">
-                {editingId ? 'Editar Imobiliária' : 'Cadastrar Nova Imobiliária'}
-              </h2>
-              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 transition-colors">
-                <X size={20} />
-              </button>
-            </div>
+      <div className={`fixed inset-0 bg-black/40 backdrop-blur-sm items-center justify-center z-50 p-4 ${isModalOpen ? 'flex animate-in fade-in zoom-in duration-200' : 'hidden'}`}>
+        <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+          <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 sticky top-0 z-10">
+            <h2 className="text-xl font-semibold text-slate-800">
+              {editingId ? 'Editar Imobiliária' : 'Cadastrar Nova Imobiliária'}
+            </h2>
+            <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 transition-colors">
+              <X size={20} />
+            </button>
+          </div>
+          
+          <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-6">
             
-            <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-6">
-              
-              {/* === VÍNCULOS === */}
-              <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100 mb-6">
-                <h3 className="text-sm font-semibold text-blue-800 mb-3">Vínculos Operacionais</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Plano (Obrigatório)</label>
-                    <select {...register('planId')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white">
-                      <option value="">Selecione um plano ativo...</option>
-                      {plans.map(p => <option key={p.id} value={p.id}>{p.name} - R$ {p.price}</option>)}
-                    </select>
-                    {errors.planId && <span className="text-red-500 text-xs">{errors.planId.message}</span>}
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Franquia (Opcional)</label>
-                    <select {...register('franchiseeId')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white">
-                      <option value="">Nenhuma (Pertence ao Master)</option>
-                      {franchisees.map(f => <option key={f.id} value={f.id}>{f.tradeName}</option>)}
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              {/* === DADOS DA EMPRESA === */}
-              <div>
-                <h3 className="text-sm font-semibold text-slate-800 border-b border-slate-100 pb-2 mb-4">Dados da Empresa</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                  <div>
-                    <label className="flex items-center gap-2 text-sm font-medium text-slate-700 mb-1">
-                      CNPJ {isFetchingCnpj && <Loader2 size={14} className="animate-spin text-blue-500" />}
-                    </label>
-                    <input type="text" {...register('cnpj')} onChange={(e) => setValue('cnpj', maskCnpj(e.target.value), { shouldValidate: true })} placeholder="00.000.000/0000-00" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
-                    {errors.cnpj && <span className="text-red-500 text-xs">{errors.cnpj.message}</span>}
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Razão Social</label>
-                    <input type="text" {...register('corporateName')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50" />
-                    {errors.corporateName && <span className="text-red-500 text-xs">{errors.corporateName.message}</span>}
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Nome Fantasia</label>
-                    <input type="text" {...register('tradeName')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50" />
-                    {errors.tradeName && <span className="text-red-500 text-xs">{errors.tradeName.message}</span>}
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Inscrição Estadual</label>
-                    <input type="text" {...register('stateRegistration')} placeholder="Opcional ou ISENTO" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Inscrição Municipal</label>
-                    <input type="text" {...register('cityRegistration')} placeholder="Opcional ou ISENTO" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
-                  </div>
-                </div>
-              </div>
-
-              {/* === LOCALIZAÇÃO DA EMPRESA === */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div>
-                  <label className="flex items-center gap-2 text-sm font-medium text-slate-700 mb-1">
-                    CEP {isFetchingCep && <Loader2 size={14} className="animate-spin text-blue-500" />}
-                  </label>
-                  <input type="text" {...register('cep')} onChange={(e) => setValue('cep', maskCep(e.target.value), { shouldValidate: true })} placeholder="00000-000" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
-                  {errors.cep && <span className="text-red-500 text-xs">{errors.cep.message}</span>}
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Endereço da Empresa</label>
-                  <input type="text" {...register('address')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50" />
-                  {errors.address && <span className="text-red-500 text-xs">{errors.address.message}</span>}
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Telefone da Empresa</label>
-                  <input type="text" {...register('phone')} onChange={(e) => setValue('phone', maskPhone(e.target.value), { shouldValidate: true })} placeholder="(00) 00000-0000" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
-                  {errors.phone && <span className="text-red-500 text-xs">{errors.phone.message}</span>}
-                </div>
-              </div>
-
-              {/* === DADOS DO RESPONSÁVEL === */}
-              <div>
-                <h3 className="text-sm font-semibold text-slate-800 border-b border-slate-100 pb-2 mb-4">Dados do Responsável</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Nome Completo</label>
-                    <input type="text" {...register('respName')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
-                    {errors.respName && <span className="text-red-500 text-xs">{errors.respName.message}</span>}
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">CPF do Responsável</label>
-                    <input type="text" {...register('respCpf')} onChange={(e) => setValue('respCpf', maskCpf(e.target.value), { shouldValidate: true })} placeholder="000.000.000-00" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
-                    {errors.respCpf && <span className="text-red-500 text-xs">{errors.respCpf.message}</span>}
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Celular / WhatsApp (Resp.)</label>
-                    <input type="text" {...register('respPhone')} onChange={(e) => setValue('respPhone', maskPhone(e.target.value), { shouldValidate: true })} placeholder="(00) 00000-0000" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
-                    {errors.respPhone && <span className="text-red-500 text-xs">{errors.respPhone.message}</span>}
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Endereço Residencial do Responsável</label>
-                  <input type="text" {...register('respAddress')} placeholder="Rua, Número, Bairro, Cidade - Estado" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
-                  {errors.respAddress && <span className="text-red-500 text-xs">{errors.respAddress.message}</span>}
-                </div>
-              </div>
-
-              {/* === CONTRATO E ACESSO === */}
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                <label className="block text-sm font-medium text-slate-700 mb-1">URL do Contrato Assinado (Opcional)</label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                    <LinkIcon size={18} />
-                  </div>
-                  <input type="url" {...register('contractUrl')} placeholder="Ex: https://drive.google.com/..." className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-slate-700" />
-                </div>
-                {errors.contractUrl && <span className="text-red-500 text-xs mt-1 block">{errors.contractUrl.message}</span>}
-              </div>
-
+            <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100 mb-6">
+              <h3 className="text-sm font-semibold text-blue-800 mb-3">Vínculos Operacionais</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">E-mail de Login</label>
-                  <input type="email" {...register('email')} placeholder="acesso@imobiliaria.com.br" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
-                  {errors.email && <span className="text-red-500 text-xs">{errors.email.message}</span>}
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Plano (Obrigatório)</label>
+                  <select {...register('planId')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+                    <option value="">Selecione um plano ativo...</option>
+                    {plans.map(p => <option key={p.id} value={p.id}>{p.name} - R$ {p.price}</option>)}
+                  </select>
+                  {errors.planId && <span className="text-red-500 text-xs">{errors.planId.message}</span>}
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    {editingId ? 'Nova Senha (deixe em branco para não alterar)' : 'Senha Provisória'}
-                  </label>
-                  <input type="password" {...register('password')} placeholder="••••••••" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
-                  {errors.password && <span className="text-red-500 text-xs">{errors.password.message}</span>}
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Franquia (Opcional)</label>
+                  <select {...register('franchiseeId')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+                    <option value="">Nenhuma (Pertence ao Master)</option>
+                    {franchisees.map(f => <option key={f.id} value={f.id}>{f.tradeName}</option>)}
+                  </select>
                 </div>
               </div>
+            </div>
 
-              <div className="pt-4 flex justify-end gap-3 border-t border-slate-100">
-                <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg transition-colors">
-                  Cancelar
-                </button>
-                <button type="submit" disabled={isSubmitting} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition-colors flex items-center disabled:opacity-70">
-                  {isSubmitting ? <Loader2 className="animate-spin" size={20} /> : (editingId ? 'Salvar Alterações' : 'Cadastrar Imobiliária')}
-                </button>
+            <div>
+              <h3 className="text-sm font-semibold text-slate-800 border-b border-slate-100 pb-2 mb-4">Dados da Empresa</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                <div>
+                  <label className="flex items-center gap-2 text-sm font-medium text-slate-700 mb-1">
+                    CNPJ {isFetchingCnpj && <Loader2 size={14} className="animate-spin text-blue-500" />}
+                  </label>
+                  <input type="text" {...register('cnpj')} onChange={(e) => setValue('cnpj', maskCnpj(e.target.value), { shouldValidate: true })} placeholder="00.000.000/0000-00" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                  {errors.cnpj && <span className="text-red-500 text-xs">{errors.cnpj.message}</span>}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Razão Social</label>
+                  <input type="text" {...register('corporateName')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50" />
+                  {errors.corporateName && <span className="text-red-500 text-xs">{errors.corporateName.message}</span>}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Nome Fantasia</label>
+                  <input type="text" {...register('tradeName')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50" />
+                  {errors.tradeName && <span className="text-red-500 text-xs">{errors.tradeName.message}</span>}
+                </div>
               </div>
-            </form>
-          </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Inscrição Estadual</label>
+                  <input type="text" {...register('stateRegistration')} placeholder="Opcional ou ISENTO" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Inscrição Municipal</label>
+                  <input type="text" {...register('cityRegistration')} placeholder="Opcional ou ISENTO" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div>
+                <label className="flex items-center gap-2 text-sm font-medium text-slate-700 mb-1">
+                  CEP {isFetchingCep && <Loader2 size={14} className="animate-spin text-blue-500" />}
+                </label>
+                <input type="text" {...register('cep')} onChange={(e) => setValue('cep', maskCep(e.target.value), { shouldValidate: true })} placeholder="00000-000" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                {errors.cep && <span className="text-red-500 text-xs">{errors.cep.message}</span>}
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-slate-700 mb-1">Endereço da Empresa</label>
+                <input type="text" {...register('address')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50" />
+                {errors.address && <span className="text-red-500 text-xs">{errors.address.message}</span>}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Telefone da Empresa</label>
+                <input type="text" {...register('phone')} onChange={(e) => setValue('phone', maskPhone(e.target.value), { shouldValidate: true })} placeholder="(00) 00000-0000" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                {errors.phone && <span className="text-red-500 text-xs">{errors.phone.message}</span>}
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-sm font-semibold text-slate-800 border-b border-slate-100 pb-2 mb-4">Dados do Responsável</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Nome Completo</label>
+                  <input type="text" {...register('respName')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                  {errors.respName && <span className="text-red-500 text-xs">{errors.respName.message}</span>}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">CPF do Responsável</label>
+                  <input type="text" {...register('respCpf')} onChange={(e) => setValue('respCpf', maskCpf(e.target.value), { shouldValidate: true })} placeholder="000.000.000-00" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                  {errors.respCpf && <span className="text-red-500 text-xs">{errors.respCpf.message}</span>}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Celular / WhatsApp (Resp.)</label>
+                  <input type="text" {...register('respPhone')} onChange={(e) => setValue('respPhone', maskPhone(e.target.value), { shouldValidate: true })} placeholder="(00) 00000-0000" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                  {errors.respPhone && <span className="text-red-500 text-xs">{errors.respPhone.message}</span>}
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Endereço Residencial do Responsável</label>
+                <input type="text" {...register('respAddress')} placeholder="Rua, Número, Bairro, Cidade - Estado" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                {errors.respAddress && <span className="text-red-500 text-xs">{errors.respAddress.message}</span>}
+              </div>
+            </div>
+
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+              <label className="block text-sm font-medium text-slate-700 mb-1">URL do Contrato Assinado (Opcional)</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                  <LinkIcon size={18} />
+                </div>
+                <input type="url" {...register('contractUrl')} placeholder="Ex: https://drive.google.com/..." className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-slate-700" />
+              </div>
+              {errors.contractUrl && <span className="text-red-500 text-xs mt-1 block">{errors.contractUrl.message}</span>}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">E-mail de Login</label>
+                <input type="email" {...register('email')} placeholder="acesso@imobiliaria.com.br" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                {errors.email && <span className="text-red-500 text-xs">{errors.email.message}</span>}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  {editingId ? 'Nova Senha (deixe em branco para não alterar)' : 'Senha Provisória'}
+                </label>
+                <input type="password" {...register('password')} placeholder="••••••••" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                {errors.password && <span className="text-red-500 text-xs">{errors.password.message}</span>}
+              </div>
+            </div>
+
+            <div className="pt-4 flex justify-end gap-3 border-t border-slate-100">
+              <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg transition-colors">
+                Cancelar
+              </button>
+              <button type="submit" disabled={isSubmitting} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition-colors flex items-center disabled:opacity-70">
+                {isSubmitting ? <Loader2 className="animate-spin" size={20} /> : (editingId ? 'Salvar Alterações' : 'Cadastrar Imobiliária')}
+              </button>
+            </div>
+          </form>
         </div>
-      )}
+      </div>
     </div>
   );
 }
