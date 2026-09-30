@@ -12,6 +12,7 @@ export default function VitrineLojaPage({ params }: { params: { slug: string } }
   const [error, setError] = useState('');
 
   useEffect(() => {
+    console.log('Params recebidos pelo Next.js:', params);
     const fetchVitrine = async () => {
       if (!params?.slug) return;
 
