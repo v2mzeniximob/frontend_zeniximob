@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { api } from '../../../lib/api';
 import { MapPin, Phone, Mail, Home, Loader2, BedDouble, Bath, Car } from 'lucide-react';
 import Link from 'next/link';
+import axios from 'axios';
 
 export default function VitrineLojaPage({ params }: { params: { slug: string } }) {
   const [storeData, setStoreData] = useState<any>(null);
@@ -17,7 +18,7 @@ export default function VitrineLojaPage({ params }: { params: { slug: string } }
 
       try {
         console.log('A carregar loja para o slug:', params.slug);
-        const response = await api.get(`/public/stores/${params.slug}`);
+        const response = await axios.get(`https://api-zeniximob.onrender.com/public/stores/${params.slug}`);
         console.log('Resposta da loja recebida:', response.data);
         
         setStoreData(response.data.realEstate);
