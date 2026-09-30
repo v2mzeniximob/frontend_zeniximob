@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 
 import { MapPin, Phone, Mail, Home, Loader2, BedDouble, Bath, Car } from 'lucide-react';
 import Link from 'next/link';
-import { api } from '@/src/lib/api';
+import { api } from '../../../../../lib/api';
 
 export default function VitrineLojaPage({ params }: { params: { slug: string } }) {
   const [storeData, setStoreData] = useState<any>(null);
