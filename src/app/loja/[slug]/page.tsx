@@ -1,38 +1,39 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, use } from 'react';
 import { api } from '../../../lib/api';
 import { MapPin, Phone, Mail, Home, Loader2, BedDouble, Bath, Car } from 'lucide-react';
 import Link from 'next/link';
 
-export default function VitrineLojaPage({ params }: { params: { slug: string } }) {
+export default function VitrineLojaPage(props: { params: Promise<{ slug: string }> }) {
+  // O Next.js 15+ envia os params como Promise. Usamos o hook `use` do React para desembrulhar.
+  const params = use(props.params);
+  const slug = params?.slug;
+
   const [storeData, setStoreData] = useState<any>(null);
   const [properties, setProperties] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    console.log('Params recebidos pelo Next.js:', params);
-    const fetchVitrine = async () => {
-      if (!params?.slug) return;
+    // Só tenta buscar se o slug já estiver resolvido
+    if (!slug) return;
 
+    const fetchVitrine = async () => {
       try {
-        console.log('A carregar loja para o slug:', params.slug);
-        const response = await api.get(`/public/stores/${params.slug}`);
-        console.log('Resposta da loja recebida:', response.data);
-        
+        const response = await api.get(`/public/stores/${slug}`);
         setStoreData(response.data.realEstate);
         setProperties(response.data.properties || []);
       } catch (err: any) {
-        console.error('Erro ao carregar vitrine:', err);
-        setError(err.response?.data?.error || err.message || 'Erro ao conectar ao servidor.');
+        console.error('Erro na requisição da vitrine:', err);
+        setError(err.response?.data?.error || 'Erro ao carregar a vitrine da imobiliária.');
       } finally {
-        setIsLoading(false); // Garante sempre a saída do loop de loading
+        setIsLoading(false);
       }
     };
 
     fetchVitrine();
-  }, [params?.slug]);
+  }, [slug]);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
@@ -131,7 +132,7 @@ export default function VitrineLojaPage({ params }: { params: { slug: string } }
                       <p className="text-xl font-bold text-blue-600">{formatCurrency(prop.price)}</p>
                     </div>
                     <Link 
-                      href={`/loja/${params.slug}/imovel/${prop.id}`}
+                      href={`/loja/${slug}/imovel/${prop.id}`}
                       className="bg-slate-900 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors inline-block text-center"
                     >
                       Ver Detalhes
