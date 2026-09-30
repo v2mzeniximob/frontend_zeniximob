@@ -13,6 +13,7 @@ export function RealEstateSidebar() {
     { name: 'Dashboard', icon: LayoutDashboard, path: '/imobiliaria/dashboard' },
     { name: 'Meus Corretores', icon: Users, path: '/imobiliaria/corretores' },
     { name: 'Meus Imóveis', icon: Home, path: '/imobiliaria/imoveis' },
+    { name: 'Aluguéis', icon: Home, path: '/imobiliaria/alugueis' },
     { name: 'Leads (CRM)', icon: Users, path: '/imobiliaria/leads' },
     { name: 'Configurações', icon: Settings, path: '/imobiliaria/configuracoes' },
   ];
