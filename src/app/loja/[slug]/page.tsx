@@ -11,8 +11,11 @@ export default function VitrineLojaPage({ params }: { params: { slug: string } }
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
 
-  useEffect(() => {
+useEffect(() => {
     const fetchVitrine = async () => {
+      // Se o slug ainda não estiver disponível, não faz nada
+      if (!params?.slug) return;
+
       try {
         const response = await api.get(`/public/stores/${params.slug}`);
         setStoreData(response.data.realEstate);
@@ -25,7 +28,7 @@ export default function VitrineLojaPage({ params }: { params: { slug: string } }
     };
 
     fetchVitrine();
-  }, [params.slug]);
+  }, [params?.slug]);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
