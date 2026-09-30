@@ -4,7 +4,8 @@ import { useState, useEffect, use } from 'react';
 import { api } from '../../../../../lib/api';
 import { 
   MapPin, Phone, Mail, Home, Loader2, BedDouble, Bath, Car, 
-  CheckCircle2, Ruler, Calendar, Send, ChevronLeft, Building2, Image as ImageIcon 
+  CheckCircle2, Ruler, Calendar, Send, ChevronLeft, ChevronRight, 
+  X, Building2, Image as ImageIcon 
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -16,13 +17,13 @@ interface PageProps {
 }
 
 export default function DetalheImovelPage(props: PageProps) {
-  // Desembrulha a Promise dos params usando o hook use()
   const params = use(props.params);
   const slug = params?.slug;
   const propertyId = params?.propertyId;
 
   const [storeData, setStoreData] = useState<any>(null);
   const [property, setProperty] = useState<any>(null);
+  const [similarProperties, setSimilarProperties] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -31,15 +32,27 @@ export default function DetalheImovelPage(props: PageProps) {
   const [isSendingLead, setIsSendingLead] = useState(false);
   const [leadSuccess, setLeadSuccess] = useState(false);
 
+  // Estados da Galeria Ampliada (Lightbox)
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+
   useEffect(() => {
-    // Só prossegue quando a promise dos params estiver resolvida e o slug/propertyId existirem
     if (!slug || !propertyId) return;
 
     const fetchPropertyDetails = async () => {
       try {
+        // 1. Busca os detalhes do imóvel atual
         const response = await api.get(`/public/stores/${slug}/properties/${propertyId}`);
         setStoreData(response.data.realEstate);
         setProperty(response.data.property);
+
+        // 2. Busca todos os imóveis da loja para as sugestões (Imóveis Semelhantes)
+        const storeResponse = await api.get(`/public/stores/${slug}`);
+        const allProperties = storeResponse.data.properties || [];
+        
+        // Filtra para remover o imóvel atual e priorizar o mesmo tipo/transação
+        const filtered = allProperties.filter((p: any) => p.id !== propertyId);
+        setSimilarProperties(filtered.slice(0, 3)); // Pega até 3 sugestões
+
       } catch (err: any) {
         console.error('Erro ao buscar detalhes:', err);
         setError(err.response?.data?.error || 'Imóvel não encontrado ou indisponível.');
@@ -78,6 +91,28 @@ export default function DetalheImovelPage(props: PageProps) {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
   };
 
+  // Funções da Galeria Lightbox
+  const images: string[] = property?.imageUrls && Array.isArray(property.imageUrls) ? property.imageUrls : [];
+  const mainImage = images[0] || null;
+  const secondaryImages = images.slice(1, 5);
+
+  const openLightbox = (index: number) => setLightboxIndex(index);
+  const closeLightbox = () => setLightboxIndex(null);
+  
+  const nextImage = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (lightboxIndex !== null) {
+      setLightboxIndex((lightboxIndex + 1) % images.length);
+    }
+  };
+
+  const prevImage = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (lightboxIndex !== null) {
+      setLightboxIndex((lightboxIndex - 1 + images.length) % images.length);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 gap-4">
@@ -100,14 +135,10 @@ export default function DetalheImovelPage(props: PageProps) {
     );
   }
 
-  const images: string[] = property.imageUrls && Array.isArray(property.imageUrls) ? property.imageUrls : [];
-  const mainImage = images[0] || null;
-  const secondaryImages = images.slice(1, 5);
-
   return (
     <div className="min-h-screen bg-slate-50 font-sans pb-20">
       
-      {/* HEADER DA LOJA E NAVEGAÇÃO */}
+      {/* HEADER DA LOJA */}
       <header className="bg-white border-b border-slate-200 py-4 shadow-sm sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 flex items-center justify-between">
           <Link href={`/loja/${slug}`} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 transition-colors font-medium text-sm">
@@ -122,16 +153,29 @@ export default function DetalheImovelPage(props: PageProps) {
 
       <main className="max-w-7xl mx-auto px-4 mt-6">
         
-        {/* GALERIA DE FOTOS */}
+        {/* GALERIA DE FOTOS (CLICÁVEL) */}
         {mainImage ? (
           <div className="grid grid-cols-1 md:grid-cols-4 gap-2 h-[300px] md:h-[500px] rounded-2xl overflow-hidden mb-8">
-            <div className="md:col-span-2 relative h-full group cursor-pointer">
+            <div 
+              className="md:col-span-2 relative h-full group cursor-pointer"
+              onClick={() => openLightbox(0)}
+            >
               <img src={mainImage} alt={property.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                 <div className="bg-white/90 backdrop-blur-sm p-3 rounded-full opacity-0 group-hover:opacity-100 transition-opacity transform translate-y-4 group-hover:translate-y-0 shadow-lg">
+                    <ImageIcon className="text-slate-700" size={24} />
+                 </div>
+              </div>
             </div>
             <div className="hidden md:grid grid-cols-2 col-span-2 gap-2 h-full">
               {secondaryImages.map((img: string, index: number) => (
-                <div key={index} className="relative h-full overflow-hidden group cursor-pointer">
+                <div 
+                  key={index} 
+                  className="relative h-full overflow-hidden group cursor-pointer"
+                  onClick={() => openLightbox(index + 1)}
+                >
                   <img src={img} alt={`Foto ${index + 2}`} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
                 </div>
               ))}
               {Array.from({ length: Math.max(0, 4 - secondaryImages.length) }).map((_, idx) => (
@@ -218,18 +262,15 @@ export default function DetalheImovelPage(props: PageProps) {
                   src={`https://www.openstreetmap.org/export/embed.html?bbox=-46.8%2C-23.7%2C-46.4%2C-23.4&layer=mapnik&marker=${property.latitude || '-23.5505'},${property.longitude || '-46.6333'}`}
                 ></iframe>
               </div>
-              <p className="text-xs text-slate-400 mt-2">* A localização no mapa indica a região do bairro para segurança do proprietário.</p>
             </div>
           </div>
 
           {/* COLUNA DIREITA (Formulário e Preços) */}
           <div className="w-full lg:w-[400px]">
             <div className="bg-white p-6 md:p-8 rounded-3xl shadow-xl border border-slate-100 sticky top-24">
-              
               <div className="mb-6 pb-6 border-b border-slate-100">
                 <p className="text-sm font-medium text-slate-500 uppercase tracking-wide mb-1">Valor de {property.transaction}</p>
                 <h2 className="text-4xl font-extrabold text-blue-600 mb-4">{formatCurrency(property.price)}</h2>
-                
                 <div className="flex items-center justify-between text-slate-600 mb-2">
                   <span className="flex items-center gap-2"><Building2 size={16}/> Condomínio</span>
                   <span className="font-semibold">{property.condoFee > 0 ? formatCurrency(property.condoFee) : 'Isento / Não inf.'}</span>
@@ -240,57 +281,104 @@ export default function DetalheImovelPage(props: PageProps) {
                 </div>
               </div>
 
-              {property.broker && (
-                <div className="mb-6 flex items-center gap-4 bg-slate-50 p-4 rounded-2xl">
-                  <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-bold text-xl">
-                    {property.broker.name.charAt(0)}
-                  </div>
-                  <div>
-                    <p className="text-xs text-slate-500 font-medium uppercase">Corretor Responsável</p>
-                    <p className="font-bold text-slate-800">{property.broker.name}</p>
-                    <p className="text-xs text-slate-500">CRECI: {property.broker.creci}</p>
-                  </div>
-                </div>
-              )}
-
-              <div>
-                <h3 className="text-xl font-bold text-slate-800 mb-4">Agendar Visita / Proposta</h3>
-                
-                {leadSuccess ? (
-                  <div className="bg-green-50 text-green-800 p-6 rounded-2xl text-center border border-green-200">
-                    <CheckCircle2 size={40} className="mx-auto text-green-500 mb-3" />
-                    <h4 className="font-bold text-lg mb-1">Mensagem Enviada!</h4>
-                    <p className="text-sm">Obrigado! Um dos nossos corretores entrará em contato consigo em breve.</p>
-                  </div>
-                ) : (
-                  <form onSubmit={handleSendLead} className="space-y-4">
-                    <div>
-                      <input required type="text" placeholder="Seu Nome Completo" value={leadForm.name} onChange={e => setLeadForm({...leadForm, name: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all" />
-                    </div>
-                    <div>
-                      <input required type="text" placeholder="Telefone / WhatsApp" value={leadForm.phone} onChange={e => setLeadForm({...leadForm, phone: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all" />
-                    </div>
-                    <div>
-                      <input type="email" placeholder="Seu E-mail (Opcional)" value={leadForm.email} onChange={e => setLeadForm({...leadForm, email: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all" />
-                    </div>
-                    <div>
-                      <textarea placeholder="Olá, tenho interesse neste imóvel e gostaria de mais informações..." value={leadForm.message} onChange={e => setLeadForm({...leadForm, message: e.target.value})} rows={3} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none resize-none transition-all"></textarea>
-                    </div>
-
-                    <button type="submit" disabled={isSendingLead} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-xl font-bold flex justify-center items-center gap-2 transition-all shadow-lg hover:shadow-blue-500/30 disabled:opacity-70 text-lg">
-                      {isSendingLead ? <Loader2 className="animate-spin" size={24} /> : <Send size={24} />}
-                      {isSendingLead ? 'A Enviar...' : 'Falar com Corretor'}
-                    </button>
-                    <p className="text-center text-xs text-slate-400 mt-2">Os seus dados estão seguros connosco.</p>
-                  </form>
-                )}
-              </div>
-
+              <form onSubmit={handleSendLead} className="space-y-4">
+                <button type="submit" disabled={isSendingLead} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-xl font-bold flex justify-center items-center gap-2 transition-all text-lg">
+                  <Send size={24} /> Falar com Corretor
+                </button>
+              </form>
             </div>
           </div>
-
         </div>
+
+        {/* SECÇÃO: IMÓVEIS SEMELHANTES */}
+        {similarProperties.length > 0 && (
+          <div className="mt-24 pt-12 border-t border-slate-200">
+            <h3 className="text-2xl font-bold text-slate-800 mb-8">Outros imóveis que pode gostar</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {similarProperties.map((prop) => (
+                <Link key={prop.id} href={`/loja/${slug}/imovel/${prop.id}`} className="block group">
+                  <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100 hover:shadow-lg transition-all h-full flex flex-col">
+                    <div className="relative h-56 bg-slate-100 overflow-hidden">
+                      {prop.imageUrls && prop.imageUrls.length > 0 ? (
+                        <img src={prop.imageUrls[0]} alt={prop.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-slate-300"><Home size={48} /></div>
+                      )}
+                      <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-semibold text-slate-700">
+                        {prop.transaction}
+                      </div>
+                    </div>
+                    
+                    <div className="p-5 flex flex-col flex-1">
+                      <h3 className="text-lg font-bold text-slate-800 line-clamp-1 mb-1 group-hover:text-blue-600 transition-colors">{prop.title}</h3>
+                      <p className="text-slate-500 text-sm flex items-start gap-1 mb-4 line-clamp-1">
+                        <MapPin size={14} className="mt-0.5 shrink-0" /> {prop.neighborhood || prop.address}
+                      </p>
+                      
+                      <div className="mt-auto flex items-center justify-between pt-4 border-t border-slate-50">
+                        <div>
+                          <p className="text-xl font-bold text-blue-600">{formatCurrency(prop.price)}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
       </main>
+
+      {/* MODAL / LIGHTBOX DE IMAGENS EM ECRÃ INTEIRO */}
+      {lightboxIndex !== null && (
+        <div 
+          className="fixed inset-0 z-[100] bg-black/95 flex flex-col items-center justify-center"
+          onClick={closeLightbox} // Clicar fora fecha a imagem
+        >
+          {/* Botão Fechar */}
+          <button 
+            onClick={closeLightbox} 
+            className="absolute top-6 right-6 text-white/50 hover:text-white transition-colors z-[110] p-2 bg-black/50 rounded-full"
+          >
+            <X size={32} />
+          </button>
+
+          {/* Botões de Navegação (Só mostra se houver mais de 1 foto) */}
+          {images.length > 1 && (
+            <>
+              <button 
+                onClick={prevImage} 
+                className="absolute left-4 md:left-8 text-white/50 hover:text-white transition-colors z-[110] p-3 bg-black/50 hover:bg-black/80 rounded-full"
+              >
+                <ChevronLeft size={40} />
+              </button>
+              <button 
+                onClick={nextImage} 
+                className="absolute right-4 md:right-8 text-white/50 hover:text-white transition-colors z-[110] p-3 bg-black/50 hover:bg-black/80 rounded-full"
+              >
+                <ChevronRight size={40} />
+              </button>
+            </>
+          )}
+
+          {/* Imagem Principal */}
+          <div 
+            className="relative w-full max-w-6xl h-full flex items-center justify-center p-4 md:p-12"
+            onClick={(e) => e.stopPropagation()} // Previne fechar ao clicar na foto
+          >
+            <img
+              src={images[lightboxIndex]}
+              alt={`Foto Ampliada ${lightboxIndex + 1}`}
+              className="max-w-full max-h-full object-contain select-none shadow-2xl rounded-lg"
+            />
+          </div>
+
+          {/* Contador de Imagens */}
+          <div className="absolute bottom-6 text-white/70 font-medium tracking-widest bg-black/50 px-4 py-2 rounded-full text-sm">
+             {lightboxIndex + 1} / {images.length}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
