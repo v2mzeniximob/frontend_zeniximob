@@ -1,12 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-
+import { api } from '../../../../lib/api';
 import { 
   Users, Home, Plus, FileText, UserCheck, Search, 
   CheckCircle2, XCircle, FileUp, Edit, X
 } from 'lucide-react';
-import { api } from '@/src/lib/api';
 
 export default function GestaoLocacaoPage() {
   const [activeTab, setActiveTab] = useState<'inquilinos' | 'imoveis'>('inquilinos');
@@ -19,6 +18,9 @@ export default function GestaoLocacaoPage() {
   // Estados dos Modais
   const [isTenantModalOpen, setIsTenantModalOpen] = useState(false);
   const [isPropertyModalOpen, setIsPropertyModalOpen] = useState(false);
+  
+  // Estado para controlar se estamos a Editar ou Criar
+  const [editingTenantId, setEditingTenantId] = useState<string | null>(null);
   const [selectedProperty, setSelectedProperty] = useState<any>(null);
 
   // Formulário de Inquilino
@@ -42,11 +44,9 @@ export default function GestaoLocacaoPage() {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      // Busca Inquilinos
       const resTenants = await api.get('/tenants');
       setTenants(resTenants.data);
 
-      // Busca Imóveis e filtra os que são para Aluguel
       const resProperties = await api.get('/properties');
       const rentalProps = resProperties.data.filter((p: any) => p.transaction === 'Aluguel' || p.transaction === 'Venda e Aluguel');
       setProperties(rentalProps);
@@ -60,17 +60,52 @@ export default function GestaoLocacaoPage() {
   // ==========================================
   // FUNÇÕES DE INQUILINOS
   // ==========================================
+  
+  // Abrir modal limpo para NOVO inquilino
+  const handleOpenNewTenantModal = () => {
+    setEditingTenantId(null);
+    setTenantForm({
+      name: '', cpf: '', currentAddress: '', phone: '', email: '',
+      maritalStatus: 'Solteiro', spouseName: '', spouseCpf: '', guarantorName: '', guarantorCpf: ''
+    });
+    setIsTenantModalOpen(true);
+  };
+
+  // Abrir modal preenchido para EDITAR inquilino
+  const handleEditTenant = (tenant: any) => {
+    setEditingTenantId(tenant.id);
+    setTenantForm({
+      name: tenant.name || '',
+      cpf: tenant.cpf || '',
+      currentAddress: tenant.currentAddress || '',
+      phone: tenant.phone || '',
+      email: tenant.email || '',
+      maritalStatus: tenant.maritalStatus || 'Solteiro',
+      spouseName: tenant.spouseName || '',
+      spouseCpf: tenant.spouseCpf || '',
+      guarantorName: tenant.guarantorName || '',
+      guarantorCpf: tenant.guarantorCpf || ''
+    });
+    setIsTenantModalOpen(true);
+  };
+
   const handleSaveTenant = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      // Obs: Para arquivos reais, você precisará usar FormData e um serviço de Upload (AWS S3, Supabase, etc).
-      // Aqui estamos enviando os dados de texto para o backend criar o registo.
-      await api.post('/tenants', tenantForm);
-      alert('Inquilino cadastrado com sucesso!');
+      if (editingTenantId) {
+        // Atualizar inquilino existente (PUT)
+        await api.put(`/tenants/${editingTenantId}`, tenantForm);
+        alert('Inquilino atualizado com sucesso!');
+      } else {
+        // Criar novo inquilino (POST)
+        await api.post('/tenants', tenantForm);
+        alert('Inquilino cadastrado com sucesso!');
+      }
       setIsTenantModalOpen(false);
+      setEditingTenantId(null);
       fetchData(); // Recarrega a lista
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Erro ao cadastrar inquilino.');
+      alert(error.response?.data?.error || 'Erro ao salvar inquilino.');
     }
   };
 
@@ -137,7 +172,8 @@ export default function GestaoLocacaoPage() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
               <input type="text" placeholder="Buscar inquilino..." className="pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
             </div>
-            <button onClick={() => setIsTenantModalOpen(true)} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2">
+            {/* BOTÃO ATUALIZADO PARA USAR A FUNÇÃO NOVA */}
+            <button onClick={handleOpenNewTenantModal} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2">
               <Plus size={18} /> Novo Inquilino
             </button>
           </div>
@@ -168,7 +204,13 @@ export default function GestaoLocacaoPage() {
                       }
                     </td>
                     <td className="py-3 px-4 text-right">
-                      <button className="text-blue-600 hover:text-blue-800 font-medium">Editar</button>
+                      {/* BOTÃO ATUALIZADO PARA EDITAR O INQUILINO */}
+                      <button 
+                        onClick={() => handleEditTenant(tenant)}
+                        className="text-blue-600 hover:text-blue-800 font-medium bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors"
+                      >
+                        Editar
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -232,13 +274,16 @@ export default function GestaoLocacaoPage() {
       )}
 
       {/* =======================================================
-          MODAL: CADASTRAR INQUILINO
+          MODAL: CADASTRAR/EDITAR INQUILINO
           ======================================================= */}
       {isTenantModalOpen && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b border-slate-100 flex justify-between items-center sticky top-0 bg-white z-10">
-              <h2 className="text-xl font-bold text-slate-800">Cadastrar Inquilino</h2>
+              {/* TÍTULO DINÂMICO */}
+              <h2 className="text-xl font-bold text-slate-800">
+                {editingTenantId ? 'Editar Inquilino' : 'Cadastrar Inquilino'}
+              </h2>
               <button onClick={() => setIsTenantModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X size={24}/></button>
             </div>
             
@@ -249,7 +294,7 @@ export default function GestaoLocacaoPage() {
                 <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4 border-b pb-2">Dados do Inquilino</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div><label className="block text-sm mb-1 text-slate-600">Nome Completo</label><input required type="text" value={tenantForm.name} onChange={e => setTenantForm({...tenantForm, name: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
-                  <div><label className="block text-sm mb-1 text-slate-600">CPF</label><input required type="text" value={tenantForm.cpf} onChange={e => setTenantForm({...tenantForm, cpf: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
+                  <div><label className="block text-sm mb-1 text-slate-600">CPF</label><input required type="text" value={tenantForm.cpf} onChange={e => setTenantForm({...tenantForm, cpf: e.target.value})} className="w-full px-3 py-2 border rounded-lg" disabled={!!editingTenantId} title={editingTenantId ? "CPF não pode ser alterado" : ""} /></div>
                   <div><label className="block text-sm mb-1 text-slate-600">Telefone</label><input required type="text" value={tenantForm.phone} onChange={e => setTenantForm({...tenantForm, phone: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
                   <div><label className="block text-sm mb-1 text-slate-600">E-mail</label><input required type="email" value={tenantForm.email} onChange={e => setTenantForm({...tenantForm, email: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
                   <div className="md:col-span-2"><label className="block text-sm mb-1 text-slate-600">Endereço Atual</label><input required type="text" value={tenantForm.currentAddress} onChange={e => setTenantForm({...tenantForm, currentAddress: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
@@ -301,7 +346,9 @@ export default function GestaoLocacaoPage() {
 
               <div className="pt-4 flex justify-end gap-3 border-t">
                 <button type="button" onClick={() => setIsTenantModalOpen(false)} className="px-5 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg">Cancelar</button>
-                <button type="submit" className="px-5 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700">Salvar Inquilino</button>
+                <button type="submit" className="px-5 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700">
+                  {editingTenantId ? 'Salvar Alterações' : 'Salvar Inquilino'}
+                </button>
               </div>
             </form>
           </div>
