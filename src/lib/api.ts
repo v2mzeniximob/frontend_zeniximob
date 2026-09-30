@@ -1,8 +1,11 @@
 import axios from 'axios';
 import { parseCookies } from 'nookies';
 
+// Fallback explícito para garantir que o frontend nunca aponta para si mesmo em produção
+const baseURL = process.env.NEXT_PUBLIC_API_URL || 'https://api-zeniximob.onrender.com';
+
 export const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL,
+  baseURL,
 });
 
 // Interceptor: Só injeta o token se ele realmente estiver presente nos cookies
