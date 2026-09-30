@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, use } from 'react';
 import { api } from '../../../../../lib/api';
 import { 
   MapPin, Phone, Mail, Home, Loader2, BedDouble, Bath, Car, 
@@ -8,14 +8,19 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 
-interface PageParams {
-  params: {
+interface PageProps {
+  params: Promise<{
     slug: string;
     propertyId: string;
-  };
+  }>;
 }
 
-export default function DetalheImovelPage({ params }: PageParams) {
+export default function DetalheImovelPage(props: PageProps) {
+  // Desembrulha a Promise dos params usando o hook use()
+  const params = use(props.params);
+  const slug = params?.slug;
+  const propertyId = params?.propertyId;
+
   const [storeData, setStoreData] = useState<any>(null);
   const [property, setProperty] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -27,22 +32,24 @@ export default function DetalheImovelPage({ params }: PageParams) {
   const [leadSuccess, setLeadSuccess] = useState(false);
 
   useEffect(() => {
-    const fetchPropertyDetails = async () => {
-      if (!params?.slug || !params?.propertyId) return;
+    // Só prossegue quando a promise dos params estiver resolvida e o slug/propertyId existirem
+    if (!slug || !propertyId) return;
 
+    const fetchPropertyDetails = async () => {
       try {
-        const response = await api.get(`/public/stores/${params.slug}/properties/${params.propertyId}`);
+        const response = await api.get(`/public/stores/${slug}/properties/${propertyId}`);
         setStoreData(response.data.realEstate);
         setProperty(response.data.property);
-      } catch (err) {
-        setError('Imóvel não encontrado ou indisponível.');
+      } catch (err: any) {
+        console.error('Erro ao buscar detalhes:', err);
+        setError(err.response?.data?.error || 'Imóvel não encontrado ou indisponível.');
       } finally {
         setIsLoading(false);
       }
     };
 
     fetchPropertyDetails();
-  }, [params?.slug, params?.propertyId]);
+  }, [slug, propertyId]);
 
   const handleSendLead = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -72,7 +79,12 @@ export default function DetalheImovelPage({ params }: PageParams) {
   };
 
   if (isLoading) {
-    return <div className="min-h-screen flex items-center justify-center bg-slate-50"><Loader2 className="animate-spin text-blue-600" size={40} /></div>;
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 gap-4">
+        <Loader2 className="animate-spin text-blue-600" size={40} />
+        <p className="text-sm text-slate-500 font-medium">A carregar detalhes do imóvel...</p>
+      </div>
+    );
   }
 
   if (error || !property) {
@@ -81,7 +93,9 @@ export default function DetalheImovelPage({ params }: PageParams) {
         <Home size={64} className="text-slate-300 mb-4" />
         <h1 className="text-2xl font-bold text-slate-800">Imóvel não encontrado</h1>
         <p className="text-slate-500 mt-2">{error}</p>
-        <Link href={`/loja/${params.slug}`} className="mt-6 bg-blue-600 text-white px-6 py-2 rounded-xl font-medium hover:bg-blue-700 transition-colors">Voltar para a vitrine</Link>
+        <Link href={`/loja/${slug}`} className="mt-6 bg-blue-600 text-white px-6 py-2 rounded-xl font-medium hover:bg-blue-700 transition-colors">
+          Voltar para a vitrine
+        </Link>
       </div>
     );
   }
@@ -96,7 +110,7 @@ export default function DetalheImovelPage({ params }: PageParams) {
       {/* HEADER DA LOJA E NAVEGAÇÃO */}
       <header className="bg-white border-b border-slate-200 py-4 shadow-sm sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 flex items-center justify-between">
-          <Link href={`/loja/${params.slug}`} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 transition-colors font-medium text-sm">
+          <Link href={`/loja/${slug}`} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 transition-colors font-medium text-sm">
             <ChevronLeft size={18} /> Voltar para Imóveis
           </Link>
           <div className="text-right">
