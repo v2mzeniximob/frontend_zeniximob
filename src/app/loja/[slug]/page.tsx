@@ -3,14 +3,13 @@
 import { useState, useEffect } from 'react';
 import { api } from '../../../lib/api';
 import { MapPin, Phone, Mail, Home, Loader2, BedDouble, Bath, Car } from 'lucide-react';
-import { useRouter } from 'next/navigation'; // Importação do router
+import Link from 'next/link';
 
 export default function VitrineLojaPage({ params }: { params: { slug: string } }) {
   const [storeData, setStoreData] = useState<any>(null);
   const [properties, setProperties] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
-  const router = useRouter(); // Instanciação do router
 
   useEffect(() => {
     const fetchVitrine = async () => {
@@ -84,7 +83,7 @@ export default function VitrineLojaPage({ params }: { params: { slug: string } }
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {properties.map((prop) => (
               <div key={prop.id} className="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100 hover:shadow-md transition-shadow group flex flex-col">
-                <div className="relative h-56 bg-slate-100 overflow-hidden cursor-pointer" onClick={() => router.push(`/loja/${params.slug}/imovel/${prop.id}`)}>
+                <div className="relative h-56 bg-slate-100 overflow-hidden">
                   {prop.imageUrls && prop.imageUrls.length > 0 ? (
                     <img src={prop.imageUrls[0]} alt={prop.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                   ) : (
@@ -99,7 +98,7 @@ export default function VitrineLojaPage({ params }: { params: { slug: string } }
                 </div>
                 
                 <div className="p-5 flex flex-col flex-1">
-                  <h3 className="text-lg font-bold text-slate-800 line-clamp-1 mb-1 cursor-pointer hover:text-blue-600" onClick={() => router.push(`/loja/${params.slug}/imovel/${prop.id}`)}>{prop.title}</h3>
+                  <h3 className="text-lg font-bold text-slate-800 line-clamp-1 mb-1">{prop.title}</h3>
                   <p className="text-slate-500 text-sm flex items-start gap-1 mb-4 line-clamp-2">
                     <MapPin size={14} className="mt-0.5 shrink-0" /> {prop.neighborhood ? `${prop.neighborhood}, ${prop.city}` : prop.address}
                   </p>
@@ -115,13 +114,14 @@ export default function VitrineLojaPage({ params }: { params: { slug: string } }
                       <p className="text-xs text-slate-400 mb-0.5">Valor do Imóvel</p>
                       <p className="text-xl font-bold text-blue-600">{formatCurrency(prop.price)}</p>
                     </div>
-                    {/* Botão com evento onClick direto via router.push */}
-                    <button 
-                      onClick={() => router.push(`/loja/${params.slug}/imovel/${prop.id}`)}
-                      className="bg-slate-900 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer"
+                    
+                    {/* Utilizando o Link nativo do Next.js de forma limpa e direta */}
+                    <Link 
+                      href={`/loja/${params.slug}/imovel/${prop.id}`}
+                      className="bg-slate-900 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors inline-block text-center"
                     >
                       Ver Detalhes
-                    </button>
+                    </Link>
                   </div>
                 </div>
               </div>
