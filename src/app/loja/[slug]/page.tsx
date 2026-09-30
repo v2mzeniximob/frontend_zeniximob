@@ -11,19 +11,22 @@ export default function VitrineLojaPage({ params }: { params: { slug: string } }
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
 
-useEffect(() => {
+  useEffect(() => {
     const fetchVitrine = async () => {
-      // Se o slug ainda não estiver disponível, não faz nada
       if (!params?.slug) return;
 
       try {
+        console.log('A carregar loja para o slug:', params.slug);
         const response = await api.get(`/public/stores/${params.slug}`);
+        console.log('Resposta da loja recebida:', response.data);
+        
         setStoreData(response.data.realEstate);
-        setProperties(response.data.properties);
-      } catch (err) {
-        setError('Imobiliária não encontrada ou indisponível no momento.');
+        setProperties(response.data.properties || []);
+      } catch (err: any) {
+        console.error('Erro ao carregar vitrine:', err);
+        setError(err.response?.data?.error || err.message || 'Erro ao conectar ao servidor.');
       } finally {
-        setIsLoading(false);
+        setIsLoading(false); // Garante sempre a saída do loop de loading
       }
     };
 
@@ -35,22 +38,32 @@ useEffect(() => {
   };
 
   if (isLoading) {
-    return <div className="min-h-screen flex items-center justify-center bg-slate-50"><Loader2 className="animate-spin text-blue-600" size={40} /></div>;
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 gap-4">
+        <Loader2 className="animate-spin text-blue-600" size={40} />
+        <p className="text-sm text-slate-500 font-medium">A carregar a vitrine da imobiliária...</p>
+      </div>
+    );
   }
 
   if (error || !storeData) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 p-6 text-center">
         <Home size={64} className="text-slate-300 mb-4" />
         <h1 className="text-2xl font-bold text-slate-800">Loja não encontrada</h1>
-        <p className="text-slate-500 mt-2">{error}</p>
+        <p className="text-slate-500 mt-2 max-w-md">{error || 'Imobiliária não encontrada ou indisponível no momento.'}</p>
+        <button 
+          onClick={() => window.location.reload()} 
+          className="mt-6 bg-blue-600 text-white px-6 py-2 rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors"
+        >
+          Tentar Novamente
+        </button>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans pb-12">
-      {/* HEADER DA LOJA */}
       <header className="bg-white border-b border-slate-200 py-8 shadow-sm">
         <div className="max-w-6xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="text-center md:text-left">
@@ -70,7 +83,6 @@ useEffect(() => {
         </div>
       </header>
 
-      {/* LISTAGEM DE IMÓVEIS */}
       <main className="max-w-6xl mx-auto px-4 mt-8">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-bold text-slate-800">Imóveis Disponíveis ({properties.length})</h2>
@@ -117,8 +129,6 @@ useEffect(() => {
                       <p className="text-xs text-slate-400 mb-0.5">Valor do Imóvel</p>
                       <p className="text-xl font-bold text-blue-600">{formatCurrency(prop.price)}</p>
                     </div>
-                    
-                    {/* Utilizando o Link nativo do Next.js de forma limpa e direta */}
                     <Link 
                       href={`/loja/${params.slug}/imovel/${prop.id}`}
                       className="bg-slate-900 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors inline-block text-center"
