@@ -14,7 +14,8 @@ import {
   Key,
   UserCircle,
   DollarSign,
-  Calendar
+  Calendar,
+  Camera
 } from 'lucide-react';
 import { destroyCookie } from 'nookies';
 
@@ -25,15 +26,15 @@ export function RealEstateSidebar() {
 
   const menuItems = [
     { name: 'Dashboard', icon: LayoutDashboard, path: '/imobiliaria/dashboard' },
-    { name: 'Corretores', icon: Users, path: '/imobiliaria/corretores' },
+    { name: 'Imóveis', icon: Home, path: '/imobiliaria/imoveis' },
+    { name: 'Leads (CRM)', icon: Users, path: '/imobiliaria/leads' },
     { name: 'Visitas', icon: Calendar, path: '/imobiliaria/visitas' },
     { name: 'Proprietários', icon: UserCircle, path: '/imobiliaria/proprietarios' },
-    { name: 'Vistorias', icon: Home, path: '/imobiliaria/vistorias' },
     { name: 'Clientes', icon: Users, path: '/imobiliaria/clientes' },
     { name: 'Contratos', icon: Key, path: '/imobiliaria/contratos'},
     { name: 'Financeiro', icon: DollarSign, path: '/imobiliaria/financeiro' },
-    { name: 'Imóveis', icon: Home, path: '/imobiliaria/imoveis' },
-    { name: 'Leads (CRM)', icon: Users, path: '/imobiliaria/leads' },
+    { name: 'Vistorias', icon: Camera, path: '/imobiliaria/vistorias' },
+    { name: 'Corretores', icon: Users, path: '/imobiliaria/corretores' },
     { name: 'Configurações', icon: Settings, path: '/imobiliaria/configuracoes' },
   ];
 
@@ -44,12 +45,12 @@ export function RealEstateSidebar() {
 
   return (
     <aside 
-      className={`bg-white border-r border-slate-200 text-slate-800 min-h-screen flex flex-col hidden md:flex fixed h-full z-20 transition-all duration-300 ease-in-out ${
+      className={`bg-white border-r border-slate-200 text-slate-800 h-screen flex flex-col hidden md:flex fixed z-20 transition-all duration-300 ease-in-out ${
         isCollapsed ? 'w-20 px-2' : 'w-64 px-4'
       }`}
     >
-      {/* Cabeçalho / Logo */}
-      <div className={`flex items-center gap-3 py-6 mb-4 border-b border-slate-100 relative ${isCollapsed ? 'justify-center' : ''}`}>
+      {/* Cabeçalho / Logo (Não rola) */}
+      <div className={`flex items-center gap-3 py-6 mb-2 border-b border-slate-100 shrink-0 relative ${isCollapsed ? 'justify-center' : ''}`}>
         <div className="w-10 h-10 min-w-[2.5rem] bg-blue-600 rounded-xl flex items-center justify-center font-bold text-white shadow-md">
           Z
         </div>
@@ -70,8 +71,9 @@ export function RealEstateSidebar() {
         </button>
       </div>
 
-      {/* Navegação */}
-      <nav className="flex-1 space-y-1.5 mt-2">
+      {/* Navegação (ROLA AQUI) */}
+      <nav className="flex-1 space-y-1.5 overflow-y-auto overflow-x-hidden mb-4 pr-1 
+        scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent hover:scrollbar-thumb-slate-300">
         {menuItems.map((item) => {
           const isActive = pathname.startsWith(item.path);
           return (
@@ -97,8 +99,8 @@ export function RealEstateSidebar() {
         })}
       </nav>
 
-      {/* Rodapé / Logout */}
-      <div className={`py-4 border-t border-slate-100 mt-auto ${isCollapsed ? 'px-0' : 'px-1'}`}>
+      {/* Rodapé / Logout (Não rola, fica sempre visível no fundo) */}
+      <div className={`py-4 border-t border-slate-100 shrink-0 ${isCollapsed ? 'px-0' : 'px-1'}`}>
         <button 
           onClick={handleLogout}
           title={isCollapsed ? 'Terminar Sessão' : undefined}
