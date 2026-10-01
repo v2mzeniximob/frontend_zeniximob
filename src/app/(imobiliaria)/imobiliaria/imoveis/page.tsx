@@ -1,533 +1,387 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useForm, Controller } from 'react-hook-form';
-import { z } from 'zod';
-import { zodResolver } from '@hookform/resolvers/zod';
 import { api } from '../../../../lib/api';
-
-import { Plus, Power, X, Loader2, Home, Edit, Search, Filter, MapPin, Image as ImageIcon, UserSquare } from 'lucide-react';
-import { maskCep } from '@/src/utils/mask';
-
-// Lista de comodidades disponíveis para selecionar
-const AMENITIES_OPTIONS = [
-  'Piscina', 'Academia', 'Churrasqueira', 'Salão de Festas', 'Playground', 
-  'Portaria 24h', 'Elevador', 'Varanda Gourmet', 'Ar Condicionado', 'Móveis Planejados',
-  'Área de Serviço', 'Quadra Poliesportiva', 'Permite Animais'
-];
-
-const propertySchema = z.object({
-  title: z.string().min(5, 'Título deve ter no mínimo 5 caracteres'),
-  type: z.string().min(1, 'Selecione o tipo de imóvel'),
-  category: z.string().min(1, 'Selecione a categoria (Residencial/Comercial)'),
-  transaction: z.string().min(1, 'Selecione a modalidade (Venda/Aluguel)'),
-  
-  // Valores
-  price: z.coerce.number().min(1, 'O valor é obrigatório'),
-  condoFee: z.coerce.number().optional().default(0),
-  iptu: z.coerce.number().optional().default(0),
-  
-  // Características
-  area: z.coerce.number().min(1, 'Área obrigatória'),
-  bedrooms: z.coerce.number().min(0).default(0),
-  bathrooms: z.coerce.number().min(0).default(0),
-  garage: z.coerce.number().min(0).default(0),
-  yearBuilt: z.coerce.number().optional(),
-  amenities: z.array(z.string()).optional().default([]),
-  
-  // Endereço
-  cep: z.string().min(9, 'CEP incompleto'),
-  address: z.string().min(5, 'Endereço obrigatório'),
-  neighborhood: z.string().optional(),
-  city: z.string().optional(),
-  state: z.string().optional(),
-  latitude: z.coerce.number().optional(),
-  longitude: z.coerce.number().optional(),
-  
-  description: z.string().optional(),
-  imageUrlsStr: z.string().optional(),
-  brokerId: z.string().optional(),
-});
-
-type PropertyForm = z.input<typeof propertySchema>;
+import { Plus, Edit, X, CheckCircle2, XCircle, Loader2, Home, MapPin, DollarSign, Camera, User, UserCheck } from 'lucide-react';
 
 export default function ImoveisPage() {
   const [properties, setProperties] = useState<any[]>([]);
   const [brokers, setBrokers] = useState<any[]>([]);
+  const [owners, setOwners] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isFetchingCep, setIsFetchingCep] = useState(false);
-
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [isSaving, setIsSaving] = useState(false);
 
-  const { register, handleSubmit, setValue, reset, control, formState: { errors } } = useForm<PropertyForm>({
-    resolver: zodResolver(propertySchema),
-    defaultValues: { bedrooms: 0, bathrooms: 0, garage: 0, category: 'Residencial', brokerId: '', amenities: [] }
+  // Estado inicial do formulário completo
+  const [form, setForm] = useState({
+    title: '', type: 'Casa', category: 'Residencial', transaction: 'Locação',
+    price: '', condoFee: '', iptu: '',
+    area: '', bedrooms: '', bathrooms: '', garage: '', yearBuilt: '',
+    cep: '', address: '', neighborhood: '', city: '', state: '',
+    description: '', imageUrls: '', brokerId: '', ownerId: '', inspectionUrl: ''
   });
-
-  async function fetchData() {
-    setIsLoading(true);
-    try {
-      const [propRes, brokerRes] = await Promise.all([
-        api.get('/properties').catch(() => ({ data: [] })),
-        api.get('/brokers').catch(() => ({ data: [] }))
-      ]);
-      setProperties(propRes.data);
-      setBrokers(brokerRes.data.filter((b: any) => b.isActive));
-    } catch (error) {
-      console.error('Erro ao buscar dados:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  }
 
   useEffect(() => {
     fetchData();
   }, []);
 
-  const filteredProperties = properties.filter(prop => {
-    const term = searchTerm.toLowerCase();
-    const matchesSearch = prop.title?.toLowerCase().includes(term) || prop.address?.toLowerCase().includes(term);
-    const matchesStatus = statusFilter === 'all' ? true : statusFilter === 'active' ? prop.isActive === true : prop.isActive === false;
-    return matchesSearch && matchesStatus;
-  });
-
-  function handleEdit(prop: any) {
-    setEditingId(prop.id);
-    const urlsString = Array.isArray(prop.imageUrls) ? prop.imageUrls.join(', ') : (prop.imageUrl || '');
-
-    // CORREÇÃO: Usando undefined em vez de '' para números opcionais
-    reset({
-      title: prop.title || '',
-      type: prop.type || '',
-      category: prop.category || 'Residencial',
-      transaction: prop.transaction || '',
-      price: prop.price || 0,
-      condoFee: prop.condoFee || 0,
-      iptu: prop.iptu || 0,
-      area: prop.area || 0,
-      bedrooms: prop.bedrooms || 0,
-      bathrooms: prop.bathrooms || 0,
-      garage: prop.garage || 0,
-      yearBuilt: prop.yearBuilt ?? undefined,
-      amenities: prop.amenities || [],
-      cep: maskCep(prop.cep) || '',
-      address: prop.address || '',
-      neighborhood: prop.neighborhood || '',
-      city: prop.city || '',
-      state: prop.state || '',
-      latitude: prop.latitude ?? undefined,
-      longitude: prop.longitude ?? undefined,
-      description: prop.description || '',
-      imageUrlsStr: urlsString,
-      brokerId: prop.brokerId || '',
-    });
-    setIsModalOpen(true);
-  }
-
-  function handleCreateNew() {
-    setEditingId(null);
-    
-    // CORREÇÃO: Usando undefined em vez de '' para números opcionais
-    reset({
-      title: '', type: '', category: 'Residencial', transaction: '', price: 0, condoFee: 0, iptu: 0, area: 0,
-      bedrooms: 0, bathrooms: 0, garage: 0, yearBuilt: undefined, amenities: [], cep: '', address: '', 
-      neighborhood: '', city: '', state: '', latitude: undefined, longitude: undefined,
-      description: '', imageUrlsStr: '', brokerId: ''
-    });
-    setIsModalOpen(true);
-  }
-
-  async function handleCepManualChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const masked = maskCep(e.target.value);
-    setValue('cep', masked, { shouldValidate: true });
-
-    if (masked.length === 9) {
-      setIsFetchingCep(true);
-      try {
-        const rawCep = masked.replace(/\D/g, '');
-        const response = await api.get(`/integrations/cep/${rawCep}`);
-        const data = response.data;
-        const fullAddress = `${data.street}, ${data.neighborhood}`;
-        
-        setValue('address', fullAddress, { shouldValidate: true });
-        setValue('neighborhood', data.neighborhood, { shouldValidate: true });
-        setValue('city', data.city, { shouldValidate: true });
-        setValue('state', data.state, { shouldValidate: true });
-      } catch (error) {
-        console.log('CEP não encontrado.');
-      } finally {
-        setIsFetchingCep(false);
-      }
-    }
-  }
-
-  async function onSubmit(data: PropertyForm) {
-    setIsSubmitting(true);
+  const fetchData = async () => {
+    setIsLoading(true);
     try {
-      const urlsArray = data.imageUrlsStr 
-        ? data.imageUrlsStr.split(',').map((u) => u.trim()).filter(Boolean)
-        : [];
-
-      const payload = { 
-        ...data,
-        imageUrls: urlsArray,
-        brokerId: data.brokerId === "" ? null : data.brokerId
-      };
-      delete (payload as any).imageUrlsStr;
-
-      if (editingId) {
-        await api.put(`/properties/${editingId}`, payload);
-      } else {
-        await api.post('/properties', payload);
-      }
-      
-      await fetchData();
-      setIsModalOpen(false);
-    } catch (error: any) {
-      alert(error.response?.data?.error || 'Erro ao salvar o imóvel.');
+      // Carrega Imóveis, Corretores e Proprietários em simultâneo
+      const [resProps, resBrokers, resOwners] = await Promise.all([
+        api.get('/properties'),
+        api.get('/brokers'),
+        api.get('/owners')
+      ]);
+      setProperties(resProps.data);
+      setBrokers(resBrokers.data);
+      setOwners(resOwners.data);
+    } catch (error) {
+      console.error('Erro ao buscar dados:', error);
     } finally {
-      setIsSubmitting(false);
+      setIsLoading(false);
     }
-  }
+  };
 
-  async function toggleStatus(id: string) {
+  const handleOpenModal = (property?: any) => {
+    if (property) {
+      setEditingId(property.id);
+      setForm({
+        title: property.title || '',
+        type: property.type || 'Casa',
+        category: property.category || 'Residencial',
+        transaction: property.transaction || 'Locação',
+        price: property.price || '',
+        condoFee: property.condoFee || '',
+        iptu: property.iptu || '',
+        area: property.area || '',
+        bedrooms: property.bedrooms || '',
+        bathrooms: property.bathrooms || '',
+        garage: property.garage || '',
+        yearBuilt: property.yearBuilt || '',
+        cep: property.cep || '',
+        address: property.address || '',
+        neighborhood: property.neighborhood || '',
+        city: property.city || '',
+        state: property.state || '',
+        description: property.description || '',
+        imageUrls: property.imageUrls ? property.imageUrls.join(', ') : '',
+        brokerId: property.brokerId || '',
+        ownerId: property.ownerId || '',
+        inspectionUrl: property.inspectionUrl || ''
+      });
+    } else {
+      setEditingId(null);
+      setForm({
+        title: '', type: 'Casa', category: 'Residencial', transaction: 'Locação',
+        price: '', condoFee: '', iptu: '', area: '', bedrooms: '', bathrooms: '', garage: '', yearBuilt: '',
+        cep: '', address: '', neighborhood: '', city: '', state: '',
+        description: '', imageUrls: '', brokerId: '', ownerId: '', inspectionUrl: ''
+      });
+    }
+    setIsModalOpen(true);
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSaving(true);
+    
+    // Converte os links separados por vírgula num array
+    const urlsArray = form.imageUrls.split(',').map(url => url.trim()).filter(url => url !== '');
+    const dataToSend = { ...form, imageUrls: urlsArray };
+
+    try {
+      if (editingId) {
+        await api.put(`/properties/${editingId}`, dataToSend);
+        alert('Imóvel atualizado com sucesso!');
+      } else {
+        await api.post('/properties', dataToSend);
+        alert('Imóvel cadastrado com sucesso!');
+      }
+      setIsModalOpen(false);
+      fetchData();
+    } catch (error: any) {
+      alert(error.response?.data?.error || 'Erro ao salvar imóvel.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleToggleStatus = async (id: string) => {
+    if (!confirm('Deseja alterar o status de visibilidade deste imóvel?')) return;
     try {
       await api.patch(`/properties/${id}/status`);
       fetchData();
     } catch (error) {
       alert('Erro ao alterar status.');
     }
-  }
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
   };
 
+  if (isLoading) return <div className="p-8 flex justify-center text-slate-500"><Loader2 className="animate-spin" /></div>;
+
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="p-8 max-w-[1600px] mx-auto font-sans">
+      <div className="flex justify-between items-center mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Gestão de Imóveis</h1>
-          <p className="text-slate-500 text-sm">Gerencie o seu catálogo de propriedades e ordene a vitrine.</p>
+          <h1 className="text-3xl font-bold text-slate-800 flex items-center gap-3">
+            <Home className="text-blue-600" size={32} />
+            Catálogo de Imóveis
+          </h1>
+          <p className="text-slate-500 mt-1">Gira os seus imóveis, os vínculos com proprietários e captações.</p>
         </div>
-        <button onClick={handleCreateNew} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-all shadow-sm">
-          <Plus size={20} /> Adicionar Imóvel
+        <button onClick={() => handleOpenModal()} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-medium flex items-center gap-2 transition-colors shadow-sm">
+          <Plus size={18} /> Novo Imóvel
         </button>
       </div>
 
-      {/* Barra de Filtros e Busca */}
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex flex-col md:flex-row gap-4 items-center justify-between">
-        <div className="relative w-full md:w-96">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-            <Search size={18} />
-          </div>
-          <input type="text" placeholder="Buscar por Título ou Endereço..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
-        </div>
-        <div className="flex items-center gap-2 w-full md:w-auto">
-          <Filter size={18} className="text-slate-400" />
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none w-full md:w-48 bg-white">
-            <option value="all">Todos os Status</option>
-            <option value="active">Disponíveis (Ativos)</option>
-            <option value="inactive">Inativos</option>
-          </select>
-        </div>
-      </div>
+      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+        <table className="w-full text-left text-sm">
+          <thead className="bg-slate-50 text-slate-600 font-medium border-b border-slate-200">
+            <tr>
+              <th className="py-4 px-6">Imóvel & Localização</th>
+              <th className="py-4 px-6">Transação & Valor</th>
+              <th className="py-4 px-6">Proprietário / Captação</th>
+              <th className="py-4 px-6">Status na Vitrine</th>
+              <th className="py-4 px-6 text-right">Ações</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 text-slate-700">
+            {properties.map(prop => (
+              <tr key={prop.id} className="hover:bg-slate-50 transition-colors">
+                <td className="py-4 px-6">
+                  <p className="font-bold text-slate-800 text-base">{prop.title}</p>
+                  <p className="text-xs text-slate-500 flex items-center gap-1 mt-1"><MapPin size={12}/> {prop.neighborhood}, {prop.city}</p>
+                  <div className="flex items-center gap-2 mt-2">
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${prop.rentStatus === 'Alugado' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                      {prop.rentStatus === 'Alugado' ? 'ALUGADO' : 'VAGO'}
+                    </span>
+                    <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-bold">{prop.type}</span>
+                  </div>
+                </td>
+                
+                <td className="py-4 px-6">
+                  <span className={`text-xs font-bold px-2 py-1 rounded-full ${prop.transaction === 'Venda' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                    {prop.transaction}
+                  </span>
+                  <p className="font-bold text-slate-800 mt-2 text-lg">R$ {Number(prop.price).toLocaleString('pt-BR')}</p>
+                </td>
+                
+                <td className="py-4 px-6 space-y-2">
+                  <div className="flex items-center gap-2 text-xs">
+                    <User size={14} className="text-slate-400" />
+                    <span className="font-medium text-slate-700">Dono:</span> 
+                    {prop.owner ? <span className="text-blue-600 font-bold">{prop.owner.name}</span> : <span className="text-slate-400 italic">Não vinculado</span>}
+                  </div>
+                  <div className="flex items-center gap-2 text-xs">
+                    <UserCheck size={14} className="text-slate-400" />
+                    <span className="font-medium text-slate-700">Corretor:</span> 
+                    {prop.broker ? <span className="text-slate-600">{prop.broker.name}</span> : <span className="text-slate-400 italic">Nenhum</span>}
+                  </div>
+                  {prop.inspectionUrl && (
+                    <a href={prop.inspectionUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[11px] bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-2 py-1 rounded mt-1 transition-colors">
+                      <Camera size={12}/> Vistoria Inicial
+                    </a>
+                  )}
+                </td>
 
-      {/* Tabela de Imóveis */}
-      <div className="bg-white border border-slate-100 rounded-xl shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm text-slate-600">
-            <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-100">
-              <tr>
-                <th className="px-6 py-4">Fotos / Imóvel</th>
-                <th className="px-6 py-4">Categoria / Tipo</th>
-                <th className="px-6 py-4">Corretor</th>
-                <th className="px-6 py-4">Modalidade</th>
-                <th className="px-6 py-4 text-center">Status</th>
-                <th className="px-6 py-4 text-right">Ações</th>
+                <td className="py-4 px-6">
+                  <button onClick={() => handleToggleStatus(prop.id)} className="focus:outline-none">
+                    {prop.isActive 
+                      ? <span className="bg-green-100 text-green-700 px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1 w-fit"><CheckCircle2 size={14}/> Visível (Ativo)</span>
+                      : <span className="bg-red-100 text-red-700 px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1 w-fit"><XCircle size={14}/> Oculto</span>
+                    }
+                  </button>
+                </td>
+                
+                <td className="py-4 px-6 text-right">
+                  <button onClick={() => handleOpenModal(prop)} className="text-blue-600 hover:text-blue-800 font-medium bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded-lg transition-colors flex items-center gap-2 ml-auto">
+                    <Edit size={16} /> Editar
+                  </button>
+                </td>
               </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {isLoading ? (
-                <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-slate-400">
-                    <Loader2 className="animate-spin inline-block mr-2" size={20} /> Carregando...
-                  </td>
-                </tr>
-              ) : filteredProperties.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-slate-400">Nenhum imóvel cadastrado.</td>
-                </tr>
-              ) : (
-                filteredProperties.map((prop) => {
-                  const firstImage = prop.imageUrls?.[0] || prop.imageUrl;
-                  const totalPhotos = prop.imageUrls?.length || (prop.imageUrl ? 1 : 0);
-
-                  return (
-                    <tr key={prop.id} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-12 h-12 rounded-lg bg-slate-100 overflow-hidden shrink-0 flex items-center justify-center text-slate-400 relative">
-                            {firstImage ? (
-                              <img src={firstImage} alt={prop.title} className="w-full h-full object-cover" />
-                            ) : (
-                              <Home size={20} />
-                            )}
-                            {totalPhotos > 1 && (
-                              <span className="absolute bottom-0 right-0 bg-black/60 text-white text-[9px] px-1 rounded-tl">
-                                +{totalPhotos - 1}
-                              </span>
-                            )}
-                          </div>
-                          <div>
-                            <span className="font-medium text-slate-800 line-clamp-1">{prop.title}</span>
-                            <span className="text-xs text-slate-400 flex items-center gap-1 mt-0.5"><MapPin size={12}/> {prop.neighborhood || prop.address}</span>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex flex-col">
-                          <span className="font-medium text-slate-700">{prop.category}</span>
-                          <span className="text-xs text-slate-400">{prop.type}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-slate-600 text-sm">
-                        {prop.broker ? prop.broker.name : <span className="text-slate-400 italic text-xs">Sem corretor</span>}
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex flex-col gap-1 items-start">
-                          <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-xs font-medium">
-                            {prop.transaction}
-                          </span>
-                          <span className="font-semibold text-blue-600">{formatCurrency(prop.price)}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${ prop.isActive ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500' }`}>
-                          {prop.isActive ? 'Disponível' : 'Inativo'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex justify-end gap-1">
-                          <button onClick={() => handleEdit(prop)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Editar">
-                            <Edit size={18} />
-                          </button>
-                          <button onClick={() => toggleStatus(prop.id)} className={`p-2 rounded-lg transition-colors ${ prop.isActive ? 'text-red-500 hover:bg-red-50' : 'text-green-500 hover:bg-green-50' }`} title="Alterar Status">
-                            <Power size={18} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+            ))}
+            {properties.length === 0 && (
+              <tr><td colSpan={5} className="py-12 text-center text-slate-500 text-lg">Nenhum imóvel cadastrado.</td></tr>
+            )}
+          </tbody>
+        </table>
       </div>
 
-      {/* Modal de Cadastro/Edição de Imóvel */}
-      <div className={`fixed inset-0 bg-black/40 backdrop-blur-sm items-center justify-center z-50 p-4 ${isModalOpen ? 'flex animate-in fade-in zoom-in duration-200' : 'hidden'}`}>
-        <div className="bg-white rounded-2xl shadow-xl w-full max-w-5xl max-h-[90vh] overflow-y-auto">
-          <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 sticky top-0 z-10">
-            <h2 className="text-xl font-semibold text-slate-800">{editingId ? 'Editar Imóvel' : 'Cadastrar Novo Imóvel'}</h2>
-            <button type="button" onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 transition-colors"><X size={20}/></button>
-          </div>
-          
-          <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-6">
+      {/* MODAL DE CADASTRO/EDIÇÃO */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-5xl my-8 overflow-hidden flex flex-col max-h-[90vh]">
             
-            {/* Bloco: Corretor Responsável */}
-            <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100">
-              <label className="flex items-center gap-2 text-sm font-medium text-blue-900 mb-1">
-                <UserSquare size={16} className="text-blue-600" /> Corretor Responsável (Opcional)
-              </label>
-              <select {...register('brokerId')} className="w-full px-3 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white">
-                <option value="">Selecione um corretor da sua equipa...</option>
-                {brokers.map((broker) => (
-                  <option key={broker.id} value={broker.id}>{broker.name} (CRECI: {broker.creci})</option>
-                ))}
-              </select>
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
+              <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                {editingId ? <Edit className="text-blue-600" size={20}/> : <Plus className="text-blue-600" size={20}/>}
+                {editingId ? 'Editar Imóvel' : 'Cadastrar Novo Imóvel'}
+              </h2>
+              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X size={24}/></button>
             </div>
+            
+            <div className="p-6 overflow-y-auto flex-1">
+              <form id="property-form" onSubmit={handleSave} className="space-y-8">
+                
+                {/* SECÇÃO 1: BÁSICO */}
+                <div>
+                  <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">1. Informações Básicas</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="md:col-span-2">
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Título do Anúncio</label>
+                      <input required type="text" value={form.title} onChange={e => setForm({...form, title: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm" placeholder="Ex: Lindo Apartamento com Varanda..." />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Transação</label>
+                      <select value={form.transaction} onChange={e => setForm({...form, transaction: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 bg-white text-sm">
+                        <option value="Locação">Locação</option>
+                        <option value="Venda">Venda</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Tipo</label>
+                      <select value={form.type} onChange={e => setForm({...form, type: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 bg-white text-sm">
+                        <option value="Casa">Casa</option>
+                        <option value="Apartamento">Apartamento</option>
+                        <option value="Comercial">Comercial</option>
+                        <option value="Terreno">Terreno</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
 
-            {/* Bloco: Informações Básicas */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="md:col-span-4">
-                <label className="block text-sm font-medium text-slate-700 mb-1">Título do Imóvel</label>
-                <input type="text" {...register('title')} placeholder="Ex: Casa Espetacular em Condomínio Fechado" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
-                {errors.title && <span className="text-red-500 text-xs">{errors.title.message}</span>}
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Categoria</label>
-                <select {...register('category')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white font-medium">
-                  <option value="Residencial">Residencial</option>
-                  <option value="Comercial">Comercial</option>
-                </select>
-              </div>
+                {/* SECÇÃO 2: VALORES E ÁREA */}
+                <div>
+                  <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">2. Valores & Dimensões</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1 flex items-center gap-1"><DollarSign size={14}/> Valor (R$)</label>
+                      <input required type="number" value={form.price} onChange={e => setForm({...form, price: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm" placeholder="2500" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Condomínio (R$)</label>
+                      <input type="number" value={form.condoFee} onChange={e => setForm({...form, condoFee: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm" placeholder="0" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">IPTU (R$)</label>
+                      <input type="number" value={form.iptu} onChange={e => setForm({...form, iptu: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm" placeholder="0" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Área (m²)</label>
+                      <input required type="number" value={form.area} onChange={e => setForm({...form, area: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm" placeholder="Ex: 80" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Quartos</label>
+                      <input type="number" value={form.bedrooms} onChange={e => setForm({...form, bedrooms: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Banheiros</label>
+                      <input type="number" value={form.bathrooms} onChange={e => setForm({...form, bathrooms: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Vagas</label>
+                      <input type="number" value={form.garage} onChange={e => setForm({...form, garage: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm" />
+                    </div>
+                  </div>
+                </div>
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Tipo de Imóvel</label>
-                <select {...register('type')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white">
-                  <option value="">Selecione...</option>
-                  <option value="Casa">Casa</option>
-                  <option value="Apartamento">Apartamento</option>
-                  <option value="Terreno">Terreno</option>
-                  <option value="Sala Comercial">Sala Comercial</option>
-                  <option value="Galpão">Galpão</option>
-                </select>
-                {errors.type && <span className="text-red-500 text-xs">{errors.type.message}</span>}
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Modalidade</label>
-                <select {...register('transaction')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white">
-                  <option value="">Selecione...</option>
-                  <option value="Venda">Venda</option>
-                  <option value="Aluguel">Aluguel</option>
-                </select>
-                {errors.transaction && <span className="text-red-500 text-xs">{errors.transaction.message}</span>}
-              </div>
+                {/* SECÇÃO 3: ENDEREÇO */}
+                <div>
+                  <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">3. Localização</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="md:col-span-1">
+                      <label className="block text-xs font-bold text-slate-600 mb-1">CEP</label>
+                      <input required type="text" value={form.cep} onChange={e => setForm({...form, cep: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm" />
+                    </div>
+                    <div className="md:col-span-3">
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Endereço Completo</label>
+                      <input required type="text" value={form.address} onChange={e => setForm({...form, address: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm" />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Bairro</label>
+                      <input required type="text" value={form.neighborhood} onChange={e => setForm({...form, neighborhood: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm" />
+                    </div>
+                    <div className="md:col-span-1">
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Cidade</label>
+                      <input required type="text" value={form.city} onChange={e => setForm({...form, city: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm" />
+                    </div>
+                    <div className="md:col-span-1">
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Estado (UF)</label>
+                      <input required type="text" maxLength={2} value={form.state} onChange={e => setForm({...form, state: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm uppercase" />
+                    </div>
+                  </div>
+                </div>
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Ano de Construção</label>
-                <input type="number" {...register('yearBuilt')} placeholder="Ex: 2022" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white" />
-              </div>
-            </div>
-
-            {/* Bloco: Valores Financeiros */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
-              <div>
-                <label className="block text-sm font-medium text-slate-900 mb-1">Valor do Imóvel (R$)</label>
-                <input type="number" step="0.01" {...register('price')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white font-semibold text-blue-700" />
-                {errors.price && <span className="text-red-500 text-xs">{errors.price.message}</span>}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Condomínio (R$)</label>
-                <input type="number" step="0.01" {...register('condoFee')} placeholder="Opcional" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">IPTU Mensal (R$)</label>
-                <input type="number" step="0.01" {...register('iptu')} placeholder="Opcional" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white" />
-              </div>
-            </div>
-
-            {/* Bloco: Características (Metragens e Cômodos) */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Área Útil (m²)</label>
-                <input type="number" {...register('area')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white" />
-                {errors.area && <span className="text-red-500 text-xs">{errors.area.message}</span>}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Quartos</label>
-                <input type="number" {...register('bedrooms')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Banheiros</label>
-                <input type="number" {...register('bathrooms')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Vagas de Garagem</label>
-                <input type="number" {...register('garage')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white" />
-              </div>
-            </div>
-
-            {/* Bloco: Amenidades (Comodidades do Imóvel) */}
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Comodidades e Infraestrutura</label>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-100">
-                <Controller
-                  name="amenities"
-                  control={control}
-                  render={({ field }) => {
-                    // CORREÇÃO: Garante que o valor inicial nunca seja undefined para o array
-                    const currentValues = field.value || []; 
+                {/* SECÇÃO 4: GESTÃO & CAPTAÇÃO (NOVIDADE) */}
+                <div className="bg-blue-50 p-6 rounded-xl border border-blue-100">
+                  <h3 className="text-sm font-bold text-blue-800 uppercase tracking-wider mb-4 border-b border-blue-200 pb-2 flex items-center gap-2">
+                    <UserCheck size={18}/> 4. Gestão & Captação
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     
-                    return (
-                      <>
-                        {AMENITIES_OPTIONS.map((amenity) => (
-                          <label key={amenity} className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
-                            <input 
-                              type="checkbox" 
-                              className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                              checked={currentValues.includes(amenity)}
-                              onChange={(e) => {
-                                const updatedValue = e.target.checked 
-                                  ? [...currentValues, amenity] 
-                                  : currentValues.filter((val: string) => val !== amenity);
-                                field.onChange(updatedValue);
-                              }}
-                            />
-                            {amenity}
-                          </label>
-                        ))}
-                      </>
-                    );
-                  }}
-                />
-              </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">Proprietário (Dono do Imóvel)</label>
+                      <select value={form.ownerId} onChange={e => setForm({...form, ownerId: e.target.value})} className="w-full px-4 py-2.5 border border-blue-200 rounded-lg outline-none focus:border-blue-500 bg-white text-sm">
+                        <option value="">Selecione o proprietário...</option>
+                        {owners.map(o => <option key={o.id} value={o.id}>{o.name} ({o.cpfOrCnpj})</option>)}
+                      </select>
+                      <p className="text-[11px] text-blue-600 mt-1">Vincula o imóvel para gerar repasses financeiros.</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">Corretor Responsável</label>
+                      <select value={form.brokerId} onChange={e => setForm({...form, brokerId: e.target.value})} className="w-full px-4 py-2.5 border border-blue-200 rounded-lg outline-none focus:border-blue-500 bg-white text-sm">
+                        <option value="">Nenhum (Livre)</option>
+                        {brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                      </select>
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">
+                        <Camera size={14}/> Laudo da Vistoria Inicial (Link)
+                      </label>
+                      <input type="url" value={form.inspectionUrl} onChange={e => setForm({...form, inspectionUrl: e.target.value})} className="w-full px-4 py-2.5 border border-blue-200 rounded-lg outline-none focus:border-blue-500 text-sm bg-white" placeholder="Ex: Link do Google Drive com as fotos" />
+                      <p className="text-[11px] text-blue-600 mt-1">Anexe o registo do estado de conservação no momento da captação.</p>
+                    </div>
+
+                  </div>
+                </div>
+
+                {/* SECÇÃO 5: MÍDIA & DESCRIÇÃO */}
+                <div>
+                  <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">5. Apresentação na Vitrine</h3>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Descrição</label>
+                      <textarea rows={4} value={form.description} onChange={e => setForm({...form, description: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm resize-none" placeholder="Descreva os detalhes do imóvel..." />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Links das Imagens (Separados por vírgula)</label>
+                      <textarea rows={2} value={form.imageUrls} onChange={e => setForm({...form, imageUrls: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm resize-none" placeholder="https://linkdafoto1.com, https://linkdafoto2.com" />
+                    </div>
+                  </div>
+                </div>
+                
+              </form>
             </div>
 
-            {/* Bloco: Endereço Mapeado */}
-            <div className="space-y-4">
-              <h3 className="font-semibold text-slate-700 border-b border-slate-100 pb-2">Localização</h3>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div>
-                  <label className="flex items-center gap-2 text-sm font-medium text-slate-700 mb-1">
-                    CEP {isFetchingCep && <Loader2 size={14} className="animate-spin text-blue-500" />}
-                  </label>
-                  <input type="text" {...register('cep')} onChange={handleCepManualChange} placeholder="00000-000" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
-                </div>
-                <div className="md:col-span-3">
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Rua / Logradouro</label>
-                  <input type="text" {...register('address')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50" />
-                </div>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Bairro (Usado no Mapa)</label>
-                  <input type="text" {...register('neighborhood')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Cidade</label>
-                  <input type="text" {...register('city')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Estado</label>
-                  <input type="text" {...register('state')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50" />
-                </div>
-              </div>
-            </div>
-
-            {/* Bloco: Mídia (Fotos) e Descrição */}
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">URLs das Fotos da Galeria</label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400"><ImageIcon size={18} /></div>
-                <input type="text" {...register('imageUrlsStr')} placeholder="https://site.com/foto1.jpg, https://site.com/foto2.jpg" className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-slate-700" />
-              </div>
-              <p className="text-xs text-slate-400 mt-1.5">Separe as fotos por vírgula. A primeira será o destaque.</p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Descrição do Imóvel</label>
-              <textarea {...register('description')} rows={5} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none"></textarea>
-            </div>
-
-            {/* Botões de Ação */}
-            <div className="pt-4 flex justify-end gap-3 border-t border-slate-100">
-              <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg transition-colors">Cancelar</button>
-              <button type="submit" disabled={isSubmitting} className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-2 rounded-lg font-bold flex items-center shadow-md transition-all disabled:opacity-70">
-                {isSubmitting ? <Loader2 className="animate-spin" size={20} /> : 'Salvar Imóvel'}
+            {/* RODAPÉ DO MODAL (BOTÕES) */}
+            <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 shrink-0">
+              <button type="button" onClick={() => setIsModalOpen(false)} className="px-5 py-2.5 text-slate-600 font-bold hover:bg-slate-200 rounded-lg transition-colors text-sm">
+                Cancelar
+              </button>
+              <button form="property-form" type="submit" disabled={isSaving} className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg flex items-center gap-2 transition-colors shadow-sm text-sm">
+                {isSaving ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />} 
+                {editingId ? 'Salvar Alterações' : 'Cadastrar Imóvel'}
               </button>
             </div>
-          </form>
+
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

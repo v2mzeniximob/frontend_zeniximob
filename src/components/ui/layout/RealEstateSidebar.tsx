@@ -13,7 +13,8 @@ import {
   ChevronRight,
   Key,
   UserCircle,
-  DollarSign
+  DollarSign,
+  Calendar
 } from 'lucide-react';
 import { destroyCookie } from 'nookies';
 
@@ -25,6 +26,7 @@ export function RealEstateSidebar() {
   const menuItems = [
     { name: 'Dashboard', icon: LayoutDashboard, path: '/imobiliaria/dashboard' },
     { name: 'Corretores', icon: Users, path: '/imobiliaria/corretores' },
+    { name: 'Visitas', icon: Calendar, path: '/imobiliaria/visitas' },
     { name: 'Proprietários', icon: UserCircle, path: '/imobiliaria/proprietarios' },
     { name: 'Vistorias', icon: Home, path: '/imobiliaria/vistorias' },
     { name: 'Clientes', icon: Users, path: '/imobiliaria/clientes' },
