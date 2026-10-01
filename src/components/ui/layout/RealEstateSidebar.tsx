@@ -12,7 +12,8 @@ import {
   ChevronLeft, 
   ChevronRight,
   Key,
-  UserCircle
+  UserCircle,
+  DollarSign
 } from 'lucide-react';
 import { destroyCookie } from 'nookies';
 
@@ -27,6 +28,7 @@ export function RealEstateSidebar() {
     { name: 'Proprietários', icon: UserCircle, path: '/imobiliaria/proprietarios' },
     { name: 'Clientes', icon: Users, path: '/imobiliaria/clientes' },
     { name: 'Contratos', icon: Key, path: '/imobiliaria/contratos'},
+    { name: 'Financeiro', icon: DollarSign, path: '/imobiliaria/financeiro' },
     { name: 'Imóveis', icon: Home, path: '/imobiliaria/imoveis' },
     { name: 'Aluguéis', icon: Key, path: '/imobiliaria/alugueis' }, 
     { name: 'Leads (CRM)', icon: Users, path: '/imobiliaria/leads' },
