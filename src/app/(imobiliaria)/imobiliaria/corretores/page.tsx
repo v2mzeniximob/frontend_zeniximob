@@ -31,15 +31,46 @@ export default function CorretoresPage() {
     }
   };
 
+  // NOVA FUNÇÃO: Redimensiona e comprime a foto antes de guardar
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setForm(prev => ({ ...prev, profileImageUrl: reader.result as string }));
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        // Cria um canvas para redimensionar
+        const canvas = document.createElement('canvas');
+        const MAX_SIZE = 400; // Tamanho ideal para fotos de perfil
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_SIZE) {
+            height *= MAX_SIZE / width;
+            width = MAX_SIZE;
+          }
+        } else {
+          if (height > MAX_SIZE) {
+            width *= MAX_SIZE / height;
+            height = MAX_SIZE;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, width, height);
+
+        // Converte para JPEG com 70% de qualidade (Fica muito leve!)
+        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
+        
+        setForm(prev => ({ ...prev, profileImageUrl: compressedBase64 }));
       };
-      reader.readAsDataURL(file);
-    }
+      img.src = event.target?.result as string;
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleOpenModal = (broker?: any) => {
@@ -158,7 +189,6 @@ export default function CorretoresPage() {
             </div>
             
             <form onSubmit={handleSave} className="p-6 space-y-6">
-              {/* Foto de Perfil */}
               <div className="flex items-center gap-6 pb-6 border-b border-slate-100">
                 {form.profileImageUrl ? (
                   <img src={form.profileImageUrl} alt="Preview" className="w-24 h-24 rounded-full object-cover border-4 border-slate-100 shadow-sm" />
@@ -168,6 +198,7 @@ export default function CorretoresPage() {
                 <div className="flex-1">
                   <label className="block text-sm font-bold text-slate-700 mb-2">Foto de Perfil (Site Público)</label>
                   <input type="file" accept="image/*" onChange={handleImageUpload} className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
+                  <p className="text-xs text-slate-400 mt-1">A imagem será comprimida automaticamente.</p>
                 </div>
               </div>
 
