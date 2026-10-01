@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { api } from '../../../../lib/api';
-import { Users, Plus, Edit, X, CheckCircle2, Loader2, Phone, Mail, FileText } from 'lucide-react';
+import { Users, Plus, Edit, X, CheckCircle2, Loader2, Phone, Mail, FileText, Paperclip } from 'lucide-react';
 
 export default function InquilinosPage() {
   const [tenants, setTenants] = useState<any[]>([]);
@@ -12,9 +12,11 @@ export default function InquilinosPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
+  // Estado atualizado com os links de documentos
   const [form, setForm] = useState({
-    name: '', cpf: '', email: '', phone: '', currentAddress: '', maritalStatus: 'Solteiro(a)',
-    spouseName: '', spouseCpf: '', guarantorName: '', guarantorCpf: ''
+    name: '', cpf: '', email: '', phone: '', currentAddress: '', documentUrl: '',
+    maritalStatus: 'Solteiro(a)', spouseName: '', spouseCpf: '', spouseDocUrl: '',
+    guarantorName: '', guarantorCpf: '', guarantorDocUrl: ''
   });
 
   useEffect(() => {
@@ -42,17 +44,21 @@ export default function InquilinosPage() {
         email: tenant.email || '',
         phone: tenant.phone || '',
         currentAddress: tenant.currentAddress || '',
+        documentUrl: tenant.documentUrl || '',
         maritalStatus: tenant.maritalStatus || 'Solteiro(a)',
         spouseName: tenant.spouseName || '',
         spouseCpf: tenant.spouseCpf || '',
+        spouseDocUrl: tenant.spouseDocUrl || '',
         guarantorName: tenant.guarantorName || '',
-        guarantorCpf: tenant.guarantorCpf || ''
+        guarantorCpf: tenant.guarantorCpf || '',
+        guarantorDocUrl: tenant.guarantorDocUrl || ''
       });
     } else {
       setEditingId(null);
       setForm({
-        name: '', cpf: '', email: '', phone: '', currentAddress: '', maritalStatus: 'Solteiro(a)',
-        spouseName: '', spouseCpf: '', guarantorName: '', guarantorCpf: ''
+        name: '', cpf: '', email: '', phone: '', currentAddress: '', documentUrl: '',
+        maritalStatus: 'Solteiro(a)', spouseName: '', spouseCpf: '', spouseDocUrl: '',
+        guarantorName: '', guarantorCpf: '', guarantorDocUrl: ''
       });
     }
     setIsModalOpen(true);
@@ -113,6 +119,11 @@ export default function InquilinosPage() {
                   <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
                     <FileText size={12}/> CPF: {tenant.cpf}
                   </p>
+                  {tenant.documentUrl && (
+                    <a href={tenant.documentUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 mt-2 text-[10px] font-bold bg-blue-50 text-blue-600 px-2 py-1 rounded hover:bg-blue-100 transition-colors">
+                      <Paperclip size={10}/> Ver Documentos
+                    </a>
+                  )}
                 </td>
                 
                 <td className="py-4 px-6 space-y-1">
@@ -144,7 +155,7 @@ export default function InquilinosPage() {
       {/* MODAL DE CADASTRO/EDIÇÃO */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh]">
             <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
               <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
                 <Users className="text-blue-600" size={20}/>
@@ -176,18 +187,22 @@ export default function InquilinosPage() {
                       <label className="block text-xs font-bold text-slate-600 mb-1">Telefone / WhatsApp</label>
                       <input required type="text" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm" />
                     </div>
-                    <div className="md:col-span-2">
+                    <div>
                       <label className="block text-xs font-bold text-slate-600 mb-1">Endereço Atual</label>
                       <input required type="text" value={form.currentAddress} onChange={e => setForm({...form, currentAddress: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1 flex items-center gap-1"><Paperclip size={12}/> Link dos Documentos (RG/CPF, Comprovantes)</label>
+                      <input type="url" value={form.documentUrl} onChange={e => setForm({...form, documentUrl: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm bg-blue-50/50" placeholder="Ex: Link do Google Drive" />
                     </div>
                   </div>
                 </div>
 
-                {/* ESTADO CIVIL */}
+                {/* ESTADO CIVIL E CÔNJUGE */}
                 <div>
                   <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">2. Estado Civil e Cônjuge</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+                    <div className="md:col-span-1">
                       <label className="block text-xs font-bold text-slate-600 mb-1">Estado Civil</label>
                       <select value={form.maritalStatus} onChange={e => setForm({...form, maritalStatus: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 bg-white text-sm">
                         <option value="Solteiro(a)">Solteiro(a)</option>
@@ -198,24 +213,31 @@ export default function InquilinosPage() {
                     </div>
                     
                     {form.maritalStatus === 'Casado(a)' && (
-                      <>
+                      <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-slate-50 border border-slate-200 rounded-lg">
+                        <div className="md:col-span-2">
+                          <p className="text-xs font-bold text-slate-500 mb-3 uppercase tracking-wider">Dados do Cônjuge</p>
+                        </div>
                         <div>
                           <label className="block text-xs font-bold text-slate-600 mb-1">Nome do Cônjuge</label>
-                          <input type="text" value={form.spouseName} onChange={e => setForm({...form, spouseName: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm" />
+                          <input type="text" value={form.spouseName} onChange={e => setForm({...form, spouseName: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm bg-white" />
                         </div>
                         <div>
                           <label className="block text-xs font-bold text-slate-600 mb-1">CPF do Cônjuge</label>
-                          <input type="text" value={form.spouseCpf} onChange={e => setForm({...form, spouseCpf: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm" />
+                          <input type="text" value={form.spouseCpf} onChange={e => setForm({...form, spouseCpf: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm bg-white" />
                         </div>
-                      </>
+                        <div className="md:col-span-2">
+                          <label className="block text-xs font-bold text-slate-600 mb-1 flex items-center gap-1"><Paperclip size={12}/> Link dos Docs do Cônjuge</label>
+                          <input type="url" value={form.spouseDocUrl} onChange={e => setForm({...form, spouseDocUrl: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm bg-white" placeholder="Ex: Link do Google Drive" />
+                        </div>
+                      </div>
                     )}
                   </div>
                 </div>
 
                 {/* FIADOR (Opcional) */}
                 <div>
-                  <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">3. Dados do Fiador (Se houver)</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">3. Dados do Fiador (Se aplicável)</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                       <label className="block text-xs font-bold text-slate-600 mb-1">Nome do Fiador</label>
                       <input type="text" value={form.guarantorName} onChange={e => setForm({...form, guarantorName: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm" placeholder="Opcional..." />
@@ -223,6 +245,10 @@ export default function InquilinosPage() {
                     <div>
                       <label className="block text-xs font-bold text-slate-600 mb-1">CPF do Fiador</label>
                       <input type="text" value={form.guarantorCpf} onChange={e => setForm({...form, guarantorCpf: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm" placeholder="Opcional..." />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1 flex items-center gap-1"><Paperclip size={12}/> Docs do Fiador</label>
+                      <input type="url" value={form.guarantorDocUrl} onChange={e => setForm({...form, guarantorDocUrl: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm" placeholder="Ex: Link do Google Drive" />
                     </div>
                   </div>
                 </div>
