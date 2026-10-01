@@ -13,17 +13,42 @@ export default function CorretoresPublicPage(props: { params: Promise<{ slug: st
   const [brokers, setBrokers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // ESTE É O USE EFFECT CORRETO PARA A VITRINE PÚBLICA
   useEffect(() => {
     if (!slug) return;
     const fetchVitrine = async () => {
       try {
-        const response = await api.get(`/public/stores/${slug}`);
-        console.log("DADOS RECEBIDOS DO BACKEND:", response.data);
-        setStoreData(response.data.realEstate);
-        setBrokers(response.data.brokers || []);
+        // 1. Puxa os dados da vitrine (Real Estate)
+        const responseVitrine = await api.get(`/public/stores/${slug}`);
+        const realEstateData = responseVitrine.data.realEstate;
+        setStoreData(realEstateData);
+        
+        // 2. Se a vitrine não mandou os brokers (o que está a acontecer),
+        // puxamos TODOS os corretores ativos do sistema usando uma rota alternativa que você já tem!
+        if (realEstateData && realEstateData.id) {
+            // Chamamos a rota pública base (sem precisar de autenticação para este teste de leitura se for viável)
+            // Como a rota /brokers é protegida, usamos os brokers que vêm cravados nos imóveis como "plano B"
+            const allProperties = responseVitrine.data.properties || [];
+            
+            // Extrai todos os corretores únicos que estão ligados a algum imóvel desta vitrine
+            const uniqueBrokersMap = new Map();
+            allProperties.forEach((prop: any) => {
+                if (prop.broker) {
+                    uniqueBrokersMap.set(prop.broker.id || prop.broker.name, prop.broker);
+                }
+            });
+            
+            // Converte o mapa de volta para um array
+            const extractedBrokers = Array.from(uniqueBrokersMap.values());
+            
+            // Se a vitrine mandou brokers usa-os, senão usa os que extraímos dos imóveis
+            const finalBrokers = responseVitrine.data.brokers || extractedBrokers;
+            
+            setBrokers(finalBrokers);
+            console.log("Corretores finais que vão para a tela:", finalBrokers);
+        }
+
       } catch (err) {
-        console.error(err);
+        console.error("Erro ao carregar a vitrine:", err);
       } finally {
         setIsLoading(false);
       }
@@ -64,8 +89,8 @@ export default function CorretoresPublicPage(props: { params: Promise<{ slug: st
 
         {brokers.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
-            {brokers.map((broker) => (
-              <div key={broker.id} className="bg-white rounded-3xl overflow-hidden shadow-sm border border-slate-100 hover:shadow-xl transition-shadow text-center p-6 flex flex-col items-center">
+            {brokers.map((broker, index) => (
+              <div key={broker.id || index} className="bg-white rounded-3xl overflow-hidden shadow-sm border border-slate-100 hover:shadow-xl transition-shadow text-center p-6 flex flex-col items-center">
                 
                 <div className="w-32 h-32 rounded-full overflow-hidden mb-6 border-4 border-blue-50 shadow-sm mx-auto bg-slate-100 flex items-center justify-center">
                   {broker.profileImageUrl ? (
@@ -76,7 +101,7 @@ export default function CorretoresPublicPage(props: { params: Promise<{ slug: st
                 </div>
                 
                 <h3 className="text-xl font-bold text-slate-800 mb-1">{broker.name}</h3>
-                <p className="text-sm font-semibold text-blue-600 mb-4">CRECI: {broker.creci}</p>
+                <p className="text-sm font-semibold text-blue-600 mb-4">CRECI: {broker.creci || 'Não informado'}</p>
 
                 <div className="w-full space-y-3 mt-auto pt-6 border-t border-slate-100">
                   <a 
