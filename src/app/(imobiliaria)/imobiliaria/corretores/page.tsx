@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { api } from '../../../../lib/api';
-import { Users, Plus, Edit, X, Search, CheckCircle2, XCircle, Loader2, UserCircle } from 'lucide-react';
+import { Users, Plus, Edit, X, Search, CheckCircle2, XCircle, Loader2, UserCircle, Link as LinkIcon } from 'lucide-react';
 
 export default function CorretoresPage() {
   const [brokers, setBrokers] = useState<any[]>([]);
@@ -29,48 +29,6 @@ export default function CorretoresPage() {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  // NOVA FUNÇÃO: Redimensiona e comprime a foto antes de guardar
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const img = new Image();
-      img.onload = () => {
-        // Cria um canvas para redimensionar
-        const canvas = document.createElement('canvas');
-        const MAX_SIZE = 400; // Tamanho ideal para fotos de perfil
-        let width = img.width;
-        let height = img.height;
-
-        if (width > height) {
-          if (width > MAX_SIZE) {
-            height *= MAX_SIZE / width;
-            width = MAX_SIZE;
-          }
-        } else {
-          if (height > MAX_SIZE) {
-            width *= MAX_SIZE / height;
-            height = MAX_SIZE;
-          }
-        }
-
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx?.drawImage(img, 0, 0, width, height);
-
-        // Converte para JPEG com 70% de qualidade (Fica muito leve!)
-        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
-        
-        setForm(prev => ({ ...prev, profileImageUrl: compressedBase64 }));
-      };
-      img.src = event.target?.result as string;
-    };
-    reader.readAsDataURL(file);
   };
 
   const handleOpenModal = (broker?: any) => {
@@ -173,9 +131,6 @@ export default function CorretoresPage() {
                 </td>
               </tr>
             ))}
-            {brokers.length === 0 && (
-              <tr><td colSpan={5} className="py-12 text-center text-slate-500">Nenhum corretor cadastrado na sua loja.</td></tr>
-            )}
           </tbody>
         </table>
       </div>
@@ -189,28 +144,37 @@ export default function CorretoresPage() {
             </div>
             
             <form onSubmit={handleSave} className="p-6 space-y-6">
-              <div className="flex items-center gap-6 pb-6 border-b border-slate-100">
-                {form.profileImageUrl ? (
-                  <img src={form.profileImageUrl} alt="Preview" className="w-24 h-24 rounded-full object-cover border-4 border-slate-100 shadow-sm" />
-                ) : (
-                  <div className="w-24 h-24 rounded-full bg-slate-100 flex items-center justify-center border-4 border-white shadow-sm text-slate-400"><UserCircle size={40}/></div>
-                )}
-                <div className="flex-1">
-                  <label className="block text-sm font-bold text-slate-700 mb-2">Foto de Perfil (Site Público)</label>
-                  <input type="file" accept="image/*" onChange={handleImageUpload} className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
-                  <p className="text-xs text-slate-400 mt-1">A imagem será comprimida automaticamente.</p>
+              
+              {/* Foto de Perfil (USANDO URL) */}
+              <div className="flex flex-col md:flex-row items-center gap-6 pb-6 border-b border-slate-100">
+                <div className="w-24 h-24 shrink-0 rounded-full bg-slate-100 flex items-center justify-center border-4 border-white shadow-sm overflow-hidden text-slate-400">
+                  {form.profileImageUrl ? (
+                    <img src={form.profileImageUrl} alt="Preview" className="w-full h-full object-cover" />
+                  ) : (
+                    <UserCircle size={40}/>
+                  )}
+                </div>
+                <div className="flex-1 w-full">
+                  <label className="block text-sm font-bold text-slate-700 mb-2 flex items-center gap-2"><LinkIcon size={16}/> Link da Foto de Perfil (URL)</label>
+                  <input 
+                    type="url" 
+                    placeholder="https://exemplo.com/foto.jpg"
+                    value={form.profileImageUrl} 
+                    onChange={(e) => setForm({...form, profileImageUrl: e.target.value})} 
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500" 
+                  />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div><label className="block text-sm mb-1 text-slate-600">Nome Completo</label><input required type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
-                <div><label className="block text-sm mb-1 text-slate-600">CRECI</label><input required type="text" value={form.creci} onChange={e => setForm({...form, creci: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
-                <div><label className="block text-sm mb-1 text-slate-600">CPF</label><input required type="text" value={form.cpf} onChange={e => setForm({...form, cpf: e.target.value})} disabled={!!editingId} className="w-full px-3 py-2 border rounded-lg bg-slate-50" /></div>
-                <div><label className="block text-sm mb-1 text-slate-600">Telefone / WhatsApp</label><input required type="text" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
-                <div><label className="block text-sm mb-1 text-slate-600">E-mail (Acesso ao painel)</label><input required type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
+                <div><label className="block text-sm mb-1 text-slate-600">Nome Completo</label><input required type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})} className="w-full px-3 py-2 border rounded-lg outline-none focus:border-blue-500" /></div>
+                <div><label className="block text-sm mb-1 text-slate-600">CRECI</label><input required type="text" value={form.creci} onChange={e => setForm({...form, creci: e.target.value})} className="w-full px-3 py-2 border rounded-lg outline-none focus:border-blue-500" /></div>
+                <div><label className="block text-sm mb-1 text-slate-600">CPF</label><input required type="text" value={form.cpf} onChange={e => setForm({...form, cpf: e.target.value})} disabled={!!editingId} className="w-full px-3 py-2 border rounded-lg bg-slate-50 outline-none" /></div>
+                <div><label className="block text-sm mb-1 text-slate-600">Telefone / WhatsApp</label><input required type="text" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} className="w-full px-3 py-2 border rounded-lg outline-none focus:border-blue-500" /></div>
+                <div><label className="block text-sm mb-1 text-slate-600">E-mail (Acesso ao painel)</label><input required type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} className="w-full px-3 py-2 border rounded-lg outline-none focus:border-blue-500" /></div>
                 <div>
-                  <label className="block text-sm mb-1 text-slate-600">Palavra-passe {editingId && <span className="text-xs text-slate-400">(Deixe em branco para não alterar)</span>}</label>
-                  <input type="password" value={form.password} onChange={e => setForm({...form, password: e.target.value})} required={!editingId} className="w-full px-3 py-2 border rounded-lg" />
+                  <label className="block text-sm mb-1 text-slate-600">Palavra-passe {editingId && <span className="text-xs text-slate-400">(Deixe vazio para manter)</span>}</label>
+                  <input type="password" value={form.password} onChange={e => setForm({...form, password: e.target.value})} required={!editingId} className="w-full px-3 py-2 border rounded-lg outline-none focus:border-blue-500" />
                 </div>
               </div>
 
