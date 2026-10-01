@@ -1,283 +1,198 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
-import { z } from 'zod';
-import { zodResolver } from '@hookform/resolvers/zod';
 import { api } from '../../../../lib/api';
-import { maskCpf, maskPhone } from '@/src/utils/mask';
-import { Plus, Power, X, Loader2, UserCircle, Edit, Search, Filter } from 'lucide-react';
+import { Users, Plus, Edit, X, Search, CheckCircle2, XCircle, Loader2, UserCircle } from 'lucide-react';
 
-// NOTE: Removemos o realEstateId. O Backend vai pegar a Imobiliária direto do Token de Autenticação!
-const brokerSchema = z.object({
-  name: z.string().min(3, 'Nome obrigatório'),
-  cpf: z.string().min(14, 'CPF incompleto'),
-  creci: z.string().min(2, 'CRECI obrigatório'),
-  phone: z.string().min(14, 'Telefone incompleto'),
-  email: z.string().email('E-mail inválido'),
-  password: z.string().optional(),
-});
-
-type BrokerForm = z.infer<typeof brokerSchema>;
-
-export default function MeusCorretoresPage() {
+export default function CorretoresPage() {
   const [brokers, setBrokers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [isSaving, setIsSaving] = useState(false);
 
-  const { register, handleSubmit, setValue, reset, formState: { errors } } = useForm<BrokerForm>({
-    resolver: zodResolver(brokerSchema)
+  const [form, setForm] = useState({
+    name: '', email: '', cpf: '', creci: '', phone: '', password: '', profileImageUrl: ''
   });
 
-  async function fetchBrokers() {
+  useEffect(() => {
+    fetchBrokers();
+  }, []);
+
+  const fetchBrokers = async () => {
     setIsLoading(true);
     try {
-      // O backend deve retornar apenas os corretores DESTA imobiliária logada
-      const response = await api.get('/brokers'); 
+      const response = await api.get('/brokers');
       setBrokers(response.data);
     } catch (error) {
       console.error('Erro ao buscar corretores:', error);
     } finally {
       setIsLoading(false);
     }
-  }
+  };
 
-  useEffect(() => {
-    fetchBrokers();
-  }, []);
-
-  const filteredBrokers = brokers.filter(broker => {
-    const term = searchTerm.toLowerCase();
-    const matchesSearch = 
-      broker.name?.toLowerCase().includes(term) ||
-      broker.cpf?.includes(term) ||
-      broker.creci?.toLowerCase().includes(term);
-      
-    const matchesStatus = 
-      statusFilter === 'all' ? true :
-      statusFilter === 'active' ? broker.isActive === true :
-      broker.isActive === false;
-
-    return matchesSearch && matchesStatus;
-  });
-
-  function handleEdit(broker: any) {
-    setEditingId(broker.id);
-    reset({
-      name: broker.name || '',
-      cpf: maskCpf(broker.cpf) || '',
-      creci: broker.creci || '',
-      phone: maskPhone(broker.phone) || '',
-      email: broker.email || '',
-      password: '', 
-    });
-    setIsModalOpen(true);
-  }
-
-  function handleCreateNew() {
-    setEditingId(null);
-    reset({ name: '', cpf: '', creci: '', phone: '', email: '', password: '' });
-    setIsModalOpen(true);
-  }
-
-  async function onSubmit(data: BrokerForm) {
-    if (!editingId && (!data.password || data.password.length < 6)) {
-      alert("A senha é obrigatória para um novo corretor.");
-      return;
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setForm(prev => ({ ...prev, profileImageUrl: reader.result as string }));
+      };
+      reader.readAsDataURL(file);
     }
+  };
 
-    setIsSubmitting(true);
+  const handleOpenModal = (broker?: any) => {
+    if (broker) {
+      setEditingId(broker.id);
+      setForm({
+        name: broker.name, email: broker.email, cpf: broker.cpf, creci: broker.creci, 
+        phone: broker.phone, password: '', profileImageUrl: broker.profileImageUrl || ''
+      });
+    } else {
+      setEditingId(null);
+      setForm({ name: '', email: '', cpf: '', creci: '', phone: '', password: '', profileImageUrl: '' });
+    }
+    setIsModalOpen(true);
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSaving(true);
     try {
-      const payload = { ...data };
-      if (!payload.password) delete payload.password;
-
       if (editingId) {
-        await api.put(`/brokers/${editingId}`, payload);
+        await api.put(`/brokers/${editingId}`, form);
+        alert('Corretor atualizado com sucesso!');
       } else {
-        await api.post('/brokers', payload);
+        await api.post('/brokers', form);
+        alert('Corretor cadastrado com sucesso!');
       }
-      
-      await fetchBrokers();
       setIsModalOpen(false);
+      fetchBrokers();
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Erro ao salvar o corretor.');
+      alert(error.response?.data?.error || 'Erro ao salvar corretor.');
     } finally {
-      setIsSubmitting(false);
+      setIsSaving(false);
     }
-  }
+  };
 
-  async function toggleStatus(id: string) {
+  const handleToggleStatus = async (id: string) => {
+    if (!confirm('Deseja alterar o status deste corretor?')) return;
     try {
       await api.patch(`/brokers/${id}/status`);
       fetchBrokers();
     } catch (error) {
       alert('Erro ao alterar status.');
     }
-  }
+  };
+
+  if (isLoading) return <div className="p-8 flex justify-center text-slate-500"><Loader2 className="animate-spin" /></div>;
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="p-8 max-w-7xl mx-auto font-sans">
+      <div className="flex justify-between items-center mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Minha Equipe de Corretores</h1>
-          <p className="text-slate-500 text-sm">Cadastre os seus corretores e os respetivos CRECIs.</p>
+          <h1 className="text-3xl font-bold text-slate-800">Meus Corretores</h1>
+          <p className="text-slate-500">Faça a gestão da sua equipa de vendas e perfil público no site.</p>
         </div>
-        <button onClick={handleCreateNew} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-all shadow-sm">
-          <UserCircle size={20} /> Cadastrar Corretor
+        <button onClick={() => handleOpenModal()} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-colors">
+          <Plus size={18} /> Novo Corretor
         </button>
       </div>
 
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex flex-col md:flex-row gap-4 items-center justify-between">
-        <div className="relative w-full md:w-96">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-            <Search size={18} />
-          </div>
-          <input type="text" placeholder="Buscar por Nome, CPF ou CRECI..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-sm" />
-        </div>
-        <div className="flex items-center gap-2 w-full md:w-auto">
-          <Filter size={18} className="text-slate-400" />
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none w-full md:w-48 bg-white">
-            <option value="all">Todos os Status</option>
-            <option value="active">Apenas Ativos</option>
-            <option value="inactive">Apenas Inativos</option>
-          </select>
-        </div>
-      </div>
-
-      <div className="bg-white border border-slate-100 rounded-xl shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm text-slate-600">
-            <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-100">
-              <tr>
-                <th className="px-6 py-4">Nome do Corretor</th>
-                <th className="px-6 py-4">CRECI / CPF</th>
-                <th className="px-6 py-4">Contato</th>
-                <th className="px-6 py-4 text-center">Status</th>
-                <th className="px-6 py-4 text-right">Ações</th>
+      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+        <table className="w-full text-left text-sm">
+          <thead className="bg-slate-50 text-slate-600 font-medium border-b border-slate-200">
+            <tr>
+              <th className="py-4 px-6 w-16">Foto</th>
+              <th className="py-4 px-6">Nome / CRECI</th>
+              <th className="py-4 px-6">Contactos</th>
+              <th className="py-4 px-6">Status</th>
+              <th className="py-4 px-6 text-right">Ações</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 text-slate-700">
+            {brokers.map(broker => (
+              <tr key={broker.id} className="hover:bg-slate-50">
+                <td className="py-3 px-6">
+                  {broker.profileImageUrl ? (
+                    <img src={broker.profileImageUrl} alt={broker.name} className="w-10 h-10 rounded-full object-cover border border-slate-200" />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center text-slate-400"><UserCircle size={24} /></div>
+                  )}
+                </td>
+                <td className="py-3 px-6">
+                  <p className="font-bold text-slate-800">{broker.name}</p>
+                  <p className="text-xs text-slate-500">CRECI: {broker.creci}</p>
+                </td>
+                <td className="py-3 px-6">
+                  <p>{broker.email}</p>
+                  <p className="text-xs text-slate-500">{broker.phone}</p>
+                </td>
+                <td className="py-3 px-6">
+                  <button onClick={() => handleToggleStatus(broker.id)} className="focus:outline-none">
+                    {broker.isActive 
+                      ? <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1"><CheckCircle2 size={12}/> Ativo</span>
+                      : <span className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1"><XCircle size={12}/> Inativo</span>
+                    }
+                  </button>
+                </td>
+                <td className="py-3 px-6 text-right">
+                  <button onClick={() => handleOpenModal(broker)} className="text-blue-600 hover:text-blue-800 font-medium bg-blue-50 px-3 py-1.5 rounded-lg">Editar</button>
+                </td>
               </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {isLoading ? (
-                <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-slate-400">
-                    <Loader2 className="animate-spin inline-block mr-2" size={20} /> Carregando equipe...
-                  </td>
-                </tr>
-              ) : filteredBrokers.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-slate-400">Você ainda não tem corretores cadastrados.</td>
-                </tr>
-              ) : (
-                filteredBrokers.map((broker) => (
-                  <tr key={broker.id} className="hover:bg-slate-50/50 transition-colors">
-                    <td className="px-6 py-4 font-medium text-slate-800 flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-xs">
-                        {broker.name.charAt(0).toUpperCase()}
-                      </div>
-                      {broker.name}
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex flex-col">
-                        <span className="font-medium text-slate-700">{broker.creci}</span>
-                        <span className="text-xs text-slate-400 mt-1">{maskCpf(broker.cpf)}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex flex-col">
-                        <span>{broker.email}</span>
-                        <span className="text-xs text-slate-400 mt-1">{maskPhone(broker.phone)}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${ broker.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500' }`}>
-                        {broker.isActive ? 'Ativo' : 'Inativo'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex justify-end gap-1">
-                        <button onClick={() => handleEdit(broker)} className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors" title="Editar">
-                          <Edit size={18} />
-                        </button>
-                        <button onClick={() => toggleStatus(broker.id)} className={`p-2 rounded-lg transition-colors ${ broker.isActive ? 'text-red-500 hover:bg-red-50' : 'text-emerald-500 hover:bg-emerald-50' }`} title={broker.isActive ? 'Desativar' : 'Ativar'}>
-                          <Power size={18} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+            ))}
+            {brokers.length === 0 && (
+              <tr><td colSpan={5} className="py-12 text-center text-slate-500">Nenhum corretor cadastrado na sua loja.</td></tr>
+            )}
+          </tbody>
+        </table>
       </div>
 
-      <div className={`fixed inset-0 bg-black/40 backdrop-blur-sm items-center justify-center z-50 p-4 ${isModalOpen ? 'flex animate-in fade-in zoom-in duration-200' : 'hidden'}`}>
-        <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-          <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 sticky top-0 z-10">
-            <h2 className="text-xl font-semibold text-slate-800">
-              {editingId ? 'Editar Corretor' : 'Cadastrar Novo Corretor'}
-            </h2>
-            <button type="button" onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 transition-colors">
-              <X size={20} />
-            </button>
-          </div>
-          
-          <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-6">
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50 rounded-t-2xl">
+              <h2 className="text-xl font-bold text-slate-800">{editingId ? 'Editar Corretor' : 'Novo Corretor'}</h2>
+              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X size={24}/></button>
+            </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-slate-700 mb-1">Nome Completo</label>
-                <input type="text" {...register('name')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none" />
-                {errors.name && <span className="text-red-500 text-xs">{errors.name.message}</span>}
+            <form onSubmit={handleSave} className="p-6 space-y-6">
+              {/* Foto de Perfil */}
+              <div className="flex items-center gap-6 pb-6 border-b border-slate-100">
+                {form.profileImageUrl ? (
+                  <img src={form.profileImageUrl} alt="Preview" className="w-24 h-24 rounded-full object-cover border-4 border-slate-100 shadow-sm" />
+                ) : (
+                  <div className="w-24 h-24 rounded-full bg-slate-100 flex items-center justify-center border-4 border-white shadow-sm text-slate-400"><UserCircle size={40}/></div>
+                )}
+                <div className="flex-1">
+                  <label className="block text-sm font-bold text-slate-700 mb-2">Foto de Perfil (Site Público)</label>
+                  <input type="file" accept="image/*" onChange={handleImageUpload} className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">CPF</label>
-                <input type="text" {...register('cpf')} onChange={(e) => setValue('cpf', maskCpf(e.target.value), { shouldValidate: true })} placeholder="000.000.000-00" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none" />
-                {errors.cpf && <span className="text-red-500 text-xs">{errors.cpf.message}</span>}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">CRECI</label>
-                <input type="text" {...register('creci')} placeholder="Ex: 12345-F" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none" />
-                {errors.creci && <span className="text-red-500 text-xs">{errors.creci.message}</span>}
-              </div>
-            </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Telefone / WhatsApp</label>
-                <input type="text" {...register('phone')} onChange={(e) => setValue('phone', maskPhone(e.target.value), { shouldValidate: true })} placeholder="(00) 00000-0000" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none" />
-                {errors.phone && <span className="text-red-500 text-xs">{errors.phone.message}</span>}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div><label className="block text-sm mb-1 text-slate-600">Nome Completo</label><input required type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
+                <div><label className="block text-sm mb-1 text-slate-600">CRECI</label><input required type="text" value={form.creci} onChange={e => setForm({...form, creci: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
+                <div><label className="block text-sm mb-1 text-slate-600">CPF</label><input required type="text" value={form.cpf} onChange={e => setForm({...form, cpf: e.target.value})} disabled={!!editingId} className="w-full px-3 py-2 border rounded-lg bg-slate-50" /></div>
+                <div><label className="block text-sm mb-1 text-slate-600">Telefone / WhatsApp</label><input required type="text" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
+                <div><label className="block text-sm mb-1 text-slate-600">E-mail (Acesso ao painel)</label><input required type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
+                <div>
+                  <label className="block text-sm mb-1 text-slate-600">Palavra-passe {editingId && <span className="text-xs text-slate-400">(Deixe em branco para não alterar)</span>}</label>
+                  <input type="password" value={form.password} onChange={e => setForm({...form, password: e.target.value})} required={!editingId} className="w-full px-3 py-2 border rounded-lg" />
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">E-mail de Login</label>
-                <input type="email" {...register('email')} placeholder="corretor@imobiliaria.com" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none" />
-                {errors.email && <span className="text-red-500 text-xs">{errors.email.message}</span>}
+
+              <div className="pt-4 flex justify-end gap-3 border-t">
+                <button type="button" onClick={() => setIsModalOpen(false)} className="px-5 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg">Cancelar</button>
+                <button type="submit" disabled={isSaving} className="px-5 py-2 bg-blue-600 text-white font-medium rounded-lg flex items-center gap-2">
+                  {isSaving && <Loader2 size={16} className="animate-spin" />} Salvar Corretor
+                </button>
               </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                {editingId ? 'Nova Senha (deixe em branco para não alterar)' : 'Senha Provisória'}
-              </label>
-              <input type="password" {...register('password')} placeholder="••••••••" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none" />
-            </div>
-
-            <div className="pt-4 flex justify-end gap-3 border-t border-slate-100">
-              <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg transition-colors">
-                Cancelar
-              </button>
-              <button type="submit" disabled={isSubmitting} className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-lg font-medium transition-colors flex items-center disabled:opacity-70">
-                {isSubmitting ? <Loader2 className="animate-spin" size={20} /> : (editingId ? 'Salvar Alterações' : 'Cadastrar Corretor')}
-              </button>
-            </div>
-          </form>
+            </form>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
