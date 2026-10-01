@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { api } from '../../../../lib/api';
-import { Plus, Edit, X, CheckCircle2, Loader2, UserCircle, FileSignature, Copy, Send } from 'lucide-react';
+import { Plus, Edit, X, CheckCircle2, Loader2, UserCircle, FileSignature, Copy, Send, MessageCircle } from 'lucide-react';
 
 export default function ProprietariosPage() {
   const [owners, setOwners] = useState<any[]>([]);
@@ -14,8 +14,9 @@ export default function ProprietariosPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
+  // Adicionado managementContractUrl ao estado
   const [form, setForm] = useState({
-    name: '', cpfOrCnpj: '', email: '', phone: '', bankData: ''
+    name: '', cpfOrCnpj: '', email: '', phone: '', bankData: '', managementContractUrl: ''
   });
 
   const [selectedOwner, setSelectedOwner] = useState<any>(null);
@@ -44,11 +45,12 @@ export default function ProprietariosPage() {
         cpfOrCnpj: owner.cpfOrCnpj,
         email: owner.email || '',
         phone: owner.phone || '',
-        bankData: owner.bankData || ''
+        bankData: owner.bankData || '',
+        managementContractUrl: owner.managementContractUrl || ''
       });
     } else {
       setEditingId(null);
-      setForm({ name: '', cpfOrCnpj: '', email: '', phone: '', bankData: '' });
+      setForm({ name: '', cpfOrCnpj: '', email: '', phone: '', bankData: '', managementContractUrl: '' });
     }
     setIsModalOpen(true);
   };
@@ -73,9 +75,6 @@ export default function ProprietariosPage() {
     }
   };
 
-  // ==========================================
-  // FUNÇÕES DO CONTRATO
-  // ==========================================
   const handleOpenContract = (owner: any) => {
     if (!owner.email) {
       alert('Por favor, edite o proprietário e adicione um E-mail antes de gerar o contrato.');
@@ -88,14 +87,13 @@ export default function ProprietariosPage() {
   const handleSendContract = async () => {
     setIsSaving(true);
     try {
-      // Aqui enviamos um comando para o backend gerar/disparar o contrato
-      const res = await api.post(`/owners/${selectedOwner.id}/send-contract`, {
-        documentText: `CONTRATO DE GESTÃO - ${selectedOwner.name}` // Enviando dados base
+      await api.post(`/owners/${selectedOwner.id}/send-contract`, {
+        documentText: `CONTRATO DE GESTÃO - ${selectedOwner.name}` 
       });
       
-      alert('Contrato enviado com sucesso para o e-mail do proprietário!');
+      alert('Contrato gerado com sucesso!');
       setIsContractModalOpen(false);
-      fetchOwners(); // Atualiza a lista para mostrar o link gerado
+      fetchOwners(); 
     } catch (error: any) {
       alert(error.response?.data?.error || 'Erro ao disparar contrato.');
     } finally {
@@ -103,9 +101,26 @@ export default function ProprietariosPage() {
     }
   };
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    alert('Link copiado para enviar no WhatsApp!');
+  // NOVA FUNÇÃO: Disparo Inteligente para WhatsApp
+  const handleWhatsApp = (owner: any) => {
+    if (!owner.phone) {
+      navigator.clipboard.writeText(owner.managementContractUrl);
+      alert('Proprietário sem telefone! O link foi copiado para a área de transferência.');
+      return;
+    }
+
+    // Limpa tudo que não for número
+    let phoneNum = owner.phone.replace(/\D/g, '');
+    
+    // Se tiver 10 ou 11 dígitos, assumimos que é Brasil e adicionamos o 55
+    if (phoneNum.length === 10 || phoneNum.length === 11) {
+      phoneNum = `55${phoneNum}`;
+    }
+
+    const text = `Olá, *${owner.name}*! Tudo bem?\n\nSegue o link seguro para você assinar o seu Contrato de Gestão Imobiliária:\n${owner.managementContractUrl}\n\nQualquer dúvida, estamos à disposição!`;
+    const url = `https://wa.me/${phoneNum}?text=${encodeURIComponent(text)}`;
+    
+    window.open(url, '_blank');
   };
 
   if (isLoading) return <div className="p-8 flex justify-center text-slate-500"><Loader2 className="animate-spin" /></div>;
@@ -156,8 +171,8 @@ export default function ProprietariosPage() {
                   {owner.managementContractUrl ? (
                     <div className="flex flex-col gap-2">
                       <span className="text-xs font-bold text-green-600 flex items-center gap-1"><CheckCircle2 size={14}/> Emitido</span>
-                      <button onClick={() => copyToClipboard(owner.managementContractUrl)} className="text-[11px] font-bold bg-blue-50 text-blue-600 px-2 py-1 rounded w-fit flex items-center gap-1 hover:bg-blue-100">
-                        <Copy size={12}/> Copiar Link WhatsApp
+                      <button onClick={() => handleWhatsApp(owner)} className="text-[11px] font-bold bg-green-50 text-green-700 border border-green-200 px-2 py-1.5 rounded w-fit flex items-center gap-1 hover:bg-green-100 transition-colors">
+                        <MessageCircle size={14}/> Enviar p/ WhatsApp
                       </button>
                     </div>
                   ) : (
@@ -180,7 +195,7 @@ export default function ProprietariosPage() {
         </table>
       </div>
 
-      {/* MODAL DE CADASTRO */}
+      {/* MODAL DE CADASTRO / EDIÇÃO */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden">
@@ -206,23 +221,38 @@ export default function ProprietariosPage() {
 
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1 flex items-center justify-between">
-                    E-mail <span className="text-[10px] text-blue-600 font-normal">Requerido para assinatura</span>
+                    E-mail <span className="text-[10px] text-blue-600 font-normal">Requerido p/ assinatura</span>
                   </label>
                   <input required type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 bg-blue-50/30" />
                 </div>
                 
                 <div className="col-span-2">
                   <label className="block text-sm font-semibold text-slate-700 mb-1">WhatsApp / Telefone</label>
-                  <input type="text" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500" />
+                  <input type="text" placeholder="(11) 99999-9999" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500" />
                 </div>
                 
                 <div className="col-span-2">
                   <label className="block text-sm font-semibold text-slate-700 mb-1">Dados Bancários (Para Repasse)</label>
-                  <textarea rows={3} placeholder="Banco, Agência, Conta, Pix..." value={form.bankData} onChange={e => setForm({...form, bankData: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 resize-none" />
+                  <textarea rows={2} placeholder="Banco, Agência, Conta, Pix..." value={form.bankData} onChange={e => setForm({...form, bankData: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 resize-none" />
                 </div>
+
+                {/* VISUALIZAÇÃO DO LINK DO CONTRATO (SÓ APARECE SE JÁ TIVER SIDO GERADO) */}
+                {form.managementContractUrl && (
+                  <div className="col-span-2 mt-2 p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+                    <p className="text-sm font-bold text-emerald-800 mb-2 flex items-center gap-2">
+                      <FileSignature size={16} /> Link do Contrato Gerado:
+                    </p>
+                    <div className="flex gap-2">
+                      <input type="text" readOnly value={form.managementContractUrl} className="flex-1 px-3 py-2 bg-white border border-emerald-200 text-slate-500 rounded-lg text-xs outline-none" />
+                      <a href={form.managementContractUrl} target="_blank" rel="noreferrer" className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-bold hover:bg-emerald-700 whitespace-nowrap flex items-center gap-2">
+                        Abrir Link
+                      </a>
+                    </div>
+                  </div>
+                )}
               </div>
 
-              <div className="pt-4 flex justify-end gap-3 border-t border-slate-100">
+              <div className="pt-4 flex justify-end gap-3 border-t border-slate-100 mt-4">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-5 py-2.5 text-slate-600 font-medium hover:bg-slate-100 rounded-lg">Cancelar</button>
                 <button type="submit" disabled={isSaving} className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg flex items-center gap-2">
                   {isSaving ? <Loader2 size={18} className="animate-spin" /> : 'Salvar Dados'}
