@@ -26,6 +26,7 @@ export function RealEstateSidebar() {
     { name: 'Dashboard', icon: LayoutDashboard, path: '/imobiliaria/dashboard' },
     { name: 'Corretores', icon: Users, path: '/imobiliaria/corretores' },
     { name: 'Proprietários', icon: UserCircle, path: '/imobiliaria/proprietarios' },
+    { name: 'Visitas', icon: Home, path: '/imobiliaria/visitas' },
     { name: 'Clientes', icon: Users, path: '/imobiliaria/clientes' },
     { name: 'Contratos', icon: Key, path: '/imobiliaria/contratos'},
     { name: 'Financeiro', icon: DollarSign, path: '/imobiliaria/financeiro' },
