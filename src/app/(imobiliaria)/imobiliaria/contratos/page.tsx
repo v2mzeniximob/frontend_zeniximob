@@ -2,12 +2,27 @@
 
 import { useState, useEffect } from 'react';
 import { api } from '../../../../lib/api';
-import { Plus, CheckCircle2, Loader2, Key, FileSignature, Copy, MessageCircle, ExternalLink } from 'lucide-react';
+import { Plus, CheckCircle2, Loader2, Key, FileSignature, MessageCircle, ExternalLink, X, Home, User, DollarSign, Calendar } from 'lucide-react';
 
 export default function ContratosPage() {
   const [contracts, setContracts] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isProcessingId, setIsProcessingId] = useState<string | null>(null);
+
+  // Estados para o Modal de Novo Contrato
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [properties, setProperties] = useState<any[]>([]);
+  const [tenants, setTenants] = useState<any[]>([]);
+  
+  const [form, setForm] = useState({
+    propertyId: '',
+    tenantId: '',
+    startDate: '',
+    rentValue: '',
+    adminFeePercent: '10', // Padrão 10%
+    readjustmentIndex: 'IPCA'
+  });
 
   useEffect(() => {
     fetchContracts();
@@ -22,6 +37,41 @@ export default function ContratosPage() {
       console.error(error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleOpenModal = async () => {
+    setIsModalOpen(true);
+    // Busca Imóveis Vagos e Inquilinos para preencher os selectbox
+    try {
+      const [resProps, resTenants] = await Promise.all([
+        api.get('/properties'),
+        api.get('/tenants')
+      ]);
+      // Filtra para mostrar apenas imóveis que não estão alugados
+      setProperties(resProps.data.filter((p: any) => p.rentStatus !== 'Alugado'));
+      setTenants(resTenants.data);
+    } catch (error) {
+      console.error('Erro ao buscar dados para o formulário:', error);
+    }
+  };
+
+  const handleSaveContract = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSaving(true);
+    try {
+      await api.post('/contracts', form);
+      alert('Contrato criado com sucesso! Agora você já pode disparar a assinatura.');
+      setIsModalOpen(false);
+      
+      // Limpa o formulário
+      setForm({ propertyId: '', tenantId: '', startDate: '', rentValue: '', adminFeePercent: '10', readjustmentIndex: 'IPCA' });
+      
+      fetchContracts();
+    } catch (error: any) {
+      alert(error.response?.data?.error || 'Erro ao criar o contrato.');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -76,8 +126,8 @@ export default function ContratosPage() {
           </h1>
           <p className="text-slate-500 mt-1">Gerencie os contratos de locação, assinaturas digitais e andamento.</p>
         </div>
-        {/* Futuramente pode abrir o modal de criar contrato manual aqui */}
-        <button className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-medium flex items-center gap-2 transition-colors">
+        
+        <button onClick={handleOpenModal} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-medium flex items-center gap-2 transition-colors">
           <Plus size={18} /> Novo Contrato
         </button>
       </div>
@@ -147,6 +197,79 @@ export default function ContratosPage() {
           </tbody>
         </table>
       </div>
+
+      {/* MODAL DE NOVO CONTRATO */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                <FileSignature className="text-blue-600" size={20}/>
+                Gerar Novo Contrato de Locação
+              </h2>
+              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X size={24}/></button>
+            </div>
+            
+            <div className="p-6">
+              <form id="contract-form" onSubmit={handleSaveContract} className="space-y-6">
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-bold text-slate-600 mb-1 flex items-center gap-1"><Home size={14}/> Imóvel Vago</label>
+                    <select required value={form.propertyId} onChange={e => setForm({...form, propertyId: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 bg-white text-sm">
+                      <option value="">Selecione o imóvel...</option>
+                      {properties.map(p => <option key={p.id} value={p.id}>{p.title} - {p.address}</option>)}
+                    </select>
+                  </div>
+                  
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-bold text-slate-600 mb-1 flex items-center gap-1"><User size={14}/> Inquilino (Locatário)</label>
+                    <select required value={form.tenantId} onChange={e => setForm({...form, tenantId: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 bg-white text-sm">
+                      <option value="">Selecione o inquilino...</option>
+                      {tenants.map(t => <option key={t.id} value={t.id}>{t.name} ({t.cpf})</option>)}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 mb-1 flex items-center gap-1"><Calendar size={14}/> Data de Início</label>
+                    <input required type="date" value={form.startDate} onChange={e => setForm({...form, startDate: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm" />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 mb-1 flex items-center gap-1"><DollarSign size={14}/> Valor do Aluguel (R$)</label>
+                    <input required type="number" value={form.rentValue} onChange={e => setForm({...form, rentValue: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm" placeholder="Ex: 1500" />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 mb-1">Taxa de Administração (%)</label>
+                    <input required type="number" value={form.adminFeePercent} onChange={e => setForm({...form, adminFeePercent: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm" placeholder="Ex: 10" />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 mb-1">Índice de Reajuste</label>
+                    <select value={form.readjustmentIndex} onChange={e => setForm({...form, readjustmentIndex: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 bg-white text-sm">
+                      <option value="IPCA">IPCA</option>
+                      <option value="IGP-M">IGP-M</option>
+                      <option value="INPC">INPC</option>
+                    </select>
+                  </div>
+                </div>
+
+              </form>
+            </div>
+
+            <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
+              <button type="button" onClick={() => setIsModalOpen(false)} className="px-5 py-2.5 text-slate-600 font-bold hover:bg-slate-200 rounded-lg transition-colors text-sm">
+                Cancelar
+              </button>
+              <button form="contract-form" type="submit" disabled={isSaving} className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg flex items-center gap-2 transition-colors shadow-sm text-sm">
+                {isSaving ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />} 
+                Salvar Contrato
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
