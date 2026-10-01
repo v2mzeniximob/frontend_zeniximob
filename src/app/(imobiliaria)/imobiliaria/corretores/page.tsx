@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { api } from '../../../../lib/api';
-import { Users, Plus, Edit, X, Search, CheckCircle2, XCircle, Loader2, UserCircle, Link as LinkIcon } from 'lucide-react';
+import { Users, Plus, Edit, X, Search, CheckCircle2, XCircle, Loader2, UserCircle, Link as LinkIcon, FileText, ExternalLink } from 'lucide-react';
 
 export default function CorretoresPage() {
   const [brokers, setBrokers] = useState<any[]>([]);
@@ -11,8 +11,10 @@ export default function CorretoresPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
+  // Estado atualizado com o creciDocumentUrl
   const [form, setForm] = useState({
-    name: '', email: '', cpf: '', creci: '', phone: '', password: '', profileImageUrl: ''
+    name: '', email: '', cpf: '', creci: '', phone: '', password: '', 
+    profileImageUrl: '', creciDocumentUrl: ''
   });
 
   useEffect(() => {
@@ -34,13 +36,23 @@ export default function CorretoresPage() {
   const handleOpenModal = (broker?: any) => {
     if (broker) {
       setEditingId(broker.id);
+      // Puxa todos os dados com fallback seguro (evitando undefined que causa bugs no form)
       setForm({
-        name: broker.name, email: broker.email, cpf: broker.cpf, creci: broker.creci, 
-        phone: broker.phone, password: '', profileImageUrl: broker.profileImageUrl || ''
+        name: broker.name || '', 
+        email: broker.email || '', 
+        cpf: broker.cpf || '', 
+        creci: broker.creci || '', 
+        phone: broker.phone || '', 
+        password: '', // Senha sempre limpa
+        profileImageUrl: broker.profileImageUrl || '',
+        creciDocumentUrl: broker.creciDocumentUrl || ''
       });
     } else {
       setEditingId(null);
-      setForm({ name: '', email: '', cpf: '', creci: '', phone: '', password: '', profileImageUrl: '' });
+      setForm({ 
+        name: '', email: '', cpf: '', creci: '', phone: '', password: '', 
+        profileImageUrl: '', creciDocumentUrl: '' 
+      });
     }
     setIsModalOpen(true);
   };
@@ -112,7 +124,14 @@ export default function CorretoresPage() {
                 </td>
                 <td className="py-3 px-6">
                   <p className="font-bold text-slate-800">{broker.name}</p>
-                  <p className="text-xs text-slate-500">CRECI: {broker.creci}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs text-slate-500">CRECI: {broker.creci}</p>
+                    {broker.creciDocumentUrl && (
+                      <a href={broker.creciDocumentUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline flex items-center gap-1" title="Visualizar Anexo">
+                        <FileText size={12}/> Anexo
+                      </a>
+                    )}
+                  </div>
                 </td>
                 <td className="py-3 px-6">
                   <p>{broker.email}</p>
@@ -131,50 +150,79 @@ export default function CorretoresPage() {
                 </td>
               </tr>
             ))}
+            {brokers.length === 0 && (
+              <tr><td colSpan={5} className="py-12 text-center text-slate-500">Nenhum corretor cadastrado na sua loja.</td></tr>
+            )}
           </tbody>
         </table>
       </div>
 
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl">
-            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50 rounded-t-2xl">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center sticky top-0 bg-white z-10">
               <h2 className="text-xl font-bold text-slate-800">{editingId ? 'Editar Corretor' : 'Novo Corretor'}</h2>
               <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X size={24}/></button>
             </div>
             
-            <form onSubmit={handleSave} className="p-6 space-y-6">
+            <form onSubmit={handleSave} className="p-6 space-y-8">
               
-              {/* Foto de Perfil (USANDO URL) */}
-              <div className="flex flex-col md:flex-row items-center gap-6 pb-6 border-b border-slate-100">
-                <div className="w-24 h-24 shrink-0 rounded-full bg-slate-100 flex items-center justify-center border-4 border-white shadow-sm overflow-hidden text-slate-400">
-                  {form.profileImageUrl ? (
-                    <img src={form.profileImageUrl} alt="Preview" className="w-full h-full object-cover" />
-                  ) : (
-                    <UserCircle size={40}/>
-                  )}
+              {/* Secção de Imagens e Documentos */}
+              <div className="space-y-6 pb-6 border-b border-slate-100">
+                
+                {/* Foto de Perfil */}
+                <div className="flex flex-col md:flex-row items-center gap-6">
+                  <div className="w-20 h-20 shrink-0 rounded-full bg-slate-100 flex items-center justify-center border-4 border-white shadow-sm overflow-hidden text-slate-400">
+                    {form.profileImageUrl ? (
+                      <img src={form.profileImageUrl} alt="Preview" className="w-full h-full object-cover" />
+                    ) : (
+                      <UserCircle size={40}/>
+                    )}
+                  </div>
+                  <div className="flex-1 w-full">
+                    <label className="block text-sm font-bold text-slate-700 mb-2 flex items-center gap-2"><LinkIcon size={16}/> Link da Foto de Perfil (URL)</label>
+                    <input 
+                      type="url" 
+                      placeholder="https://exemplo.com/foto.jpg"
+                      value={form.profileImageUrl} 
+                      onChange={(e) => setForm({...form, profileImageUrl: e.target.value})} 
+                      className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500" 
+                    />
+                  </div>
                 </div>
-                <div className="flex-1 w-full">
-                  <label className="block text-sm font-bold text-slate-700 mb-2 flex items-center gap-2"><LinkIcon size={16}/> Link da Foto de Perfil (URL)</label>
+
+                {/* PDF do CRECI */}
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                  <div className="flex justify-between items-end mb-2">
+                    <label className="block text-sm font-bold text-slate-700 flex items-center gap-2"><FileText size={16}/> Link do PDF/Imagem do CRECI (Opcional)</label>
+                    {form.creciDocumentUrl && (
+                      <a href={form.creciDocumentUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-blue-600 hover:underline flex items-center gap-1 bg-blue-100 px-2 py-1 rounded">
+                        <ExternalLink size={14}/> Visualizar Anexo Atual
+                      </a>
+                    )}
+                  </div>
                   <input 
                     type="url" 
-                    placeholder="https://exemplo.com/foto.jpg"
-                    value={form.profileImageUrl} 
-                    onChange={(e) => setForm({...form, profileImageUrl: e.target.value})} 
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500" 
+                    placeholder="https://exemplo.com/documento-creci.pdf"
+                    value={form.creciDocumentUrl} 
+                    onChange={(e) => setForm({...form, creciDocumentUrl: e.target.value})} 
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 bg-white" 
                   />
                 </div>
+
               </div>
 
+              {/* Secção de Dados Principais */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div><label className="block text-sm mb-1 text-slate-600">Nome Completo</label><input required type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})} className="w-full px-3 py-2 border rounded-lg outline-none focus:border-blue-500" /></div>
-                <div><label className="block text-sm mb-1 text-slate-600">CRECI</label><input required type="text" value={form.creci} onChange={e => setForm({...form, creci: e.target.value})} className="w-full px-3 py-2 border rounded-lg outline-none focus:border-blue-500" /></div>
-                <div><label className="block text-sm mb-1 text-slate-600">CPF</label><input required type="text" value={form.cpf} onChange={e => setForm({...form, cpf: e.target.value})} disabled={!!editingId} className="w-full px-3 py-2 border rounded-lg bg-slate-50 outline-none" /></div>
-                <div><label className="block text-sm mb-1 text-slate-600">Telefone / WhatsApp</label><input required type="text" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} className="w-full px-3 py-2 border rounded-lg outline-none focus:border-blue-500" /></div>
-                <div><label className="block text-sm mb-1 text-slate-600">E-mail (Acesso ao painel)</label><input required type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} className="w-full px-3 py-2 border rounded-lg outline-none focus:border-blue-500" /></div>
-                <div>
-                  <label className="block text-sm mb-1 text-slate-600">Palavra-passe {editingId && <span className="text-xs text-slate-400">(Deixe vazio para manter)</span>}</label>
-                  <input type="password" value={form.password} onChange={e => setForm({...form, password: e.target.value})} required={!editingId} className="w-full px-3 py-2 border rounded-lg outline-none focus:border-blue-500" />
+                <div><label className="block text-sm mb-1 text-slate-600">Nome Completo</label><input required type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})} className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500" /></div>
+                <div><label className="block text-sm mb-1 text-slate-600">CRECI</label><input required type="text" value={form.creci} onChange={e => setForm({...form, creci: e.target.value})} className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500" /></div>
+                <div><label className="block text-sm mb-1 text-slate-600">CPF</label><input required type="text" value={form.cpf} onChange={e => setForm({...form, cpf: e.target.value})} disabled={!!editingId} className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-slate-50 outline-none" title={editingId ? 'CPF não pode ser alterado' : ''} /></div>
+                <div><label className="block text-sm mb-1 text-slate-600">Telefone / WhatsApp</label><input required type="text" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500" /></div>
+                <div className="md:col-span-2"><label className="block text-sm mb-1 text-slate-600">E-mail (Acesso ao painel)</label><input required type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500" /></div>
+                
+                <div className="md:col-span-2 bg-slate-50 p-4 rounded-xl border border-slate-200 mt-2">
+                  <label className="block text-sm font-bold text-slate-700 mb-1">Palavra-passe de Acesso {editingId && <span className="text-xs text-slate-400 font-normal">(Deixe vazio para manter a atual)</span>}</label>
+                  <input type="password" value={form.password} onChange={e => setForm({...form, password: e.target.value})} required={!editingId} className="w-full md:w-1/2 px-3 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 bg-white" />
                 </div>
               </div>
 
