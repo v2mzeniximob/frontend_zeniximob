@@ -4,6 +4,13 @@ import { useState, useEffect } from 'react';
 import { api } from '../../../../lib/api';
 import { Plus, Edit, X, CheckCircle2, XCircle, Loader2, Home, MapPin, DollarSign, Camera, User, UserCheck } from 'lucide-react';
 
+// Lista padrão de características (pode adicionar mais se precisar)
+const AVAILABLE_AMENITIES = [
+  'Piscina', 'Churrasqueira', 'Elevador', 'Academia', 
+  'Quadra Poliesportiva', 'Varanda', 'Ar Condicionado', 
+  'Móveis Planejados', 'Portaria 24h', 'Salão de Festas'
+];
+
 export default function ImoveisPage() {
   const [properties, setProperties] = useState<any[]>([]);
   const [brokers, setBrokers] = useState<any[]>([]);
@@ -14,13 +21,14 @@ export default function ImoveisPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Estado inicial do formulário completo
+  // Estado inicial do formulário completo (agora com amenities)
   const [form, setForm] = useState({
     title: '', type: 'Casa', category: 'Residencial', transaction: 'Locação',
     price: '', condoFee: '', iptu: '',
     area: '', bedrooms: '', bathrooms: '', garage: '', yearBuilt: '',
     cep: '', address: '', neighborhood: '', city: '', state: '',
-    description: '', imageUrls: '', brokerId: '', ownerId: '', inspectionUrl: ''
+    description: '', imageUrls: '', brokerId: '', ownerId: '', inspectionUrl: '',
+    amenities: [] as string[]
   });
 
   useEffect(() => {
@@ -30,7 +38,6 @@ export default function ImoveisPage() {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      // Carrega Imóveis, Corretores e Proprietários em simultâneo
       const [resProps, resBrokers, resOwners] = await Promise.all([
         api.get('/properties'),
         api.get('/brokers'),
@@ -71,7 +78,8 @@ export default function ImoveisPage() {
         imageUrls: property.imageUrls ? property.imageUrls.join(', ') : '',
         brokerId: property.brokerId || '',
         ownerId: property.ownerId || '',
-        inspectionUrl: property.inspectionUrl || ''
+        inspectionUrl: property.inspectionUrl || '',
+        amenities: property.amenities || []
       });
     } else {
       setEditingId(null);
@@ -79,7 +87,8 @@ export default function ImoveisPage() {
         title: '', type: 'Casa', category: 'Residencial', transaction: 'Locação',
         price: '', condoFee: '', iptu: '', area: '', bedrooms: '', bathrooms: '', garage: '', yearBuilt: '',
         cep: '', address: '', neighborhood: '', city: '', state: '',
-        description: '', imageUrls: '', brokerId: '', ownerId: '', inspectionUrl: ''
+        description: '', imageUrls: '', brokerId: '', ownerId: '', inspectionUrl: '',
+        amenities: []
       });
     }
     setIsModalOpen(true);
@@ -89,7 +98,6 @@ export default function ImoveisPage() {
     e.preventDefault();
     setIsSaving(true);
     
-    // Converte os links separados por vírgula num array
     const urlsArray = form.imageUrls.split(',').map(url => url.trim()).filter(url => url !== '');
     const dataToSend = { ...form, imageUrls: urlsArray };
 
@@ -118,6 +126,18 @@ export default function ImoveisPage() {
     } catch (error) {
       alert('Erro ao alterar status.');
     }
+  };
+
+  // Função para controlar os checkboxes
+  const handleToggleAmenity = (amenity: string) => {
+    setForm(prev => {
+      const isSelected = prev.amenities.includes(amenity);
+      if (isSelected) {
+        return { ...prev, amenities: prev.amenities.filter(a => a !== amenity) };
+      } else {
+        return { ...prev, amenities: [...prev.amenities, amenity] };
+      }
+    });
   };
 
   if (isLoading) return <div className="p-8 flex justify-center text-slate-500"><Loader2 className="animate-spin" /></div>;
@@ -315,10 +335,28 @@ export default function ImoveisPage() {
                   </div>
                 </div>
 
-                {/* SECÇÃO 4: GESTÃO & CAPTAÇÃO (NOVIDADE) */}
+                {/* SECÇÃO 4: CARACTERÍSTICAS E COMODIDADES */}
+                <div>
+                  <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">4. Características & Comodidades</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {AVAILABLE_AMENITIES.map(amenity => (
+                      <label key={amenity} className="flex items-center gap-2 cursor-pointer group">
+                        <input 
+                          type="checkbox" 
+                          className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
+                          checked={form.amenities.includes(amenity)}
+                          onChange={() => handleToggleAmenity(amenity)}
+                        />
+                        <span className="text-sm text-slate-600 group-hover:text-slate-800 transition-colors">{amenity}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* SECÇÃO 5: GESTÃO & CAPTAÇÃO */}
                 <div className="bg-blue-50 p-6 rounded-xl border border-blue-100">
                   <h3 className="text-sm font-bold text-blue-800 uppercase tracking-wider mb-4 border-b border-blue-200 pb-2 flex items-center gap-2">
-                    <UserCheck size={18}/> 4. Gestão & Captação
+                    <UserCheck size={18}/> 5. Gestão & Captação
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     
@@ -350,9 +388,9 @@ export default function ImoveisPage() {
                   </div>
                 </div>
 
-                {/* SECÇÃO 5: MÍDIA & DESCRIÇÃO */}
+                {/* SECÇÃO 6: MÍDIA & DESCRIÇÃO */}
                 <div>
-                  <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">5. Apresentação na Vitrine</h3>
+                  <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">6. Apresentação na Vitrine</h3>
                   <div className="space-y-4">
                     <div>
                       <label className="block text-xs font-bold text-slate-600 mb-1">Descrição</label>
