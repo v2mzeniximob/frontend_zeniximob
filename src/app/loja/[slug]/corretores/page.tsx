@@ -13,11 +13,13 @@ export default function CorretoresPublicPage(props: { params: Promise<{ slug: st
   const [brokers, setBrokers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  // ESTE É O USE EFFECT CORRETO PARA A VITRINE PÚBLICA
   useEffect(() => {
     if (!slug) return;
     const fetchVitrine = async () => {
       try {
         const response = await api.get(`/public/stores/${slug}`);
+        console.log("DADOS RECEBIDOS DO BACKEND:", response.data);
         setStoreData(response.data.realEstate);
         setBrokers(response.data.brokers || []);
       } catch (err) {
