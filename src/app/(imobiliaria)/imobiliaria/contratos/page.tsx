@@ -2,16 +2,18 @@
 
 import { useState, useEffect } from 'react';
 import { api } from '../../../../lib/api';
-import { Plus, CheckCircle2, Loader2, Key, FileSignature, MessageCircle, ExternalLink, X, Home, User, DollarSign, Calendar } from 'lucide-react';
+import { Plus, CheckCircle2, Loader2, Key, FileSignature, MessageCircle, ExternalLink, X, Home, User, DollarSign, Calendar, Edit, FileText } from 'lucide-react';
 
 export default function ContratosPage() {
   const [contracts, setContracts] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isProcessingId, setIsProcessingId] = useState<string | null>(null);
 
-  // Estados para o Modal de Novo Contrato
+  // Estados para o Modal de Contrato (Novo / Editar)
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  
   const [properties, setProperties] = useState<any[]>([]);
   const [tenants, setTenants] = useState<any[]>([]);
   
@@ -20,7 +22,7 @@ export default function ContratosPage() {
     tenantId: '',
     startDate: '',
     rentValue: '',
-    adminFeePercent: '10', // Padrão 10%
+    adminFeePercent: '10',
     readjustmentIndex: 'IPCA'
   });
 
@@ -40,17 +42,34 @@ export default function ContratosPage() {
     }
   };
 
-  const handleOpenModal = async () => {
+  const handleOpenModal = async (contract: any = null) => {
     setIsModalOpen(true);
-    // Busca Imóveis Vagos e Inquilinos para preencher os selectbox
+    setEditingId(contract ? contract.id : null);
+
     try {
       const [resProps, resTenants] = await Promise.all([
         api.get('/properties'),
         api.get('/tenants')
       ]);
-      // Filtra para mostrar apenas imóveis que não estão alugados
-      setProperties(resProps.data.filter((p: any) => p.rentStatus !== 'Alugado'));
+      
       setTenants(resTenants.data);
+
+      if (contract) {
+        // Modo Edição: Mostra todos os imóveis (inclusive o que já está vinculado)
+        setProperties(resProps.data);
+        setForm({
+          propertyId: contract.propertyId || '',
+          tenantId: contract.tenantId || '',
+          startDate: contract.startDate ? new Date(contract.startDate).toISOString().split('T')[0] : '',
+          rentValue: contract.rentValue?.toString() || '',
+          adminFeePercent: contract.adminFeePercent?.toString() || '10',
+          readjustmentIndex: contract.readjustmentIndex || 'IPCA'
+        });
+      } else {
+        // Modo Novo: Filtra para mostrar apenas imóveis vagos
+        setProperties(resProps.data.filter((p: any) => p.rentStatus !== 'Alugado'));
+        setForm({ propertyId: '', tenantId: '', startDate: '', rentValue: '', adminFeePercent: '10', readjustmentIndex: 'IPCA' });
+      }
     } catch (error) {
       console.error('Erro ao buscar dados para o formulário:', error);
     }
@@ -60,35 +79,39 @@ export default function ContratosPage() {
     e.preventDefault();
     setIsSaving(true);
     try {
-      await api.post('/contracts', form);
-      alert('Contrato criado com sucesso! Agora você já pode disparar a assinatura.');
+      if (editingId) {
+        await api.put(`/contracts/${editingId}`, form);
+        alert('Contrato atualizado com sucesso!');
+      } else {
+        await api.post('/contracts', form);
+        alert('Contrato criado com sucesso! Agora você já pode disparar a assinatura.');
+      }
+      
       setIsModalOpen(false);
-      
-      // Limpa o formulário
+      setEditingId(null);
       setForm({ propertyId: '', tenantId: '', startDate: '', rentValue: '', adminFeePercent: '10', readjustmentIndex: 'IPCA' });
-      
       fetchContracts();
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Erro ao criar o contrato.');
+      alert(error.response?.data?.error || 'Erro ao salvar o contrato.');
     } finally {
       setIsSaving(false);
     }
   };
 
-  // Dispara a ZapSign para o Inquilino
-  const handleSendToZapSign = async (contract: any) => {
+  // Dispara a Clicksign para o Inquilino
+  const handleSendToClicksign = async (contract: any) => {
     if (!contract.tenant?.email) {
-      alert('O inquilino deste contrato não possui e-mail cadastrado. Edite o cadastro do inquilino primeiro.');
+      alert('O inquilino deste contrato não possui e-mail cadastrado. Edite o cadastro primeiro.');
       return;
     }
     
     setIsProcessingId(contract.id);
     try {
-      await api.post(`/contracts/${contract.id}/send-signature`);
-      alert('Contrato enviado com sucesso para o e-mail do inquilino!');
-      fetchContracts(); // Atualiza a lista para mostrar o link gerado
+      await api.post(`/contracts/${contract.id}/send-contract`);
+      alert('Contrato enviado com sucesso para assinatura!');
+      fetchContracts(); 
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Erro ao disparar contrato para ZapSign.');
+      alert(error.response?.data?.error || 'Erro ao disparar contrato.');
     } finally {
       setIsProcessingId(null);
     }
@@ -127,7 +150,7 @@ export default function ContratosPage() {
           <p className="text-slate-500 mt-1">Gerencie os contratos de locação, assinaturas digitais e andamento.</p>
         </div>
         
-        <button onClick={handleOpenModal} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-medium flex items-center gap-2 transition-colors">
+        <button onClick={() => handleOpenModal()} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-medium flex items-center gap-2 transition-colors">
           <Plus size={18} /> Novo Contrato
         </button>
       </div>
@@ -158,36 +181,53 @@ export default function ContratosPage() {
                 </td>
 
                 <td className="py-4 px-6">
-                  {contract.signUrl ? (
+                  {/* Se o contrato tiver o PDF assinado salvo */}
+                  {contract.documentUrl ? (
                     <div className="flex flex-col gap-2">
-                      <span className="text-xs font-bold text-green-600 flex items-center gap-1">
-                        <CheckCircle2 size={14}/> Aguardando Assinatura
+                      <span className="text-xs font-bold text-emerald-600 flex items-center gap-1">
+                        <CheckCircle2 size={14}/> Totalmente Assinado
+                      </span>
+                      <a href={contract.documentUrl} target="_blank" rel="noreferrer" className="text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-1.5 rounded flex items-center justify-center gap-1 hover:bg-emerald-100 transition-colors">
+                        <FileText size={14}/> Baixar PDF
+                      </a>
+                    </div>
+                  ) : contract.signUrl ? (
+                    /* Se foi disparado, mas ainda falta assinar */
+                    <div className="flex flex-col gap-2">
+                      <span className="text-xs font-bold text-blue-600 flex items-center gap-1">
+                        <Loader2 size={14} className="animate-spin"/> Aguardando
                       </span>
                       <div className="flex gap-2">
                         <a href={contract.signUrl} target="_blank" rel="noreferrer" className="text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200 px-2 py-1.5 rounded flex items-center gap-1 hover:bg-slate-200 transition-colors">
-                          <ExternalLink size={14}/> Consultar
+                          <ExternalLink size={14}/> Link
                         </a>
                         <button onClick={() => handleWhatsApp(contract)} className="text-[11px] font-bold bg-green-50 text-green-700 border border-green-200 px-2 py-1.5 rounded flex items-center gap-1 hover:bg-green-100 transition-colors">
-                          <MessageCircle size={14}/> WhatsApp
+                          <MessageCircle size={14}/> Whats
                         </button>
                       </div>
                     </div>
                   ) : (
+                    /* Se ainda não foi disparado */
                     <button 
-                      onClick={() => handleSendToZapSign(contract)} 
+                      onClick={() => handleSendToClicksign(contract)} 
                       disabled={isProcessingId === contract.id}
-                      className="text-xs font-bold bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 px-3 py-1.5 rounded-lg flex items-center gap-1 transition-colors disabled:opacity-50"
+                      className="text-[11px] font-bold bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 px-3 py-1.5 rounded flex items-center gap-1 transition-colors disabled:opacity-50"
                     >
                       {isProcessingId === contract.id ? <Loader2 size={14} className="animate-spin" /> : <FileSignature size={14}/>}
-                      Disparar ZapSign
+                      Disparar Clicksign
                     </button>
                   )}
                 </td>
 
                 <td className="py-4 px-6 text-right">
-                  <span className={`px-3 py-1 rounded-full text-xs font-bold ${contract.status === 'Ativo' ? 'bg-blue-50 text-blue-700' : 'bg-slate-100 text-slate-600'}`}>
-                    {contract.status}
-                  </span>
+                  <div className="flex flex-col items-end gap-2">
+                    <span className={`px-3 py-1 rounded-full text-[10px] uppercase font-bold tracking-wider ${contract.status === 'Ativo' ? 'bg-blue-50 text-blue-700' : 'bg-slate-100 text-slate-600'}`}>
+                      {contract.status}
+                    </span>
+                    <button onClick={() => handleOpenModal(contract)} className="text-[11px] font-bold text-slate-400 hover:text-blue-600 flex items-center gap-1 transition-colors">
+                      <Edit size={12}/> Editar
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -198,14 +238,14 @@ export default function ContratosPage() {
         </table>
       </div>
 
-      {/* MODAL DE NOVO CONTRATO */}
+      {/* MODAL DE NOVO / EDITAR CONTRATO */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden">
             <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
               <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
                 <FileSignature className="text-blue-600" size={20}/>
-                Gerar Novo Contrato de Locação
+                {editingId ? 'Editar Contrato de Locação' : 'Gerar Novo Contrato'}
               </h2>
               <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X size={24}/></button>
             </div>
@@ -215,7 +255,7 @@ export default function ContratosPage() {
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="md:col-span-2">
-                    <label className="block text-xs font-bold text-slate-600 mb-1 flex items-center gap-1"><Home size={14}/> Imóvel Vago</label>
+                    <label className="block text-xs font-bold text-slate-600 mb-1 flex items-center gap-1"><Home size={14}/> Imóvel</label>
                     <select required value={form.propertyId} onChange={e => setForm({...form, propertyId: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 bg-white text-sm">
                       <option value="">Selecione o imóvel...</option>
                       {properties.map(p => <option key={p.id} value={p.id}>{p.title} - {p.address}</option>)}
@@ -264,7 +304,7 @@ export default function ContratosPage() {
               </button>
               <button form="contract-form" type="submit" disabled={isSaving} className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg flex items-center gap-2 transition-colors shadow-sm text-sm">
                 {isSaving ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />} 
-                Salvar Contrato
+                {editingId ? 'Atualizar Contrato' : 'Salvar Contrato'}
               </button>
             </div>
           </div>
