@@ -2,17 +2,22 @@
 
 import { useState, useEffect } from 'react';
 import { api } from '../../../../lib/api';
-import { Plus, Edit, X, CheckCircle2, XCircle, Loader2, User, Building, Landmark, Phone, Mail } from 'lucide-react';
+import { Plus, Edit, X, CheckCircle2, XCircle, Loader2, User, Building, Landmark, Phone, Mail, Link as LinkIcon, FileText, Home, Camera } from 'lucide-react';
 
 export default function ProprietariosPage() {
   const [owners, setOwners] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Modais
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  
+  // Modal de Visão 360 (Imóveis do Proprietário)
+  const [selectedOwnerProperties, setSelectedOwnerProperties] = useState<any>(null);
 
   const [form, setForm] = useState({
-    name: '', cpfOrCnpj: '', email: '', phone: '', bankData: ''
+    name: '', cpfOrCnpj: '', email: '', phone: '', bankData: '', managementContractUrl: ''
   });
 
   useEffect(() => {
@@ -35,15 +40,12 @@ export default function ProprietariosPage() {
     if (owner) {
       setEditingId(owner.id);
       setForm({
-        name: owner.name || '',
-        cpfOrCnpj: owner.cpfOrCnpj || '',
-        email: owner.email || '',
-        phone: owner.phone || '',
-        bankData: owner.bankData || ''
+        name: owner.name || '', cpfOrCnpj: owner.cpfOrCnpj || '', email: owner.email || '', 
+        phone: owner.phone || '', bankData: owner.bankData || '', managementContractUrl: owner.managementContractUrl || ''
       });
     } else {
       setEditingId(null);
-      setForm({ name: '', cpfOrCnpj: '', email: '', phone: '', bankData: '' });
+      setForm({ name: '', cpfOrCnpj: '', email: '', phone: '', bankData: '', managementContractUrl: '' });
     }
     setIsModalOpen(true);
   };
@@ -69,7 +71,7 @@ export default function ProprietariosPage() {
   };
 
   const handleToggleStatus = async (id: string) => {
-    if (!confirm('Deseja alterar o status deste proprietário?')) return;
+    if (!confirm('Deseja alterar o status?')) return;
     try {
       await api.patch(`/owners/${id}/status`);
       fetchOwners();
@@ -88,7 +90,7 @@ export default function ProprietariosPage() {
             <Landmark className="text-blue-600" size={32} />
             Proprietários
           </h1>
-          <p className="text-slate-500 mt-1">Gira os donos dos imóveis e os seus dados para repasses financeiros.</p>
+          <p className="text-slate-500 mt-1">Gira os donos dos imóveis, contratos de administração e veja os repasses.</p>
         </div>
         <button onClick={() => handleOpenModal()} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-medium flex items-center gap-2 transition-colors shadow-sm">
           <Plus size={18} /> Novo Proprietário
@@ -101,8 +103,8 @@ export default function ProprietariosPage() {
             <tr>
               <th className="py-4 px-6">Nome / Documento</th>
               <th className="py-4 px-6">Contactos</th>
-              <th className="py-4 px-6">Dados Bancários (Repasse)</th>
-              <th className="py-4 px-6">Status</th>
+              <th className="py-4 px-6">Contrato c/ Imobiliária</th>
+              <th className="py-4 px-6">Imóveis</th>
               <th className="py-4 px-6 text-right">Ações</th>
             </tr>
           </thead>
@@ -126,33 +128,92 @@ export default function ProprietariosPage() {
                     {owner.email && <p className="flex items-center gap-2 text-slate-600"><Mail size={14}/> {owner.email}</p>}
                   </div>
                 </td>
-                <td className="py-4 px-6 max-w-xs">
-                  <p className="text-xs text-slate-500 truncate" title={owner.bankData || 'Não informado'}>
-                    {owner.bankData || <span className="text-amber-500 italic">Pendente preenchimento</span>}
-                  </p>
+                <td className="py-4 px-6">
+                  {owner.managementContractUrl ? (
+                    <a href={owner.managementContractUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors">
+                      <FileText size={14}/> Ver Contrato
+                    </a>
+                  ) : (
+                    <span className="text-xs text-slate-400 italic">Sem contrato anexado</span>
+                  )}
                 </td>
                 <td className="py-4 px-6">
-                  <button onClick={() => handleToggleStatus(owner.id)} className="focus:outline-none">
-                    {owner.isActive 
-                      ? <span className="bg-green-100 text-green-700 px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1"><CheckCircle2 size={14}/> Ativo</span>
-                      : <span className="bg-red-100 text-red-700 px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1"><XCircle size={14}/> Inativo</span>
-                    }
+                  <button onClick={() => setSelectedOwnerProperties(owner)} className="text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-2">
+                    <Home size={14}/> {owner.properties?.length || 0} Imóveis
                   </button>
                 </td>
                 <td className="py-4 px-6 text-right">
-                  <button onClick={() => handleOpenModal(owner)} className="text-blue-600 hover:text-blue-800 font-medium bg-blue-50 px-3 py-2 rounded-lg transition-colors flex items-center gap-2 ml-auto">
-                    <Edit size={16} /> Editar
-                  </button>
+                  <div className="flex items-center justify-end gap-2">
+                    <button onClick={() => handleToggleStatus(owner.id)} title={owner.isActive ? "Desativar" : "Ativar"} className="text-slate-400 hover:text-slate-600">
+                      {owner.isActive ? <CheckCircle2 className="text-green-500" size={18}/> : <XCircle className="text-red-500" size={18}/>}
+                    </button>
+                    <button onClick={() => handleOpenModal(owner)} className="text-blue-600 hover:text-blue-800 font-medium bg-blue-50 px-3 py-2 rounded-lg transition-colors flex items-center gap-2">
+                      <Edit size={16} /> Editar
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
-            {owners.length === 0 && (
-              <tr><td colSpan={5} className="py-12 text-center text-slate-500">Nenhum proprietário cadastrado.</td></tr>
-            )}
           </tbody>
         </table>
       </div>
 
+      {/* MODAL: DETALHES DOS IMÓVEIS (VISÃO 360º) */}
+      {selectedOwnerProperties && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl overflow-hidden">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                <Home className="text-blue-600" size={24}/> Imóveis de {selectedOwnerProperties.name}
+              </h2>
+              <button onClick={() => setSelectedOwnerProperties(null)} className="text-slate-400 hover:text-slate-600"><X size={24}/></button>
+            </div>
+            
+            <div className="p-6 max-h-[60vh] overflow-y-auto space-y-4">
+              {selectedOwnerProperties.properties?.map((prop: any) => (
+                <div key={prop.id} className="border border-slate-200 rounded-xl p-4 bg-white shadow-sm flex flex-col gap-4">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className="font-bold text-slate-800">{prop.title}</h3>
+                      <span className={`inline-block mt-1 px-2 py-0.5 text-xs font-bold rounded-md ${prop.rentStatus === 'Alugado' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}`}>
+                        {prop.rentStatus}
+                      </span>
+                    </div>
+                    {/* Vistoria Inicial de Captação */}
+                    {prop.inspectionUrl && (
+                      <a href={prop.inspectionUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs bg-slate-100 text-slate-700 hover:bg-slate-200 px-3 py-1.5 rounded-lg font-bold">
+                        <Camera size={14} className="text-slate-500"/> Vistoria Inicial
+                      </a>
+                    )}
+                  </div>
+
+                  {/* Mostra o contrato do Inquilino se o imóvel estiver alugado */}
+                  {prop.contracts && prop.contracts.length > 0 && (
+                    <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
+                      <p className="text-xs font-bold text-blue-800 mb-2 uppercase tracking-wide">Contrato de Aluguel Ativo</p>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-blue-900 font-medium flex items-center gap-2">
+                          <User size={16}/> Inquilino: {prop.contracts[0].tenant?.name}
+                        </span>
+                        {prop.contracts[0].documentUrl && (
+                          <a href={prop.contracts[0].documentUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs bg-white text-blue-600 border border-blue-200 hover:bg-blue-100 px-3 py-1.5 rounded-lg font-bold">
+                            <FileText size={14}/> Ver Contrato Inquilino
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+              {(!selectedOwnerProperties.properties || selectedOwnerProperties.properties.length === 0) && (
+                <p className="text-center text-slate-500 py-8">Este proprietário ainda não possui imóveis cadastrados.</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE CADASTRO/EDIÇÃO */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden">
@@ -168,36 +229,45 @@ export default function ProprietariosPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div className="md:col-span-2">
                   <label className="block text-sm font-semibold text-slate-700 mb-1">Nome Completo / Razão Social</label>
-                  <input required type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all" />
+                  <input required type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500" />
                 </div>
                 
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1">CPF ou CNPJ</label>
-                  <input required type="text" value={form.cpfOrCnpj} onChange={e => setForm({...form, cpfOrCnpj: e.target.value})} disabled={!!editingId} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all disabled:bg-slate-100" />
+                  <input required type="text" value={form.cpfOrCnpj} onChange={e => setForm({...form, cpfOrCnpj: e.target.value})} disabled={!!editingId} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 disabled:bg-slate-100" />
                 </div>
 
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1">Telefone / WhatsApp</label>
-                  <input type="text" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all" />
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-semibold text-slate-700 mb-1">E-mail</label>
-                  <input type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all" />
+                  <input type="text" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500" />
                 </div>
                 
+                {/* NOVO: CONTRATO DE ADMINISTRAÇÃO */}
+                <div className="md:col-span-2 bg-slate-50 p-4 border border-slate-200 rounded-xl">
+                  <label className="block text-sm font-semibold text-slate-800 mb-1 flex items-center gap-2">
+                    <FileText size={16} className="text-blue-600"/> Contrato de Administração (Imobiliária & Proprietário)
+                  </label>
+                  <input 
+                    type="url" 
+                    placeholder="Ex: https://drive.google.com/..."
+                    value={form.managementContractUrl} 
+                    onChange={e => setForm({...form, managementContractUrl: e.target.value})} 
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 mt-2" 
+                  />
+                  <p className="text-xs text-slate-500 mt-1">Cole aqui o link do contrato assinado com o proprietário para captação do imóvel.</p>
+                </div>
+
                 <div className="md:col-span-2">
                   <label className="block text-sm font-semibold text-slate-700 mb-1 flex items-center gap-2">
                     <Landmark size={16} className="text-slate-500"/> Dados Bancários para Repasse
                   </label>
                   <textarea 
-                    rows={3}
-                    placeholder="Ex: Banco Itaú, Agência 0001, Conta 12345-6. Chave PIX: email@exemplo.com"
+                    rows={2}
+                    placeholder="Ex: Banco Itaú, Agência 0001, Conta 12345-6. PIX: email@exemplo.com"
                     value={form.bankData} 
                     onChange={e => setForm({...form, bankData: e.target.value})} 
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all resize-none" 
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 resize-none" 
                   />
-                  <p className="text-xs text-slate-500 mt-1">Estas informações serão usadas pelo módulo financeiro para os pagamentos automáticos.</p>
                 </div>
               </div>
 

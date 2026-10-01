@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { api } from '../../../../lib/api';
-import { Plus, Edit, X, Loader2, FileText, Home, User, DollarSign, CalendarDays } from 'lucide-react';
+import { Plus, X, Loader2, FileText, Home, User, DollarSign, CalendarDays, Link as LinkIcon } from 'lucide-react';
 
 export default function ContratosPage() {
   const [contracts, setContracts] = useState<any[]>([]);
@@ -21,7 +21,8 @@ export default function ContratosPage() {
     endDate: '',
     rentValue: '',
     adminFeePercent: '10', // Padrão 10%
-    readjustmentIndex: 'IGPM'
+    readjustmentIndex: 'IGPM',
+    documentUrl: '' // NOVO: Link do contrato assinado
   });
 
   useEffect(() => {
@@ -34,8 +35,8 @@ export default function ContratosPage() {
       // Busca os contratos, imóveis (para o select) e inquilinos (para o select)
       const [resContracts, resProperties, resTenants] = await Promise.all([
         api.get('/contracts'),
-        api.get('/properties'), // Trazemos para poder escolher no formulário
-        api.get('/tenants')     // Trazemos para vincular ao contrato
+        api.get('/properties'), 
+        api.get('/tenants')     
       ]);
       setContracts(resContracts.data);
       // Filtramos apenas imóveis vagos para novos contratos de locação
@@ -59,7 +60,7 @@ export default function ContratosPage() {
       });
       alert('Contrato gerado com sucesso! O imóvel agora está marcado como Alugado.');
       setIsModalOpen(false);
-      setForm({ type: 'Locação', propertyId: '', tenantId: '', startDate: '', endDate: '', rentValue: '', adminFeePercent: '10', readjustmentIndex: 'IGPM' });
+      setForm({ type: 'Locação', propertyId: '', tenantId: '', startDate: '', endDate: '', rentValue: '', adminFeePercent: '10', readjustmentIndex: 'IGPM', documentUrl: '' });
       fetchData(); // Recarrega tudo
     } catch (error: any) {
       alert(error.response?.data?.error || 'Erro ao gerar contrato.');
@@ -119,9 +120,15 @@ export default function ContratosPage() {
                     </p>
                   )}
                   {contract.property?.owner && (
-                    <p className="text-xs text-slate-500 flex items-center gap-2 mt-0.5">
+                    <p className="text-xs text-slate-500 flex items-center gap-2 mt-0.5 mb-2">
                       <User size={14} className="text-amber-500"/> {contract.property.owner.name} (Proprietário)
                     </p>
+                  )}
+                  {/* NOVO: Botão rápido para ver o PDF do contrato se o link existir */}
+                  {contract.documentUrl && (
+                    <a href={contract.documentUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-blue-600 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-md font-bold transition-colors">
+                      <LinkIcon size={12}/> Ver Contrato Assinado
+                    </a>
                   )}
                 </td>
                 <td className="py-4 px-6">
@@ -208,12 +215,28 @@ export default function ContratosPage() {
                   <label className="block text-sm font-semibold text-slate-700 mb-1">Taxa Imobiliária (%)</label>
                   <input required type="number" step="0.1" value={form.adminFeePercent} onChange={e => setForm({...form, adminFeePercent: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500" placeholder="Ex: 10" />
                 </div>
+                
+                {/* NOVO: CAMPO DE LINK DO CONTRATO */}
+                <div className="md:col-span-2 mt-2">
+                  <label className="block text-sm font-semibold text-slate-700 mb-1 flex items-center gap-2">
+                    <LinkIcon size={16} className="text-slate-500"/> Link do Contrato Assinado (Google Drive / PDF)
+                  </label>
+                  <input 
+                    type="url" 
+                    placeholder="Ex: https://drive.google.com/..."
+                    value={form.documentUrl || ''} 
+                    onChange={e => setForm({...form, documentUrl: e.target.value})} 
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500" 
+                  />
+                  <p className="text-xs text-slate-500 mt-1">Cole aqui o link do documento após as assinaturas (Docusign, Clicksign, Drive, etc).</p>
+                </div>
+
               </div>
 
               <div className="pt-6 flex justify-end gap-3 border-t border-slate-100 mt-6">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-5 py-2.5 text-slate-600 font-medium hover:bg-slate-100 rounded-lg transition-colors">Cancelar</button>
                 <button type="submit" disabled={isSaving} className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg flex items-center gap-2 transition-colors shadow-sm">
-                  {isSaving ? <Loader2 size={18} className="animate-spin" /> : 'Confirmar e Assinar'}
+                  {isSaving ? <Loader2 size={18} className="animate-spin" /> : 'Confirmar e Gerar'}
                 </button>
               </div>
             </form>

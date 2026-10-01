@@ -30,7 +30,6 @@ export function RealEstateSidebar() {
     { name: 'Contratos', icon: Key, path: '/imobiliaria/contratos'},
     { name: 'Financeiro', icon: DollarSign, path: '/imobiliaria/financeiro' },
     { name: 'Imóveis', icon: Home, path: '/imobiliaria/imoveis' },
-    { name: 'Aluguéis', icon: Key, path: '/imobiliaria/alugueis' }, 
     { name: 'Leads (CRM)', icon: Users, path: '/imobiliaria/leads' },
     { name: 'Configurações', icon: Settings, path: '/imobiliaria/configuracoes' },
   ];
