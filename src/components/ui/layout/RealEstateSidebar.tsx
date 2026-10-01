@@ -30,7 +30,7 @@ export function RealEstateSidebar() {
     { name: 'Leads (CRM)', icon: Users, path: '/imobiliaria/leads' },
     { name: 'Visitas', icon: Calendar, path: '/imobiliaria/visitas' },
     { name: 'Proprietários', icon: UserCircle, path: '/imobiliaria/proprietarios' },
-    { name: 'Clientes', icon: Users, path: '/imobiliaria/clientes' },
+    { name: 'Inquilinos', icon: UserCircle, path: '/imobiliaria/inquilinos' },
     { name: 'Contratos', icon: Key, path: '/imobiliaria/contratos'},
     { name: 'Financeiro', icon: DollarSign, path: '/imobiliaria/financeiro' },
     { name: 'Vistorias', icon: Camera, path: '/imobiliaria/vistorias' },
