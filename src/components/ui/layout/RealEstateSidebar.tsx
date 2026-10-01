@@ -22,9 +22,9 @@ export function RealEstateSidebar() {
 
   const menuItems = [
     { name: 'Dashboard', icon: LayoutDashboard, path: '/imobiliaria/dashboard' },
-    { name: 'Meus Corretores', icon: Users, path: '/imobiliaria/corretores' },
-    { name: 'Meus Imóveis', icon: Home, path: '/imobiliaria/imoveis' },
-    { name: 'Aluguéis', icon: Key, path: '/imobiliaria/alugueis' }, // Alterado para Key para não duplicar o Home
+    { name: 'Corretores', icon: Users, path: '/imobiliaria/corretores' },
+    { name: 'Imóveis', icon: Home, path: '/imobiliaria/imoveis' },
+    { name: 'Aluguéis', icon: Key, path: '/imobiliaria/alugueis' }, 
     { name: 'Leads (CRM)', icon: Users, path: '/imobiliaria/leads' },
     { name: 'Configurações', icon: Settings, path: '/imobiliaria/configuracoes' },
   ];
