@@ -4,16 +4,16 @@ import { useState, useEffect } from 'react';
 import { api } from '../../../../lib/api';
 import { 
   Loader2, DollarSign, User, Calendar, CheckCircle2, 
-  AlertCircle, X, CreditCard, Copy, QrCode, ArrowRight, Building2 
+  AlertCircle, X, CreditCard, Copy, QrCode, ArrowRight, Building2, Receipt,
+  ExternalLink
 } from 'lucide-react';
 
 export default function FinanceiroPage() {
   const [contractsWithInvoices, setContractsWithInvoices] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
-  // Controlo da Modal e Ações
   const [selectedContract, setSelectedContract] = useState<any>(null);
-  const [isGeneratingPixId, setIsGeneratingPixId] = useState<string | null>(null);
+  const [isGeneratingId, setIsGeneratingId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchFinancialData();
@@ -31,16 +31,13 @@ export default function FinanceiroPage() {
     }
   };
 
-  // ==========================================
-  // FUNÇÃO MÁGICA: GERAR PIX NO MERCADO PAGO
-  // ==========================================
-  const handleGeneratePix = async (invoiceId: string) => {
-    setIsGeneratingPixId(invoiceId);
+  // FUNÇÃO MÁGICA: GERAR PIX OU BOLETO
+  const handleGenerateCharge = async (invoiceId: string, method: 'pix' | 'boleto') => {
+    setIsGeneratingId(invoiceId);
     try {
-      const res = await api.post(`/invoices/${invoiceId}/pix`);
+      const res = await api.post(`/invoices/${invoiceId}/charge`, { method });
       const updatedInvoice = res.data.invoice;
       
-      // Atualiza o estado local para mostrar o QR Code imediatamente sem recarregar a página
       setSelectedContract((prev: any) => {
         const newInvoices = prev.invoices.map((inv: any) => 
           inv.id === invoiceId ? updatedInvoice : inv
@@ -48,14 +45,12 @@ export default function FinanceiroPage() {
         return { ...prev, invoices: newInvoices };
       });
       
-      // Atualiza a lista por trás
       fetchFinancialData(); 
-      
-      alert('PIX gerado com sucesso!');
+      alert(`${method === 'pix' ? 'PIX' : 'Boleto'} gerado com sucesso!`);
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Erro ao gerar PIX. Verifique as credenciais do Mercado Pago.');
+      alert(error.response?.data?.error || 'Erro ao gerar cobrança. Verifique o Mercado Pago.');
     } finally {
-      setIsGeneratingPixId(null);
+      setIsGeneratingId(null);
     }
   };
 
@@ -74,13 +69,11 @@ export default function FinanceiroPage() {
             <DollarSign className="text-emerald-600 bg-emerald-50 p-1.5 rounded-lg" size={36} />
             Painel Financeiro
           </h1>
-          <p className="text-slate-500 mt-2">Acompanhe as cobranças, emita PIX e faça a gestão dos pagamentos dos seus inquilinos.</p>
+          <p className="text-slate-500 mt-2">Acompanhe as cobranças, emita PIX e Boletos para os seus inquilinos.</p>
         </div>
       </div>
 
-      {/* LISTAGEM MODERNA EM LINHAS */}
       <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-        {/* Cabeçalho da Lista */}
         <div className="grid grid-cols-12 gap-4 p-4 bg-slate-50 border-b border-slate-100 text-xs font-bold text-slate-500 uppercase tracking-wider">
           <div className="col-span-4 pl-2">Inquilino / Imóvel</div>
           <div className="col-span-3">Progresso / Faturas</div>
@@ -88,7 +81,6 @@ export default function FinanceiroPage() {
           <div className="col-span-2 text-right pr-2">Ações</div>
         </div>
 
-        {/* Corpo da Lista */}
         <div className="divide-y divide-slate-100">
           {contractsWithInvoices.map(contract => {
             const paidCount = contract.invoices?.filter((i: any) => i.status === 'Pago').length || 0;
@@ -101,7 +93,6 @@ export default function FinanceiroPage() {
                 onClick={() => setSelectedContract(contract)}
                 className="grid grid-cols-12 gap-4 p-5 items-center hover:bg-blue-50/50 transition-colors cursor-pointer group"
               >
-                {/* Coluna 1: Inquilino e Imóvel */}
                 <div className="col-span-4 flex items-center gap-4">
                   <div className="w-10 h-10 bg-gradient-to-br from-blue-100 to-blue-200 text-blue-700 rounded-full flex items-center justify-center font-bold shadow-sm">
                     {contract.tenant?.name?.charAt(0) || 'U'}
@@ -114,27 +105,21 @@ export default function FinanceiroPage() {
                   </div>
                 </div>
 
-                {/* Coluna 2: Status das Faturas */}
                 <div className="col-span-3">
                   <div className="flex justify-between text-xs font-medium text-slate-600 mb-1.5">
                     <span>{paidCount} pagas</span>
                     <span>{totalCount} total</span>
                   </div>
                   <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                    <div 
-                      className="bg-emerald-500 h-1.5 rounded-full transition-all duration-500" 
-                      style={{ width: `${progress}%` }}
-                    ></div>
+                    <div className="bg-emerald-500 h-1.5 rounded-full transition-all duration-500" style={{ width: `${progress}%` }}></div>
                   </div>
                 </div>
 
-                {/* Coluna 3: Valor */}
                 <div className="col-span-3">
                   <p className="font-bold text-slate-800 text-base">R$ {Number(contract.rentValue).toFixed(2)}</p>
                   <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider mt-0.5">Por mês</p>
                 </div>
 
-                {/* Coluna 4: Ação */}
                 <div className="col-span-2 flex justify-end">
                   <button className="text-sm font-bold text-blue-600 bg-blue-50 px-4 py-2 rounded-lg flex items-center gap-2 group-hover:bg-blue-600 group-hover:text-white transition-all shadow-sm">
                     Detalhes <ArrowRight size={16}/>
@@ -152,7 +137,6 @@ export default function FinanceiroPage() {
         </div>
       </div>
 
-      {/* MODAL DETALHADA COM FATURAS E MERCADO PAGO */}
       {selectedContract && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh] transform transition-all">
@@ -169,7 +153,6 @@ export default function FinanceiroPage() {
             
             <div className="p-6 overflow-y-auto flex-1 grid grid-cols-1 lg:grid-cols-3 gap-8 bg-slate-50/50">
               
-              {/* DADOS DO CLIENTE E STATUS MERCADO PAGO */}
               <div className="lg:col-span-1 space-y-6">
                 <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
                   <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Dados do Inquilino</h3>
@@ -185,11 +168,10 @@ export default function FinanceiroPage() {
                     <CreditCard size={20} className="text-blue-200"/>
                     <h3 className="font-bold">Mercado Pago Ativo</h3>
                   </div>
-                  <p className="text-xs text-blue-100 mb-4 leading-relaxed">O sistema está pronto para emitir cobranças oficiais. Clique em "Gerar PIX" nas faturas ao lado.</p>
+                  <p className="text-xs text-blue-100 mb-4 leading-relaxed">O sistema está pronto para emitir cobranças oficiais mês a mês para o seu cliente.</p>
                 </div>
               </div>
 
-              {/* LISTA DE FATURAS COM QR CODE */}
               <div className="lg:col-span-2">
                 <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
                   <Calendar className="text-slate-400" size={18}/> Cronograma de Faturas
@@ -225,54 +207,56 @@ export default function FinanceiroPage() {
                         </div>
                       </div>
 
-                      {/* ÁREA MÁGICA: GERAR E EXIBIR PIX */}
+                      {/* ÁREA MÁGICA: GERAR E EXIBIR PIX / BOLETO */}
                       {invoice.status !== 'Pago' && (
                         <div className="mt-4 pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
                           
                           {invoice.pixQrCodeBase64 ? (
-                            // SE JÁ TIVER PIX GERADO: MOSTRA O QR CODE
+                            // EXIBIÇÃO DO PIX
                             <div className="flex flex-col sm:flex-row items-center gap-4 w-full bg-slate-50 p-3 rounded-xl border border-slate-100">
-                              <img 
-                                src={`data:image/jpeg;base64,${invoice.pixQrCodeBase64}`} 
-                                alt="QR Code PIX" 
-                                className="w-24 h-24 rounded-lg shadow-sm bg-white p-1 border border-slate-200" 
-                              />
+                              <img src={`data:image/jpeg;base64,${invoice.pixQrCodeBase64}`} alt="QR Code PIX" className="w-24 h-24 rounded-lg shadow-sm bg-white p-1 border border-slate-200" />
                               <div className="flex-1 text-center sm:text-left">
                                 <p className="text-xs font-bold text-slate-700 mb-2">QR Code Gerado!</p>
-                                <div className="flex flex-col gap-2">
-                                  <button 
-                                    onClick={() => copyToClipboard(invoice.pixQrCode)} 
-                                    className="text-xs font-bold flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg transition-colors w-full sm:w-auto shadow-sm"
-                                  >
-                                    <Copy size={14} /> Copiar Código (Pix Copia e Cola)
-                                  </button>
-                                  {invoice.ticketUrl && (
-                                    <a 
-                                      href={invoice.ticketUrl} 
-                                      target="_blank" 
-                                      rel="noreferrer"
-                                      className="text-[11px] font-bold text-blue-600 hover:text-blue-800 flex items-center justify-center gap-1"
-                                    >
-                                      Visualizar Boleto / Fatura PDF
-                                    </a>
-                                  )}
-                                </div>
+                                <button onClick={() => copyToClipboard(invoice.pixQrCode)} className="text-xs font-bold flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg transition-colors shadow-sm">
+                                  <Copy size={14} /> Copiar (Pix Copia e Cola)
+                                </button>
+                              </div>
+                            </div>
+                          ) : invoice.ticketUrl ? (
+                            // EXIBIÇÃO DO BOLETO
+                            <div className="flex flex-col sm:flex-row items-center gap-4 w-full bg-blue-50 p-4 rounded-xl border border-blue-100">
+                              <div className="w-16 h-16 bg-white rounded-lg flex items-center justify-center shadow-sm">
+                                <Receipt size={32} className="text-blue-500" />
+                              </div>
+                              <div className="flex-1 text-center sm:text-left">
+                                <p className="text-sm font-bold text-blue-900 mb-2">Boleto Gerado com Sucesso!</p>
+                                <a href={invoice.ticketUrl} target="_blank" rel="noreferrer" className="text-xs font-bold flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors shadow-sm w-fit">
+                                  <ExternalLink size={14} /> Visualizar e Imprimir Boleto
+                                </a>
                               </div>
                             </div>
                           ) : (
-                            // SE AINDA NÃO TEM PIX: MOSTRA O BOTÃO DE GERAR
-                            <div className="w-full flex justify-end">
+                            // BOTÕES DE GERAR
+                            <div className="w-full flex justify-end gap-3">
                               <button 
-                                onClick={() => handleGeneratePix(invoice.id)}
-                                disabled={isGeneratingPixId === invoice.id}
+                                onClick={() => handleGenerateCharge(invoice.id, 'boleto')}
+                                disabled={isGeneratingId === invoice.id}
+                                className="text-sm font-bold flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 disabled:opacity-50 px-4 py-2.5 rounded-xl transition-all shadow-sm"
+                              >
+                                {isGeneratingId === invoice.id ? <Loader2 size={16} className="animate-spin" /> : <Receipt size={16} />}
+                                Gerar Boleto
+                              </button>
+
+                              <button 
+                                onClick={() => handleGenerateCharge(invoice.id, 'pix')}
+                                disabled={isGeneratingId === invoice.id}
                                 className="text-sm font-bold flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white px-5 py-2.5 rounded-xl transition-all shadow-sm"
                               >
-                                {isGeneratingPixId === invoice.id ? <Loader2 size={16} className="animate-spin" /> : <QrCode size={16} />}
-                                {isGeneratingPixId === invoice.id ? 'A gerar...' : 'Gerar Cobrança PIX'}
+                                {isGeneratingId === invoice.id ? <Loader2 size={16} className="animate-spin" /> : <QrCode size={16} />}
+                                Gerar PIX
                               </button>
                             </div>
                           )}
-                          
                         </div>
                       )}
                     </div>
@@ -282,7 +266,7 @@ export default function FinanceiroPage() {
                     <div className="text-center bg-white border border-slate-200 rounded-2xl p-8">
                       <Calendar size={32} className="mx-auto text-slate-300 mb-3" />
                       <p className="font-bold text-slate-700">Nenhuma fatura encontrada.</p>
-                      <p className="text-sm text-slate-500 mt-1">Este contrato não possui cronograma financeiro.</p>
+                      <p className="text-sm text-slate-500 mt-1">Apague este contrato e crie novamente para gerar as parcelas.</p>
                     </div>
                   )}
                 </div>
