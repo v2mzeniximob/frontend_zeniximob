@@ -2,212 +2,159 @@
 
 import { useState, useEffect } from 'react';
 import { api } from '../../../../lib/api';
-import { Plus, X, Loader2, DollarSign, CheckCircle2, Clock, AlertCircle, FileText, ArrowBigRight } from 'lucide-react';
+import { Loader2, DollarSign, User, Calendar, CheckCircle2, AlertCircle, X, CreditCard } from 'lucide-react';
 
 export default function FinanceiroPage() {
-  const [invoices, setInvoices] = useState<any[]>([]);
-  const [contracts, setContracts] = useState<any[]>([]);
+  const [contractsWithInvoices, setContractsWithInvoices] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-
-  const [form, setForm] = useState({
-    contractId: '',
-    dueDate: '',
-  });
+  // Estado para controlar qual cliente está aberto na Modal
+  const [selectedContract, setSelectedContract] = useState<any>(null);
 
   useEffect(() => {
-    fetchData();
+    fetchFinancialData();
   }, []);
 
-  const fetchData = async () => {
+  const fetchFinancialData = async () => {
     setIsLoading(true);
     try {
-      // Busca faturas e APENAS os contratos que estão ativos para podermos gerar cobranças
-      const [resInvoices, resContracts] = await Promise.all([
-        api.get('/invoices'),
-        api.get('/contracts?status=Ativo')
-      ]);
-      setInvoices(resInvoices.data);
-      setContracts(resContracts.data);
+      // Aqui o Backend deve devolver os contratos fazendo "include" das faturas e do inquilino
+      const response = await api.get('/contracts?include=invoices,tenant');
+      setContractsWithInvoices(response.data);
     } catch (error) {
-      console.error('Erro ao buscar dados financeiros:', error);
+      console.error(error);
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSaving(true);
-    try {
-      await api.post('/invoices', form);
-      alert('Fatura gerada com sucesso! O split foi calculado automaticamente.');
-      setIsModalOpen(false);
-      setForm({ contractId: '', dueDate: '' });
-      fetchData();
-    } catch (error: any) {
-      alert(error.response?.data?.error || 'Erro ao gerar fatura.');
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleMarcarComoPago = async (id: string) => {
-    if (!confirm('Confirmar o recebimento deste valor? O status mudará para Pago.')) return;
-    try {
-      await api.patch(`/invoices/${id}/pay`);
-      fetchData();
-    } catch (error) {
-      alert('Erro ao confirmar pagamento.');
     }
   };
 
   if (isLoading) return <div className="p-8 flex justify-center text-slate-500"><Loader2 className="animate-spin" /></div>;
 
   return (
-    <div className="p-8 max-w-[1600px] mx-auto font-sans h-full">
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-800 flex items-center gap-3">
-            <DollarSign className="text-green-600 bg-green-100 p-1.5 rounded-xl" size={36} />
-            Financeiro & Repasses
-          </h1>
-          <p className="text-slate-500 mt-1">Gira cobranças de aluguéis, taxas da imobiliária e repasses a proprietários.</p>
-        </div>
-        <button onClick={() => setIsModalOpen(true)} className="bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-lg font-medium flex items-center gap-2 transition-colors shadow-sm">
-          <Plus size={18} /> Nova Cobrança
-        </button>
+    <div className="p-8 max-w-7xl mx-auto font-sans">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-slate-800 flex items-center gap-3">
+          <DollarSign className="text-emerald-600" size={32} />
+          Painel Financeiro
+        </h1>
+        <p className="text-slate-500 mt-1">Gere cobranças, acompanhe pagamentos e integre com gateways.</p>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-        <table className="w-full text-left text-sm">
-          <thead className="bg-slate-50 text-slate-600 font-medium border-b border-slate-200">
-            <tr>
-              <th className="py-4 px-6">Contrato / Inquilino</th>
-              <th className="py-4 px-6">Vencimento</th>
-              <th className="py-4 px-6">Valor Total</th>
-              <th className="py-4 px-6">Split (Repasse Inteligente)</th>
-              <th className="py-4 px-6 text-center">Status</th>
-              <th className="py-4 px-6 text-right">Ações</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 text-slate-700">
-            {invoices.map(invoice => {
-              const isOverdue = new Date(invoice.dueDate) < new Date() && invoice.status !== 'Pago';
-              
-              return (
-                <tr key={invoice.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="py-4 px-6">
-                    <p className="font-bold text-slate-800 flex items-center gap-2">
-                      <FileText size={14} className="text-blue-500"/> {invoice.contract?.property?.title || 'Imóvel Indisponível'}
-                    </p>
-                    <p className="text-xs text-slate-500 mt-1">
-                      Pagador: <span className="font-semibold">{invoice.contract?.tenant?.name}</span>
-                    </p>
-                  </td>
-                  
-                  <td className="py-4 px-6">
-                    <p className={`font-bold flex items-center gap-1 ${isOverdue ? 'text-red-600' : 'text-slate-700'}`}>
-                      {isOverdue && <AlertCircle size={14} />}
-                      {new Date(invoice.dueDate).toLocaleDateString()}
-                    </p>
-                  </td>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {contractsWithInvoices.map(contract => (
+          <div key={contract.id} className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center font-bold text-lg">
+                {contract.tenant?.name?.charAt(0) || 'U'}
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-800">{contract.tenant?.name}</h3>
+                <p className="text-xs text-slate-500">{contract.property?.title}</p>
+              </div>
+            </div>
 
-                  <td className="py-4 px-6">
-                    <p className="font-bold text-slate-800 text-lg">
-                      R$ {Number(invoice.totalAmount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                    </p>
-                  </td>
+            <div className="space-y-2 mb-6">
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-500">Valor Mensal:</span>
+                <span className="font-bold text-slate-800">R$ {Number(contract.rentValue).toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-500">Faturas Geradas:</span>
+                <span className="font-bold text-blue-600">{contract.invoices?.length || 0} parcelas</span>
+              </div>
+            </div>
 
-                  <td className="py-4 px-6">
-                    <div className="bg-slate-50 p-2 rounded border border-slate-200">
-                      <div className="flex justify-between items-center text-xs mb-1">
-                        <span className="text-slate-500">Taxa Imobiliária:</span>
-                        <span className="font-bold text-green-600">+ R$ {Number(invoice.realEstateFee).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                      </div>
-                      <div className="flex justify-between items-center text-xs border-t border-slate-200 pt-1">
-                        <span className="text-slate-500 flex items-center gap-1"><ArrowBigRight size={10}/> Repassar:</span>
-                        <span className="font-bold text-amber-600">R$ {Number(invoice.ownerAmount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                      </div>
-                      <p className="text-[10px] text-slate-400 mt-1 text-right">
-                        Para: {invoice.contract?.property?.owner?.name}
-                      </p>
-                    </div>
-                  </td>
-
-                  <td className="py-4 px-6 text-center">
-                    {invoice.status === 'Pago' ? (
-                      <span className="bg-green-100 text-green-700 px-3 py-1.5 rounded-full text-xs font-bold flex items-center justify-center gap-1 w-fit mx-auto">
-                        <CheckCircle2 size={14}/> Pago
-                      </span>
-                    ) : isOverdue ? (
-                      <span className="bg-red-100 text-red-700 px-3 py-1.5 rounded-full text-xs font-bold flex items-center justify-center gap-1 w-fit mx-auto">
-                        <AlertCircle size={14}/> Atrasado
-                      </span>
-                    ) : (
-                      <span className="bg-amber-100 text-amber-700 px-3 py-1.5 rounded-full text-xs font-bold flex items-center justify-center gap-1 w-fit mx-auto">
-                        <Clock size={14}/> Pendente
-                      </span>
-                    )}
-                  </td>
-
-                  <td className="py-4 px-6 text-right">
-                    {invoice.status !== 'Pago' && (
-                      <button onClick={() => handleMarcarComoPago(invoice.id)} className="text-green-600 hover:text-green-800 font-medium bg-green-50 px-3 py-2 rounded-lg transition-colors text-xs flex items-center gap-1 ml-auto">
-                        <CheckCircle2 size={16} /> Dar Baixa
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-            {invoices.length === 0 && (
-              <tr><td colSpan={6} className="py-12 text-center text-slate-500">Nenhuma fatura gerada.</td></tr>
-            )}
-          </tbody>
-        </table>
+            <button 
+              onClick={() => setSelectedContract(contract)}
+              className="w-full py-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold rounded-lg transition-colors flex items-center justify-center gap-2 text-sm"
+            >
+              Ver Detalhes e Cobranças
+            </button>
+          </div>
+        ))}
       </div>
 
-      {/* MODAL NOVA COBRANÇA */}
-      {isModalOpen && (
+      {/* MODAL DETALHADA COM FATURAS (PRONTA PARA INTEGRAÇÃO) */}
+      {selectedContract && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
-            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-              <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                <DollarSign className="text-green-600" size={20}/> Gerar Cobrança (Mês)
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                <User className="text-blue-600" size={24}/>
+                Ficha Financeira: {selectedContract.tenant?.name}
               </h2>
-              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X size={20}/></button>
+              <button onClick={() => setSelectedContract(null)} className="text-slate-400 hover:text-slate-600"><X size={24}/></button>
             </div>
             
-            <form onSubmit={handleSave} className="p-5 space-y-4">
+            <div className="p-6 overflow-y-auto flex-1 grid grid-cols-1 lg:grid-cols-3 gap-8">
               
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">Selecione o Contrato Ativo</label>
-                <select required value={form.contractId} onChange={e => setForm({...form, contractId: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-green-500 bg-white">
-                  <option value="">Escolha um contrato...</option>
-                  {contracts.map(c => (
-                    <option key={c.id} value={c.id}>
-                      {c.property.title} - Inquilino: {c.tenant?.name}
-                    </option>
+              {/* DADOS DO CLIENTE */}
+              <div className="lg:col-span-1 space-y-6">
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Dados do Inquilino</h3>
+                  <div className="space-y-3 text-sm">
+                    <p><strong className="text-slate-700">CPF:</strong> {selectedContract.tenant?.cpf}</p>
+                    <p><strong className="text-slate-700">E-mail:</strong> {selectedContract.tenant?.email}</p>
+                    <p><strong className="text-slate-700">Telefone:</strong> {selectedContract.tenant?.phone}</p>
+                  </div>
+                </div>
+
+                <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
+                  <h3 className="text-xs font-bold text-blue-800 uppercase tracking-wider mb-2">Futura Integração</h3>
+                  <p className="text-xs text-blue-600 mb-3">O botão de gerar link conectará via API ao Mercado Pago.</p>
+                  <button disabled className="w-full py-2 bg-blue-600/50 text-white rounded cursor-not-allowed text-sm font-bold flex items-center justify-center gap-2">
+                    <CreditCard size={16}/> Ligar Mercado Pago
+                  </button>
+                </div>
+              </div>
+
+              {/* LISTA DE FATURAS */}
+              <div className="lg:col-span-2">
+                <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
+                  <Calendar className="text-slate-400" size={18}/> Cronograma de Faturas
+                </h3>
+                
+                <div className="space-y-3">
+                  {selectedContract.invoices?.map((invoice: any, index: number) => (
+                    <div key={invoice.id} className="flex items-center justify-between p-4 bg-white border border-slate-200 rounded-lg hover:border-blue-300 transition-colors">
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 font-bold text-sm">
+                          {index + 1}
+                        </div>
+                        <div>
+                          <p className="font-bold text-slate-800">{invoice.description}</p>
+                          <p className="text-xs text-slate-500">Vencimento: {new Date(invoice.dueDate).toLocaleDateString('pt-BR')}</p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center gap-6">
+                        <p className="font-bold text-slate-800">R$ {Number(invoice.amount).toFixed(2)}</p>
+                        
+                        {invoice.status === 'Pago' ? (
+                          <span className="flex items-center gap-1 text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full">
+                            <CheckCircle2 size={14}/> Pago
+                          </span>
+                        ) : (
+                          <div className="flex flex-col items-end gap-2">
+                            <span className="flex items-center gap-1 text-xs font-bold text-orange-600 bg-orange-50 px-3 py-1 rounded-full">
+                              <AlertCircle size={14}/> Pendente
+                            </span>
+                            {/* BOTÃO FUTURO PARA GERAR COBRANÇA */}
+                            <button className="text-[10px] font-bold bg-slate-800 hover:bg-slate-700 text-white px-2 py-1 rounded transition-colors">
+                              Gerar PIX / Boleto
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   ))}
-                </select>
-                <p className="text-xs text-slate-500 mt-1">Os valores e a taxa da imobiliária serão puxados automaticamente do contrato.</p>
+                  {(!selectedContract.invoices || selectedContract.invoices.length === 0) && (
+                    <p className="text-center text-slate-500 text-sm py-4">Nenhuma fatura encontrada.</p>
+                  )}
+                </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">Data de Vencimento</label>
-                <input required type="date" value={form.dueDate} onChange={e => setForm({...form, dueDate: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-green-500" />
-              </div>
-
-              <div className="pt-4 flex justify-end gap-3 border-t border-slate-100 mt-6">
-                <button type="button" onClick={() => setIsModalOpen(false)} className="px-5 py-2.5 text-slate-600 font-medium hover:bg-slate-100 rounded-lg transition-colors">Cancelar</button>
-                <button type="submit" disabled={isSaving} className="px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg flex items-center gap-2 transition-colors shadow-sm">
-                  {isSaving ? <Loader2 size={18} className="animate-spin" /> : 'Gerar Fatura'}
-                </button>
-              </div>
-            </form>
+            </div>
           </div>
         </div>
       )}

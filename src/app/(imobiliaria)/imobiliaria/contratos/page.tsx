@@ -21,6 +21,7 @@ export default function ContratosPage() {
     propertyId: '',
     tenantId: '',
     startDate: '',
+    endDate: '', // Novo campo adicionado
     rentValue: '',
     adminFeePercent: '10',
     readjustmentIndex: 'IPCA'
@@ -61,6 +62,7 @@ export default function ContratosPage() {
           propertyId: contract.propertyId || '',
           tenantId: contract.tenantId || '',
           startDate: contract.startDate ? new Date(contract.startDate).toISOString().split('T')[0] : '',
+          endDate: contract.endDate ? new Date(contract.endDate).toISOString().split('T')[0] : '', // Carrega a data final
           rentValue: contract.rentValue?.toString() || '',
           adminFeePercent: contract.adminFeePercent?.toString() || '10',
           readjustmentIndex: contract.readjustmentIndex || 'IPCA'
@@ -68,7 +70,7 @@ export default function ContratosPage() {
       } else {
         // Modo Novo: Filtra para mostrar apenas imóveis vagos
         setProperties(resProps.data.filter((p: any) => p.rentStatus !== 'Alugado'));
-        setForm({ propertyId: '', tenantId: '', startDate: '', rentValue: '', adminFeePercent: '10', readjustmentIndex: 'IPCA' });
+        setForm({ propertyId: '', tenantId: '', startDate: '', endDate: '', rentValue: '', adminFeePercent: '10', readjustmentIndex: 'IPCA' });
       }
     } catch (error) {
       console.error('Erro ao buscar dados para o formulário:', error);
@@ -84,12 +86,12 @@ export default function ContratosPage() {
         alert('Contrato atualizado com sucesso!');
       } else {
         await api.post('/contracts', form);
-        alert('Contrato criado com sucesso! Agora você já pode disparar a assinatura.');
+        alert('Contrato criado com sucesso! As faturas foram geradas e já pode disparar a assinatura.');
       }
       
       setIsModalOpen(false);
       setEditingId(null);
-      setForm({ propertyId: '', tenantId: '', startDate: '', rentValue: '', adminFeePercent: '10', readjustmentIndex: 'IPCA' });
+      setForm({ propertyId: '', tenantId: '', startDate: '', endDate: '', rentValue: '', adminFeePercent: '10', readjustmentIndex: 'IPCA' });
       fetchContracts();
     } catch (error: any) {
       alert(error.response?.data?.error || 'Erro ao salvar o contrato.');
@@ -99,12 +101,12 @@ export default function ContratosPage() {
   };
 
   const handleCancelContract = async (contract: any) => {
-    const confirm = window.confirm(`Tem certeza que deseja cancelar o contrato do imóvel "${contract.property?.title}"?\n\nO imóvel voltará a ficar Vago no sistema.`);
+    const confirm = window.confirm(`Tem certeza que deseja cancelar o contrato do imóvel "${contract.property?.title}"?\n\nAs faturas serão excluídas e o imóvel voltará a ficar Vago.`);
     if (!confirm) return;
 
     try {
       await api.delete(`/contracts/${contract.id}`);
-      alert('Contrato cancelado com sucesso e imóvel libertado!');
+      alert('Contrato cancelado com sucesso, faturas removidas e imóvel libertado!');
       fetchContracts();
     } catch (error: any) {
       alert(error.response?.data?.error || 'Erro ao cancelar o contrato.');
@@ -291,6 +293,11 @@ export default function ContratosPage() {
                   <div>
                     <label className="block text-xs font-bold text-slate-600 mb-1 flex items-center gap-1"><Calendar size={14}/> Data de Início</label>
                     <input required type="date" value={form.startDate} onChange={e => setForm({...form, startDate: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm" />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 mb-1 flex items-center gap-1"><Calendar size={14}/> Data Final</label>
+                    <input required type="date" value={form.endDate} onChange={e => setForm({...form, endDate: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm" />
                   </div>
 
                   <div>
