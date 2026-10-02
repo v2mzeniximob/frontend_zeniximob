@@ -112,46 +112,66 @@ export default function ContratosPage() {
     }
   };
 
-  // 1. GERA PDF DO CONTRATO DE LOCAÇÃO NO NAVEGADOR
-  const handlePrintContract = (contract: any) => {
-    const startDate = new Date(contract.startDate).toLocaleDateString('pt-BR');
-    const endDate = contract.endDate ? new Date(contract.endDate).toLocaleDateString('pt-BR') : 'Prazo Indeterminado';
-    const rentValue = Number(contract.rentValue).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-    const content = `
-      <html>
-        <head>
-          <title>Contrato de Locação - ${contract.tenant?.name}</title>
-          <style>
-            body { font-family: 'Times New Roman', serif; padding: 40px; line-height: 1.6; max-width: 800px; margin: auto; }
-            h2 { text-align: center; margin-bottom: 30px; }
-            p { text-align: justify; margin-bottom: 15px; }
-          </style>
-        </head>
-        <body>
-          <h2>CONTRATO DE LOCAÇÃO DE IMÓVEL RESIDENCIAL / COMERCIAL</h2>
-          <p><strong>LOCATÁRIO(A):</strong> ${contract.tenant?.name}, inscrito no CPF sob o nº ${contract.tenant?.cpf || 'não informado'}, com e-mail ${contract.tenant?.email || 'não informado'}.</p>
-          <p><strong>IMÓVEL:</strong> ${contract.property?.title} - ${contract.property?.address}</p>
-          <p><strong>CLÁUSULA 1 - DO OBJETO:</strong> O presente contrato tem por objeto a locação do imóvel descrito acima.</p>
-          <p><strong>CLÁUSULA 2 - DO VALOR E REAJUSTE:</strong> O valor do aluguel mensal é de <strong>${rentValue}</strong>, reajustado anualmente pelo índice ${contract.readjustmentIndex}.</p>
-          <p><strong>CLÁUSULA 3 - DO PRAZO:</strong> A locação tem início em <strong>${startDate}</strong> e término previsto para <strong>${endDate}</strong>.</p>
-          <br><br><br><br>
-          <div style="text-align: center;">
-            ___________________________________________________<br>
-            <strong>${contract.tenant?.name}</strong><br>
-            Locatário(a) - Assinado Digitalmente via Gov.br
-          </div>
-        </body>
-      </html>
-    `;
-    const printWindow = window.open('', '_blank');
-    if (printWindow) {
-      printWindow.document.write(content);
-      printWindow.document.close();
-      printWindow.print();
+  // 1. GERA PDF DO CONTRATO DE LOCAÇÃO (COM TEMPLATE DINÂMICO)
+  const handlePrintContract = async (contract: any) => {
+    try {
+      const res = await api.get('/my-store');
+      const store = res.data;
+
+      let template = store.tenantContractTemplate;
+
+      if (!template) {
+        template = `
+          <h2 style="text-align: center;">CONTRATO DE LOCAÇÃO</h2>
+          <p><strong>INQUILINO:</strong> {{NOME_INQUILINO}}, CPF: {{CPF_INQUILINO}}.</p>
+          <p><strong>IMÓVEL:</strong> {{ENDERECO_IMOVEL}}</p>
+          <p><strong>ALUGUEL:</strong> {{VALOR_ALUGUEL}}</p>
+          <br><br>
+          <p><em>⚠️ Aviso ao Administrador: Vá a "Configurações da Loja" -> "Modelos de Contrato" para digitar as cláusulas oficiais deste contrato.</em></p>
+        `;
+      }
+
+      const startDate = new Date(contract.startDate).toLocaleDateString('pt-BR');
+      const endDate = contract.endDate ? new Date(contract.endDate).toLocaleDateString('pt-BR') : 'Prazo Indeterminado';
+      const rentValue = Number(contract.rentValue).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+      // Substituição das Variáveis
+      template = template
+        .replace(/{{NOME_INQUILINO}}/g, contract.tenant?.name || 'Não informado')
+        .replace(/{{CPF_INQUILINO}}/g, contract.tenant?.cpf || 'Não informado')
+        .replace(/{{ENDERECO_IMOVEL}}/g, contract.property?.address || 'Não informado')
+        .replace(/{{DATA_INICIO}}/g, startDate)
+        .replace(/{{DATA_FIM}}/g, endDate)
+        .replace(/{{VALOR_ALUGUEL}}/g, rentValue)
+        .replace(/{{INDICE_REAJUSTE}}/g, contract.readjustmentIndex || 'Não informado')
+        .replace(/{{NOME_IMOBILIARIA}}/g, store.tradeName || store.corporateName || 'Imobiliária');
+
+      const content = `
+        <html>
+          <head>
+            <title>Contrato de Locação - ${contract.tenant?.name}</title>
+            <style>
+              body { font-family: 'Arial', sans-serif; padding: 40px; line-height: 1.6; max-width: 800px; margin: auto; text-align: justify; color: #333; }
+              h2 { text-align: center; margin-bottom: 30px; font-size: 18px; text-transform: uppercase; }
+              p { margin-bottom: 12px; font-size: 14px; }
+            </style>
+          </head>
+          <body>
+            ${template}
+          </body>
+        </html>
+      `;
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(content);
+        printWindow.document.close();
+        printWindow.print();
+      }
+    } catch (error) {
+      alert('Erro ao buscar o modelo do contrato. Verifique a sua conexão.');
     }
   };
-
   // 2. ENVIA INSTRUÇÕES DO GOV.BR PELO WHATSAPP
   const handleWhatsAppGov = (contract: any) => {
     const tenant = contract.tenant;

@@ -7,7 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { api } from '../../../../lib/api';
 import { 
   Loader2, Save, Store, MapPin, Lock, Globe,
-  Image as ImageIcon, Link as LinkIcon, FileText, Building2
+  Image as ImageIcon, Link as LinkIcon, FileText, Building2, FileSignature, DollarSign
 } from 'lucide-react';
 import { maskCep, maskPhone } from '@/src/utils/mask';
 
@@ -18,7 +18,8 @@ const maskCnpj = (value: string) => {
     .replace(/(\d{2})(\d)/, '$1.$2')
     .replace(/(\d{3})(\d)/, '$1.$2')
     .replace(/(\d{3})(\d)/, '$1/$2')
-    .replace(/(\d{4})(\d{1,2})/, '$1-$2')     .replace(/(-\d{2})\d+?$/, '$1');
+    .replace(/(\d{4})(\d{1,2})/, '$1-$2')             
+    .replace(/(-\d{2})\d+?$/, '$1');
 };
 
 const settingsSchema = z.object({
@@ -47,6 +48,14 @@ const settingsSchema = z.object({
   instagramUrl: z.string().optional(),
   facebookUrl: z.string().optional(),
   whatsappDisplay: z.string().optional(),
+
+  // Modelos de Contrato
+  ownerContractTemplate: z.string().optional(),
+  tenantContractTemplate: z.string().optional(),
+
+  // NOVOS CAMPOS: Integração Financeira Mercado Pago
+  mpAccessToken: z.string().optional(),
+  mpPublicKey: z.string().optional(),
 });
 
 type SettingsForm = z.infer<typeof settingsSchema>;
@@ -55,7 +64,9 @@ export default function ConfiguracoesLojaPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFetchingCep, setIsFetchingCep] = useState(false);
-  const [activeTab, setActiveTab] = useState<'dados' | 'aparencia'>('dados');
+  
+  // Adicionada a aba 'financeiro'
+  const [activeTab, setActiveTab] = useState<'dados' | 'aparencia' | 'contratos' | 'financeiro'>('dados');
 
   const { register, handleSubmit, setValue, reset, watch, formState: { errors } } = useForm<SettingsForm>({
     resolver: zodResolver(settingsSchema)
@@ -88,6 +99,12 @@ export default function ConfiguracoesLojaPage() {
         instagramUrl: data.instagramUrl || '',
         facebookUrl: data.facebookUrl || '',
         whatsappDisplay: data.whatsappDisplay || '',
+        ownerContractTemplate: data.ownerContractTemplate || '',
+        tenantContractTemplate: data.tenantContractTemplate || '',
+        
+        // Carrega as credenciais financeiras
+        mpAccessToken: data.mpAccessToken || '',
+        mpPublicKey: data.mpPublicKey || '',
       });
     } catch (error) {
       console.error('Erro ao carregar dados da loja:', error);
@@ -145,26 +162,27 @@ export default function ConfiguracoesLojaPage() {
         <p className="text-slate-500 text-sm">Atualize os dados cadastrais e a vitrine pública da sua imobiliária.</p>
       </div>
 
-      <div className="flex gap-4 border-b border-slate-200">
+      <div className="flex flex-wrap gap-4 border-b border-slate-200">
         <button onClick={() => setActiveTab('dados')} className={`pb-4 px-2 font-medium text-sm flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'dados' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><Building2 size={18} /> Dados da Imobiliária</button>
         <button onClick={() => setActiveTab('aparencia')} className={`pb-4 px-2 font-medium text-sm flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'aparencia' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><ImageIcon size={18} /> Aparência do Site</button>
+        <button onClick={() => setActiveTab('contratos')} className={`pb-4 px-2 font-medium text-sm flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'contratos' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><FileSignature size={18} /> Modelos de Contrato</button>
+        {/* NOVA ABA FINANCEIRO */}
+        <button onClick={() => setActiveTab('financeiro')} className={`pb-4 px-2 font-medium text-sm flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'financeiro' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><DollarSign size={18} /> Financeiro / Gateway</button>
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         
         {/* =======================================================
-            ABA 1: DADOS CADASTRAIS (Tudo agrupado como pediu)
+            ABA 1: DADOS CADASTRAIS
             ======================================================= */}
         <div className={activeTab === 'dados' ? 'space-y-6 animate-in fade-in slide-in-from-left-2' : 'hidden'}>
           
-          {/* NOVO BLOCO 1: DADOS DA IMOBILIÁRIA + CONTATO E ENDEREÇO */}
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
             <div className="flex items-center gap-2 text-blue-600 mb-6 border-b border-slate-100 pb-2">
               <Building2 size={20} />
               <h2 className="font-semibold text-lg">Dados Cadastrais, Contato e Endereço</h2>
             </div>
             
-            {/* Secção: Dados de Registo */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
               <div><label className="block text-sm font-medium text-slate-700 mb-1">Razão Social</label><input type="text" {...register('corporateName')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />{errors.corporateName && <span className="text-red-500 text-xs">{errors.corporateName.message}</span>}</div>
               <div><label className="block text-sm font-medium text-slate-700 mb-1">Nome Fantasia</label><input type="text" {...register('tradeName')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />{errors.tradeName && <span className="text-red-500 text-xs">{errors.tradeName.message}</span>}</div>
@@ -176,20 +194,17 @@ export default function ConfiguracoesLojaPage() {
               <div><label className="block text-sm font-medium text-slate-700 mb-1">Inscrição Municipal</label><input type="text" {...register('municipalRegistration')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" /></div>
             </div>
 
-            {/* Secção: Contato */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 pb-6 border-b border-slate-50">
               <div><label className="block text-sm font-medium text-slate-700 mb-1">E-mail de Contato (Público)</label><input type="email" {...register('email')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />{errors.email && <span className="text-red-500 text-xs">{errors.email.message}</span>}</div>
               <div><label className="block text-sm font-medium text-slate-700 mb-1">Telefone / WhatsApp da Loja</label><input type="text" {...register('phone')} onChange={(e) => setValue('phone', maskPhone(e.target.value))} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />{errors.phone && <span className="text-red-500 text-xs">{errors.phone.message}</span>}</div>
             </div>
 
-            {/* Secção: Endereço */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div><label className="flex items-center gap-2 text-sm font-medium text-slate-700 mb-1">CEP {isFetchingCep && <Loader2 size={14} className="animate-spin text-blue-500" />}</label><input type="text" {...register('cep')} onChange={handleCepManualChange} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />{errors.cep && <span className="text-red-500 text-xs">{errors.cep.message}</span>}</div>
               <div className="md:col-span-3"><label className="block text-sm font-medium text-slate-700 mb-1">Endereço Completo</label><input type="text" {...register('address')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50" />{errors.address && <span className="text-red-500 text-xs">{errors.address.message}</span>}</div>
             </div>
           </div>
 
-          {/* BLOCO 2: PERFIL E VITRINE (Apenas o Slug) */}
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
             <div className="flex items-center gap-2 text-blue-600 mb-4 border-b border-slate-100 pb-2">
               <Globe size={20} />
@@ -207,7 +222,6 @@ export default function ConfiguracoesLojaPage() {
             </div>
           </div>
 
-          {/* BLOCO 3: SEGURANÇA */}
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
             <div className="flex items-center gap-2 text-slate-600 mb-4 border-b border-slate-100 pb-2">
               <Lock size={20} />
@@ -262,6 +276,105 @@ export default function ConfiguracoesLojaPage() {
               <div><label className="block text-sm font-medium text-slate-700 mb-1">WhatsApp (Apenas Números)</label><input type="text" {...register('whatsappDisplay')} className="w-full px-4 py-2 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" /></div>
               <div><label className="block text-sm font-medium text-slate-700 mb-1">Link Instagram</label><input type="url" {...register('instagramUrl')} className="w-full px-4 py-2 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" /></div>
               <div><label className="block text-sm font-medium text-slate-700 mb-1">Link Facebook</label><input type="url" {...register('facebookUrl')} className="w-full px-4 py-2 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" /></div>
+            </div>
+          </div>
+        </div>
+
+        {/* =======================================================
+            ABA 3: MODELOS DE CONTRATO
+            ======================================================= */}
+        <div className={activeTab === 'contratos' ? 'space-y-6 animate-in fade-in slide-in-from-right-2' : 'hidden'}>
+          
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+            <div className="flex items-center gap-2 text-blue-600 mb-4 border-b border-slate-100 pb-2">
+              <FileSignature size={20} />
+              <h2 className="font-semibold text-lg">Modelo de Contrato de Gestão (Proprietário)</h2>
+            </div>
+            
+            <div className="mb-4 bg-blue-50 p-4 rounded-xl border border-blue-100">
+              <p className="text-sm font-semibold text-blue-900 mb-2">Variáveis automáticas disponíveis:</p>
+              <div className="flex flex-wrap gap-2">
+                <code className="text-[11px] font-bold bg-white text-blue-700 px-2 py-1 rounded shadow-sm border border-blue-200">{`{{NOME_PROPRIETARIO}}`}</code>
+                <code className="text-[11px] font-bold bg-white text-blue-700 px-2 py-1 rounded shadow-sm border border-blue-200">{`{{CPF_CNPJ}}`}</code>
+                <code className="text-[11px] font-bold bg-white text-blue-700 px-2 py-1 rounded shadow-sm border border-blue-200">{`{{TELEFONE}}`}</code>
+                <code className="text-[11px] font-bold bg-white text-blue-700 px-2 py-1 rounded shadow-sm border border-blue-200">{`{{BANCO}}`}</code>
+                <code className="text-[11px] font-bold bg-white text-blue-700 px-2 py-1 rounded shadow-sm border border-blue-200">{`{{NOME_IMOBILIARIA}}`}</code>
+                <code className="text-[11px] font-bold bg-white text-blue-700 px-2 py-1 rounded shadow-sm border border-blue-200">{`{{CNPJ_IMOBILIARIA}}`}</code>
+              </div>
+              <p className="text-xs text-blue-700 mt-3">Cole abaixo o seu texto com tags HTML (<code>&lt;p&gt;</code>, <code>&lt;strong&gt;</code>, etc) e insira as variáveis nos locais onde deseja que o sistema preencha automaticamente os dados do cliente.</p>
+            </div>
+            
+            <textarea 
+              {...register('ownerContractTemplate')} 
+              rows={15} 
+              placeholder="Exemplo: <p>Pelo presente instrumento particular, de um lado {{NOME_PROPRIETARIO}}...</p>"
+              className="w-full px-4 py-3 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm resize-y"
+            ></textarea>
+          </div>
+
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+            <div className="flex items-center gap-2 text-emerald-600 mb-4 border-b border-slate-100 pb-2">
+              <FileText size={20} />
+              <h2 className="font-semibold text-lg">Modelo de Contrato de Locação (Inquilino)</h2>
+            </div>
+            
+            <div className="mb-4 bg-emerald-50 p-4 rounded-xl border border-emerald-100">
+              <p className="text-sm font-semibold text-emerald-900 mb-2">Variáveis automáticas disponíveis:</p>
+              <div className="flex flex-wrap gap-2">
+                <code className="text-[11px] font-bold bg-white text-emerald-700 px-2 py-1 rounded shadow-sm border border-emerald-200">{`{{NOME_INQUILINO}}`}</code>
+                <code className="text-[11px] font-bold bg-white text-emerald-700 px-2 py-1 rounded shadow-sm border border-emerald-200">{`{{CPF_INQUILINO}}`}</code>
+                <code className="text-[11px] font-bold bg-white text-emerald-700 px-2 py-1 rounded shadow-sm border border-emerald-200">{`{{ENDERECO_IMOVEL}}`}</code>
+                <code className="text-[11px] font-bold bg-white text-emerald-700 px-2 py-1 rounded shadow-sm border border-emerald-200">{`{{DATA_INICIO}}`}</code>
+                <code className="text-[11px] font-bold bg-white text-emerald-700 px-2 py-1 rounded shadow-sm border border-emerald-200">{`{{DATA_FIM}}`}</code>
+                <code className="text-[11px] font-bold bg-white text-emerald-700 px-2 py-1 rounded shadow-sm border border-emerald-200">{`{{VALOR_ALUGUEL}}`}</code>
+                <code className="text-[11px] font-bold bg-white text-emerald-700 px-2 py-1 rounded shadow-sm border border-emerald-200">{`{{INDICE_REAJUSTE}}`}</code>
+              </div>
+            </div>
+            
+            <textarea 
+              {...register('tenantContractTemplate')} 
+              rows={15} 
+              placeholder="Exemplo: <p>O valor do aluguel será de {{VALOR_ALUGUEL}}, com início em {{DATA_INICIO}}...</p>"
+              className="w-full px-4 py-3 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 font-mono text-sm resize-y"
+            ></textarea>
+          </div>
+        </div>
+
+        {/* =======================================================
+            ABA 4: FINANCEIRO / GATEWAY (MERCADO PAGO)
+            ======================================================= */}
+        <div className={activeTab === 'financeiro' ? 'space-y-6 animate-in fade-in slide-in-from-right-2' : 'hidden'}>
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+            <div className="flex items-center gap-2 text-blue-600 mb-4 border-b border-slate-100 pb-2">
+              <DollarSign size={20} />
+              <h2 className="font-semibold text-lg">Integração Mercado Pago</h2>
+            </div>
+            
+            <div className="mb-6 bg-blue-50 p-4 rounded-xl border border-blue-100 text-sm text-blue-800">
+              <p className="font-semibold mb-1">Receba os pagamentos diretamente na sua conta!</p>
+              <p>Para gerar cobranças de PIX e Boletos aos seus inquilinos, aceda ao painel de desenvolvedor do seu Mercado Pago, crie uma aplicação e cole aqui as suas <strong>Credenciais de Produção</strong>.</p>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-1">Access Token (Token de Acesso)</label>
+                <input 
+                  type="password" 
+                  {...register('mpAccessToken')} 
+                  placeholder="APP_USR-123456789..." 
+                  className="w-full px-4 py-3 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-1">Public Key (Chave Pública)</label>
+                <input 
+                  type="text" 
+                  {...register('mpPublicKey')} 
+                  placeholder="APP_USR-..." 
+                  className="w-full md:w-1/2 px-4 py-3 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                />
+              </div>
             </div>
           </div>
         </div>

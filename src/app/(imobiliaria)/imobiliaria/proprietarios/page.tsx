@@ -74,38 +74,60 @@ export default function ProprietariosPage() {
     }
   };
 
-  // 1. GERA O PDF DIRETAMENTE NO NAVEGADOR
-  const handlePrintContract = (owner: any) => {
-    const content = `
-      <html>
-        <head>
-          <title>Contrato de Gestão - ${owner.name}</title>
-          <style>
-            body { font-family: 'Times New Roman', serif; padding: 40px; line-height: 1.6; max-width: 800px; margin: auto; }
-            h2 { text-align: center; margin-bottom: 30px; }
-            p { text-align: justify; margin-bottom: 15px; }
-          </style>
-        </head>
-        <body>
-          <h2>CONTRATO DE PRESTAÇÃO DE SERVIÇOS IMOBILIÁRIOS</h2>
-          <p><strong>CONTRATANTE (Proprietário):</strong> ${owner.name}, inscrito no CPF/CNPJ sob nº ${owner.cpfOrCnpj}, com e-mail ${owner.email || 'não informado'}.</p>
-          <p><strong>CLÁUSULA 1:</strong> O CONTRATANTE autoriza a CONTRATADA (Imobiliária) a promover, com exclusividade ou não, a divulgação e administração da locação ou venda de seus imóveis cadastrados na plataforma.</p>
-          <p><strong>CLÁUSULA 2:</strong> A CONTRATADA fará o repasse dos valores recebidos para a conta bancária informada: ${owner.bankData || '[Conta não informada]'}.</p>
-          <br><br><br><br>
-          <div style="text-align: center;">
-            ___________________________________________________<br>
-            <strong>${owner.name}</strong><br>
-            Assinado Digitalmente via Gov.br
-          </div>
-        </body>
-      </html>
-    `;
-    const printWindow = window.open('', '_blank');
-    if (printWindow) {
-      printWindow.document.write(content);
-      printWindow.document.close();
-      // O navegador abre automaticamente a janela de "Guardar como PDF"
-      printWindow.print();
+  
+ // 1. GERA O PDF DO CONTRATO DE GESTÃO (COM TEMPLATE DINÂMICO)
+  const handlePrintContract = async (owner: any) => {
+    try {
+      // Busca as configurações da loja
+      const res = await api.get('/my-store');
+      const store = res.data;
+
+      // Pega o template guardado pelo administrador (ou usa um texto de aviso se estiver vazio)
+      let template = store.ownerContractTemplate;
+
+      if (!template) {
+        template = `
+          <h2 style="text-align: center;">CONTRATO DE GESTÃO BÁSICO</h2>
+          <p><strong>CONTRATANTE:</strong> {{NOME_PROPRIETARIO}}, CPF/CNPJ: {{CPF_CNPJ}}, Tel: {{TELEFONE}}.</p>
+          <p><strong>CONTRATADA:</strong> {{NOME_IMOBILIARIA}}, CNPJ: {{CNPJ_IMOBILIARIA}}.</p>
+          <br><br>
+          <p><em>⚠️ Aviso ao Administrador: Vá a "Configurações da Loja" -> "Modelos de Contrato" para digitar as cláusulas oficiais deste contrato.</em></p>
+        `;
+      }
+
+      // O MOTOR MÁGICO: Substitui as tags pelas variáveis reais
+      template = template
+        .replace(/{{NOME_PROPRIETARIO}}/g, owner.name || 'Não informado')
+        .replace(/{{CPF_CNPJ}}/g, owner.cpfOrCnpj || 'Não informado')
+        .replace(/{{TELEFONE}}/g, owner.phone || 'Não informado')
+        .replace(/{{BANCO}}/g, owner.bankData || 'Não informado')
+        .replace(/{{NOME_IMOBILIARIA}}/g, store.tradeName || store.corporateName || 'Imobiliária')
+        .replace(/{{CNPJ_IMOBILIARIA}}/g, store.cnpj || 'Não informado');
+
+      // Monta a página final
+      const content = `
+        <html>
+          <head>
+            <title>Contrato de Gestão - ${owner.name}</title>
+            <style>
+              body { font-family: 'Arial', sans-serif; padding: 40px; line-height: 1.6; max-width: 800px; margin: auto; text-align: justify; color: #333; }
+              h2 { text-align: center; margin-bottom: 30px; font-size: 18px; text-transform: uppercase; }
+              p { margin-bottom: 12px; font-size: 14px; }
+            </style>
+          </head>
+          <body>
+            ${template}
+          </body>
+        </html>
+      `;
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(content);
+        printWindow.document.close();
+        printWindow.print();
+      }
+    } catch (error) {
+      alert('Erro ao buscar o modelo do contrato. Verifique a sua conexão.');
     }
   };
 
