@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { api } from '../../../../lib/api';
-import { Plus, CheckCircle2, Loader2, Key, FileSignature, MessageCircle, ExternalLink, X, Home, User, DollarSign, Calendar, Edit, FileText } from 'lucide-react';
+import { Plus, CheckCircle2, Loader2, Key, FileSignature, MessageCircle, ExternalLink, X, Home, User, DollarSign, Calendar, Edit, FileText, Trash2 } from 'lucide-react';
 
 export default function ContratosPage() {
   const [contracts, setContracts] = useState<any[]>([]);
@@ -95,6 +95,19 @@ export default function ContratosPage() {
       alert(error.response?.data?.error || 'Erro ao salvar o contrato.');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleCancelContract = async (contract: any) => {
+    const confirm = window.confirm(`Tem certeza que deseja cancelar o contrato do imóvel "${contract.property?.title}"?\n\nO imóvel voltará a ficar Vago no sistema.`);
+    if (!confirm) return;
+
+    try {
+      await api.delete(`/contracts/${contract.id}`);
+      alert('Contrato cancelado com sucesso e imóvel libertado!');
+      fetchContracts();
+    } catch (error: any) {
+      alert(error.response?.data?.error || 'Erro ao cancelar o contrato.');
     }
   };
 
@@ -224,9 +237,14 @@ export default function ContratosPage() {
                     <span className={`px-3 py-1 rounded-full text-[10px] uppercase font-bold tracking-wider ${contract.status === 'Ativo' ? 'bg-blue-50 text-blue-700' : 'bg-slate-100 text-slate-600'}`}>
                       {contract.status}
                     </span>
-                    <button onClick={() => handleOpenModal(contract)} className="text-[11px] font-bold text-slate-400 hover:text-blue-600 flex items-center gap-1 transition-colors">
-                      <Edit size={12}/> Editar
-                    </button>
+                    <div className="flex gap-3">
+                      <button onClick={() => handleOpenModal(contract)} className="text-[11px] font-bold text-slate-400 hover:text-blue-600 flex items-center gap-1 transition-colors">
+                        <Edit size={12}/> Editar
+                      </button>
+                      <button onClick={() => handleCancelContract(contract)} className="text-[11px] font-bold text-slate-400 hover:text-red-600 flex items-center gap-1 transition-colors">
+                        <Trash2 size={12}/> Cancelar
+                      </button>
+                    </div>
                   </div>
                 </td>
               </tr>
