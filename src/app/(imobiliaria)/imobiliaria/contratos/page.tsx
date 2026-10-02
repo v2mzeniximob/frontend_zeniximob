@@ -2,12 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { api } from '../../../../lib/api';
-import { Plus, CheckCircle2, Loader2, Key, FileSignature, MessageCircle, ExternalLink, X, Home, User, DollarSign, Calendar, Edit, FileText, Trash2 } from 'lucide-react';
+import { Plus, CheckCircle2, Loader2, Key, FileSignature, MessageCircle, ExternalLink, X, Home, User, DollarSign, Calendar, Edit, FileText, Trash2, Printer, UploadCloud } from 'lucide-react';
 
 export default function ContratosPage() {
   const [contracts, setContracts] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isProcessingId, setIsProcessingId] = useState<string | null>(null);
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
 
   // Estados para o Modal de Contrato (Novo / Editar)
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -21,7 +21,7 @@ export default function ContratosPage() {
     propertyId: '',
     tenantId: '',
     startDate: '',
-    endDate: '', // Novo campo adicionado
+    endDate: '', // Fundamental para gerar as faturas
     rentValue: '',
     adminFeePercent: '10',
     readjustmentIndex: 'IPCA'
@@ -56,19 +56,18 @@ export default function ContratosPage() {
       setTenants(resTenants.data);
 
       if (contract) {
-        // Modo Edição: Mostra todos os imóveis (inclusive o que já está vinculado)
         setProperties(resProps.data);
         setForm({
           propertyId: contract.propertyId || '',
           tenantId: contract.tenantId || '',
           startDate: contract.startDate ? new Date(contract.startDate).toISOString().split('T')[0] : '',
-          endDate: contract.endDate ? new Date(contract.endDate).toISOString().split('T')[0] : '', // Carrega a data final
+          endDate: contract.endDate ? new Date(contract.endDate).toISOString().split('T')[0] : '',
           rentValue: contract.rentValue?.toString() || '',
           adminFeePercent: contract.adminFeePercent?.toString() || '10',
           readjustmentIndex: contract.readjustmentIndex || 'IPCA'
         });
       } else {
-        // Modo Novo: Filtra para mostrar apenas imóveis vagos
+        // Filtra para mostrar apenas imóveis vagos
         setProperties(resProps.data.filter((p: any) => p.rentStatus !== 'Alugado'));
         setForm({ propertyId: '', tenantId: '', startDate: '', endDate: '', rentValue: '', adminFeePercent: '10', readjustmentIndex: 'IPCA' });
       }
@@ -86,7 +85,7 @@ export default function ContratosPage() {
         alert('Contrato atualizado com sucesso!');
       } else {
         await api.post('/contracts', form);
-        alert('Contrato criado com sucesso! As faturas foram geradas e já pode disparar a assinatura.');
+        alert('Contrato criado com sucesso! As faturas do inquilino foram geradas no financeiro.');
       }
       
       setIsModalOpen(false);
@@ -101,7 +100,7 @@ export default function ContratosPage() {
   };
 
   const handleCancelContract = async (contract: any) => {
-    const confirm = window.confirm(`Tem certeza que deseja cancelar o contrato do imóvel "${contract.property?.title}"?\n\nAs faturas serão excluídas e o imóvel voltará a ficar Vago.`);
+    const confirm = window.confirm(`Tem certeza que deseja cancelar o contrato do imóvel "${contract.property?.title}"?\n\nAs faturas pendentes serão excluídas e o imóvel voltará a ficar Vago.`);
     if (!confirm) return;
 
     try {
@@ -113,31 +112,51 @@ export default function ContratosPage() {
     }
   };
 
-  // Dispara a Clicksign para o Inquilino
-  const handleSendToClicksign = async (contract: any) => {
-    if (!contract.tenant?.email) {
-      alert('O inquilino deste contrato não possui e-mail cadastrado. Edite o cadastro primeiro.');
-      return;
-    }
-    
-    setIsProcessingId(contract.id);
-    try {
-      await api.post(`/contracts/${contract.id}/send-contract`);
-      alert('Contrato enviado com sucesso para assinatura!');
-      fetchContracts(); 
-    } catch (error: any) {
-      alert(error.response?.data?.error || 'Erro ao disparar contrato.');
-    } finally {
-      setIsProcessingId(null);
+  // 1. GERA PDF DO CONTRATO DE LOCAÇÃO NO NAVEGADOR
+  const handlePrintContract = (contract: any) => {
+    const startDate = new Date(contract.startDate).toLocaleDateString('pt-BR');
+    const endDate = contract.endDate ? new Date(contract.endDate).toLocaleDateString('pt-BR') : 'Prazo Indeterminado';
+    const rentValue = Number(contract.rentValue).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+    const content = `
+      <html>
+        <head>
+          <title>Contrato de Locação - ${contract.tenant?.name}</title>
+          <style>
+            body { font-family: 'Times New Roman', serif; padding: 40px; line-height: 1.6; max-width: 800px; margin: auto; }
+            h2 { text-align: center; margin-bottom: 30px; }
+            p { text-align: justify; margin-bottom: 15px; }
+          </style>
+        </head>
+        <body>
+          <h2>CONTRATO DE LOCAÇÃO DE IMÓVEL RESIDENCIAL / COMERCIAL</h2>
+          <p><strong>LOCATÁRIO(A):</strong> ${contract.tenant?.name}, inscrito no CPF sob o nº ${contract.tenant?.cpf || 'não informado'}, com e-mail ${contract.tenant?.email || 'não informado'}.</p>
+          <p><strong>IMÓVEL:</strong> ${contract.property?.title} - ${contract.property?.address}</p>
+          <p><strong>CLÁUSULA 1 - DO OBJETO:</strong> O presente contrato tem por objeto a locação do imóvel descrito acima.</p>
+          <p><strong>CLÁUSULA 2 - DO VALOR E REAJUSTE:</strong> O valor do aluguel mensal é de <strong>${rentValue}</strong>, reajustado anualmente pelo índice ${contract.readjustmentIndex}.</p>
+          <p><strong>CLÁUSULA 3 - DO PRAZO:</strong> A locação tem início em <strong>${startDate}</strong> e término previsto para <strong>${endDate}</strong>.</p>
+          <br><br><br><br>
+          <div style="text-align: center;">
+            ___________________________________________________<br>
+            <strong>${contract.tenant?.name}</strong><br>
+            Locatário(a) - Assinado Digitalmente via Gov.br
+          </div>
+        </body>
+      </html>
+    `;
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(content);
+      printWindow.document.close();
+      printWindow.print();
     }
   };
 
-  // Botão Inteligente do WhatsApp
-  const handleWhatsApp = (contract: any) => {
+  // 2. ENVIA INSTRUÇÕES DO GOV.BR PELO WHATSAPP
+  const handleWhatsAppGov = (contract: any) => {
     const tenant = contract.tenant;
     if (!tenant?.phone) {
-      navigator.clipboard.writeText(contract.signUrl);
-      alert('Inquilino sem telefone! Link copiado para a área de transferência.');
+      alert('Inquilino sem telefone cadastrado!');
       return;
     }
 
@@ -146,10 +165,34 @@ export default function ContratosPage() {
       phoneNum = `55${phoneNum}`;
     }
 
-    const text = `Olá, *${tenant.name}*! Tudo bem?\n\nAqui está o link seguro para assinatura do seu Contrato de Locação:\n${contract.signUrl}\n\nQualquer dúvida, a imobiliária está à disposição!`;
+    const text = `Olá, *${tenant.name}*! Tudo bem?\n\nEstou enviando o seu Contrato de Locação em PDF anexo a esta conversa.\n\nPara assinar com validade jurídica e de forma *100% gratuita*, acesse o portal oficial do Governo Federal:\n👉 https://assinador.iti.br/\n\nBasta fazer login com a sua conta Gov.br, anexar o PDF que enviei, clicar em assinar e devolver o arquivo final aqui no WhatsApp.\nQualquer dúvida, estamos à disposição!`;
     const url = `https://wa.me/${phoneNum}?text=${encodeURIComponent(text)}`;
     
     window.open(url, '_blank');
+  };
+
+  // 3. FAZ O UPLOAD DO CONTRATO ASSINADO
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, contractId: string) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingId(contractId);
+    
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      await api.post(`/contracts/${contractId}/upload`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      alert('Contrato assinado anexado com sucesso!');
+      fetchContracts();
+    } catch (error) {
+      alert('Erro ao enviar o ficheiro. Verifique se tem menos de 5MB.');
+    } finally {
+      setUploadingId(null);
+      e.target.value = ''; // Limpa o input
+    }
   };
 
   if (isLoading) return <div className="p-8 flex justify-center text-slate-500"><Loader2 className="animate-spin" /></div>;
@@ -162,7 +205,7 @@ export default function ContratosPage() {
             <Key className="text-blue-600" size={32} />
             Gestão de Contratos
           </h1>
-          <p className="text-slate-500 mt-1">Gerencie os contratos de locação, assinaturas digitais e andamento.</p>
+          <p className="text-slate-500 mt-1">Gerencie os contratos de locação e as assinaturas via Gov.br.</p>
         </div>
         
         <button onClick={() => handleOpenModal()} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-medium flex items-center gap-2 transition-colors">
@@ -196,41 +239,45 @@ export default function ContratosPage() {
                 </td>
 
                 <td className="py-4 px-6">
-                  {/* Se o contrato tiver o PDF assinado salvo */}
                   {contract.documentUrl ? (
+                    // CONTRATO JÁ ASSINADO E ANEXADO
                     <div className="flex flex-col gap-2">
                       <span className="text-xs font-bold text-emerald-600 flex items-center gap-1">
-                        <CheckCircle2 size={14}/> Totalmente Assinado
+                        <CheckCircle2 size={14}/> Assinado via Gov.br
                       </span>
-                      <a href={contract.documentUrl} target="_blank" rel="noreferrer" className="text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-1.5 rounded flex items-center justify-center gap-1 hover:bg-emerald-100 transition-colors">
-                        <FileText size={14}/> Baixar PDF
+                      <a href={contract.documentUrl} target="_blank" rel="noreferrer" className="text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-1.5 rounded flex items-center w-fit gap-1 hover:bg-emerald-100 transition-colors">
+                        <FileText size={14}/> Visualizar Arquivo
                       </a>
                     </div>
-                  ) : contract.signUrl ? (
-                    /* Se foi disparado, mas ainda falta assinar */
+                  ) : (
+                    // FLUXO GOV.BR
                     <div className="flex flex-col gap-2">
-                      <span className="text-xs font-bold text-blue-600 flex items-center gap-1">
-                        <Loader2 size={14} className="animate-spin"/> Aguardando
+                      <span className="text-xs font-bold text-orange-600 flex items-center gap-1 mb-1">
+                        Pendente de Assinatura
                       </span>
-                      <div className="flex gap-2">
-                        <a href={contract.signUrl} target="_blank" rel="noreferrer" className="text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200 px-2 py-1.5 rounded flex items-center gap-1 hover:bg-slate-200 transition-colors">
-                          <ExternalLink size={14}/> Link
-                        </a>
-                        <button onClick={() => handleWhatsApp(contract)} className="text-[11px] font-bold bg-green-50 text-green-700 border border-green-200 px-2 py-1.5 rounded flex items-center gap-1 hover:bg-green-100 transition-colors">
-                          <MessageCircle size={14}/> Whats
+                      
+                      <div className="flex gap-2 flex-wrap max-w-[250px]">
+                        <button onClick={() => handlePrintContract(contract)} className="text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200 px-2 py-1.5 rounded flex items-center gap-1 hover:bg-slate-200 transition-colors">
+                          <Printer size={12}/> 1. Gerar PDF
                         </button>
+                        
+                        <button onClick={() => handleWhatsAppGov(contract)} className="text-[10px] font-bold bg-green-50 text-green-700 border border-green-200 px-2 py-1.5 rounded flex items-center gap-1 hover:bg-green-100 transition-colors">
+                          <MessageCircle size={12}/> 2. Enviar
+                        </button>
+
+                        <label className={`text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200 px-2 py-1.5 rounded flex items-center gap-1 hover:bg-blue-100 transition-colors cursor-pointer ${uploadingId === contract.id ? 'opacity-50' : ''}`}>
+                          {uploadingId === contract.id ? <Loader2 size={12} className="animate-spin" /> : <UploadCloud size={12}/>}
+                          3. Anexar Assinado
+                          <input 
+                            type="file" 
+                            accept="application/pdf" 
+                            className="hidden" 
+                            onChange={(e) => handleFileUpload(e, contract.id)}
+                            disabled={uploadingId === contract.id}
+                          />
+                        </label>
                       </div>
                     </div>
-                  ) : (
-                    /* Se ainda não foi disparado */
-                    <button 
-                      onClick={() => handleSendToClicksign(contract)} 
-                      disabled={isProcessingId === contract.id}
-                      className="text-[11px] font-bold bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 px-3 py-1.5 rounded flex items-center gap-1 transition-colors disabled:opacity-50"
-                    >
-                      {isProcessingId === contract.id ? <Loader2 size={14} className="animate-spin" /> : <FileSignature size={14}/>}
-                      Disparar Clicksign
-                    </button>
                   )}
                 </td>
 
