@@ -112,8 +112,7 @@ export default function ContratosPage() {
     }
   };
 
-
-  // 1. GERA PDF DO CONTRATO DE LOCAÇÃO (COM TEMPLATE DINÂMICO)
+  // 1. GERA PDF DO CONTRATO DE LOCAÇÃO (COM TEMPLATE DINÂMICO E NOVAS VARIÁVEIS)
   const handlePrintContract = async (contract: any) => {
     try {
       const res = await api.get('/my-store');
@@ -136,10 +135,12 @@ export default function ContratosPage() {
       const endDate = contract.endDate ? new Date(contract.endDate).toLocaleDateString('pt-BR') : 'Prazo Indeterminado';
       const rentValue = Number(contract.rentValue).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-      // Substituição das Variáveis
+      // Substituição das Variáveis (AGORA COM PROPRIETÁRIO E TELEFONE DO INQUILINO)
       template = template
         .replace(/{{NOME_INQUILINO}}/g, contract.tenant?.name || 'Não informado')
         .replace(/{{CPF_INQUILINO}}/g, contract.tenant?.cpf || 'Não informado')
+        .replace(/{{TELEFONE_INQUILINO}}/g, contract.tenant?.phone || 'Não informado')
+        .replace(/{{NOME_PROPRIETARIO}}/g, contract.property?.owner?.name || 'Não informado')
         .replace(/{{ENDERECO_IMOVEL}}/g, contract.property?.address || 'Não informado')
         .replace(/{{DATA_INICIO}}/g, startDate)
         .replace(/{{DATA_FIM}}/g, endDate)
@@ -172,6 +173,7 @@ export default function ContratosPage() {
       alert('Erro ao buscar o modelo do contrato. Verifique a sua conexão.');
     }
   };
+
   // 2. ENVIA INSTRUÇÕES DO GOV.BR PELO WHATSAPP
   const handleWhatsAppGov = (contract: any) => {
     const tenant = contract.tenant;
@@ -345,7 +347,9 @@ export default function ContratosPage() {
                     <label className="block text-xs font-bold text-slate-600 mb-1 flex items-center gap-1"><Home size={14}/> Imóvel</label>
                     <select required value={form.propertyId} onChange={e => setForm({...form, propertyId: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 bg-white text-sm">
                       <option value="">Selecione o imóvel...</option>
-                      {properties.map(p => <option key={p.id} value={p.id}>{p.title} - {p.address}</option>)}
+                      {properties.map(p => (
+                        <option key={p.id} value={p.id}>{p.title} - {p.address}</option>
+                      ))}
                     </select>
                   </div>
                   

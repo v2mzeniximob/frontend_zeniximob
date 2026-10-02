@@ -75,7 +75,7 @@ export default function ProprietariosPage() {
   };
 
   
- // 1. GERA O PDF DO CONTRATO DE GESTÃO (COM TEMPLATE DINÂMICO)
+ // 1. GERA O PDF DO CONTRATO DE GESTÃO (COM TEMPLATE DINÂMICO E VARIÁVEIS EXTRAS)
   const handlePrintContract = async (owner: any) => {
     try {
       // Busca as configurações da loja
@@ -102,7 +102,17 @@ export default function ProprietariosPage() {
         .replace(/{{TELEFONE}}/g, owner.phone || 'Não informado')
         .replace(/{{BANCO}}/g, owner.bankData || 'Não informado')
         .replace(/{{NOME_IMOBILIARIA}}/g, store.tradeName || store.corporateName || 'Imobiliária')
-        .replace(/{{CNPJ_IMOBILIARIA}}/g, store.cnpj || 'Não informado');
+        .replace(/{{CNPJ_IMOBILIARIA}}/g, store.cnpj || 'Não informado')
+        
+        // As variáveis abaixo não costumam estar no contrato de gestão (são para inquilino), mas mantemos caso a imobiliária queira usar
+        .replace(/{{NOME_INQUILINO}}/g, 'Não se aplica')
+        .replace(/{{CPF_INQUILINO}}/g, 'Não se aplica')
+        .replace(/{{TELEFONE_INQUILINO}}/g, 'Não se aplica')
+        .replace(/{{ENDERECO_IMOVEL}}/g, 'Imóveis confiados à gestão')
+        .replace(/{{DATA_INICIO}}/g, new Date().toLocaleDateString('pt-BR'))
+        .replace(/{{DATA_FIM}}/g, 'Prazo Indeterminado')
+        .replace(/{{VALOR_ALUGUEL}}/g, 'Conforme Locação')
+        .replace(/{{INDICE_REAJUSTE}}/g, 'IGP-M/IPCA');
 
       // Monta a página final
       const content = `
@@ -156,22 +166,17 @@ export default function ProprietariosPage() {
 
     setUploadingId(ownerId);
     
-    // Como ainda não temos uma rota de upload de ficheiros no backend, 
-    // enviamos o ficheiro como FormData. (Nota: precisaremos de criar a rota no Backend a seguir).
     const formData = new FormData();
     formData.append('file', file);
 
     try {
-      // Exemplo da chamada à API (a rota /owners/:id/upload terá de ser criada no Node.js)
-      // await api.post(`/owners/${ownerId}/upload`, formData, {
-      //   headers: { 'Content-Type': 'multipart/form-data' }
-      // });
-      
-      // Simulando sucesso para a interface
-      alert('Ficheiro enviado com sucesso! (Requer configuração da rota no backend)');
+      await api.post(`/owners/${ownerId}/upload`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      alert('Contrato assinado anexado com sucesso!');
       fetchOwners();
     } catch (error) {
-      alert('Erro ao enviar o ficheiro.');
+      alert('Erro ao enviar o ficheiro. Verifique se tem menos de 5MB.');
     } finally {
       setUploadingId(null);
       if (fileInputRef.current) fileInputRef.current.value = ''; // Limpa o input
@@ -243,7 +248,7 @@ export default function ProprietariosPage() {
                       <div className="flex gap-2 flex-wrap max-w-[250px]">
                         {/* 1. Gerar PDF */}
                         <button onClick={() => handlePrintContract(owner)} className="text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200 px-2 py-1.5 rounded flex items-center gap-1 hover:bg-slate-200 transition-colors">
-                          <Printer size={12}/> 1. Gerar PDF
+                          <Printer size={12}/>1. Gerar PDF
                         </button>
                         
                         {/* 2. Enviar WhatsApp */}
@@ -294,7 +299,6 @@ export default function ProprietariosPage() {
             </div>
             
             <form onSubmit={handleSave} className="p-6 space-y-4">
-              {/* Campos do formulário (Nome, CPF, Email, Telefone, Banco) mantidos idênticos... */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2">
                   <label className="block text-sm font-semibold text-slate-700 mb-1">Nome Completo / Razão Social</label>
@@ -323,7 +327,6 @@ export default function ProprietariosPage() {
                   <textarea rows={2} placeholder="Banco, Agência, Conta, Pix..." value={form.bankData} onChange={e => setForm({...form, bankData: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 resize-none" />
                 </div>
 
-                {/* VISUALIZAÇÃO DO LINK NO MODO EDIÇÃO (Caso queira colocar um link do Google Drive manualmente) */}
                 <div className="col-span-2">
                   <label className="block text-sm font-semibold text-slate-700 mb-1">Link do Contrato Assinado (Opcional)</label>
                   <input type="text" placeholder="https://drive.google.com/..." value={form.managementContractUrl} onChange={e => setForm({...form, managementContractUrl: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500" />
