@@ -1,346 +1,354 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { api } from '../../../../lib/api';
-import { Plus, Edit, X, CheckCircle2, Loader2, UserCircle, FileSignature, MessageCircle, FileText, Printer, UploadCloud } from 'lucide-react';
+import { 
+  Plus, Search, Edit, Power, Loader2, Home, UserCircle, 
+  MapPin, Phone, Mail, CheckSquare, X, FileSignature, FolderOpen, FileDown, Landmark
+} from 'lucide-react';
+import { maskCpf, maskCnpj, maskPhone } from '@/src/utils/mask'; 
+
+const initialForm = {
+  name: '',
+  cpfOrCnpj: '',
+  email: '',
+  phone: '',
+  bankData: '',
+  inspectionUrl: '',
+  managementContractUrl: ''
+};
 
 export default function ProprietariosPage() {
   const [owners, setOwners] = useState<any[]>([]);
+  const [storeData, setStoreData] = useState<any>(null); // Guardar as configurações para o PDF
   const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
   
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [formData, setFormData] = useState<any>(initialForm);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
-  
-  // Referência para o input de ficheiro (escondido)
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [uploadingId, setUploadingId] = useState<string | null>(null);
-
-  const [form, setForm] = useState({
-    name: '', cpfOrCnpj: '', email: '', phone: '', bankData: '', managementContractUrl: ''
-  });
 
   useEffect(() => {
-    fetchOwners();
+    fetchData();
   }, []);
 
-  const fetchOwners = async () => {
+  const fetchData = async () => {
     setIsLoading(true);
     try {
-      const response = await api.get('/owners');
-      setOwners(response.data);
+      const [resOwners, resStore] = await Promise.all([
+        api.get('/owners'),
+        api.get('/my-store').catch(() => ({ data: {} }))
+      ]);
+      setOwners(resOwners.data);
+      setStoreData(resStore.data);
     } catch (error) {
-      console.error(error);
+      console.error('Erro ao carregar dados:', error);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleOpenModal = (owner?: any) => {
+  const handleOpenModal = (owner: any = null) => {
     if (owner) {
       setEditingId(owner.id);
-      setForm({
-        name: owner.name,
-        cpfOrCnpj: owner.cpfOrCnpj,
-        email: owner.email || '',
-        phone: owner.phone || '',
-        bankData: owner.bankData || '',
-        managementContractUrl: owner.managementContractUrl || ''
+      setFormData({
+        ...initialForm,
+        ...owner,
+        cpfOrCnpj: owner.cpfOrCnpj.length > 14 ? maskCnpj(owner.cpfOrCnpj) : maskCpf(owner.cpfOrCnpj),
+        phone: maskPhone(owner.phone || ''),
       });
     } else {
       setEditingId(null);
-      setForm({ name: '', cpfOrCnpj: '', email: '', phone: '', bankData: '', managementContractUrl: '' });
+      setFormData(initialForm);
     }
     setIsModalOpen(true);
   };
 
-  const handleSave = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
     try {
+      const payload = { ...formData };
+      payload.cpfOrCnpj = payload.cpfOrCnpj.replace(/\D/g, '');
+      payload.phone = payload.phone.replace(/\D/g, '');
+
       if (editingId) {
-        await api.put(`/owners/${editingId}`, form);
-        alert('Proprietário atualizado!');
+        await api.put(`/owners/${editingId}`, payload);
       } else {
-        await api.post('/owners', form);
-        alert('Proprietário cadastrado!');
+        await api.post('/owners', payload);
       }
+      
       setIsModalOpen(false);
-      fetchOwners();
+      fetchData();
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Erro ao salvar.');
+      alert(error.response?.data?.error || 'Erro ao salvar proprietário.');
     } finally {
       setIsSaving(false);
     }
   };
 
-  
- // 1. GERA O PDF DO CONTRATO DE GESTÃO (COM TEMPLATE DINÂMICO E VARIÁVEIS EXTRAS)
-  const handlePrintContract = async (owner: any) => {
+  const handleToggleStatus = async (id: string) => {
+    if(!confirm('Deseja alterar o status deste proprietário?')) return;
     try {
-      // Busca as configurações da loja
-      const res = await api.get('/my-store');
-      const store = res.data;
-
-      // Pega o template guardado pelo administrador (ou usa um texto de aviso se estiver vazio)
-      let template = store.ownerContractTemplate;
-
-      if (!template) {
-        template = `
-          <h2 style="text-align: center;">CONTRATO DE GESTÃO BÁSICO</h2>
-          <p><strong>CONTRATANTE:</strong> {{NOME_PROPRIETARIO}}, CPF/CNPJ: {{CPF_CNPJ}}, Tel: {{TELEFONE}}.</p>
-          <p><strong>CONTRATADA:</strong> {{NOME_IMOBILIARIA}}, CNPJ: {{CNPJ_IMOBILIARIA}}.</p>
-          <br><br>
-          <p><em>⚠️ Aviso ao Administrador: Vá a "Configurações da Loja" -> "Modelos de Contrato" para digitar as cláusulas oficiais deste contrato.</em></p>
-        `;
-      }
-
-      // O MOTOR MÁGICO: Substitui as tags pelas variáveis reais
-      template = template
-        .replace(/{{NOME_PROPRIETARIO}}/g, owner.name || 'Não informado')
-        .replace(/{{CPF_CNPJ}}/g, owner.cpfOrCnpj || 'Não informado')
-        .replace(/{{TELEFONE}}/g, owner.phone || 'Não informado')
-        .replace(/{{BANCO}}/g, owner.bankData || 'Não informado')
-        .replace(/{{NOME_IMOBILIARIA}}/g, store.tradeName || store.corporateName || 'Imobiliária')
-        .replace(/{{CNPJ_IMOBILIARIA}}/g, store.cnpj || 'Não informado')
-        
-        // As variáveis abaixo não costumam estar no contrato de gestão (são para inquilino), mas mantemos caso a imobiliária queira usar
-        .replace(/{{NOME_INQUILINO}}/g, 'Não se aplica')
-        .replace(/{{CPF_INQUILINO}}/g, 'Não se aplica')
-        .replace(/{{TELEFONE_INQUILINO}}/g, 'Não se aplica')
-        .replace(/{{ENDERECO_IMOVEL}}/g, 'Imóveis confiados à gestão')
-        .replace(/{{DATA_INICIO}}/g, new Date().toLocaleDateString('pt-BR'))
-        .replace(/{{DATA_FIM}}/g, 'Prazo Indeterminado')
-        .replace(/{{VALOR_ALUGUEL}}/g, 'Conforme Locação')
-        .replace(/{{INDICE_REAJUSTE}}/g, 'IGP-M/IPCA');
-
-      // Monta a página final
-      const content = `
-        <html>
-          <head>
-            <title>Contrato de Gestão - ${owner.name}</title>
-            <style>
-              body { font-family: 'Arial', sans-serif; padding: 40px; line-height: 1.6; max-width: 800px; margin: auto; text-align: justify; color: #333; }
-              h2 { text-align: center; margin-bottom: 30px; font-size: 18px; text-transform: uppercase; }
-              p { margin-bottom: 12px; font-size: 14px; }
-            </style>
-          </head>
-          <body>
-            ${template}
-          </body>
-        </html>
-      `;
-      const printWindow = window.open('', '_blank');
-      if (printWindow) {
-        printWindow.document.write(content);
-        printWindow.document.close();
-        printWindow.print();
-      }
+      await api.patch(`/owners/${id}/status`);
+      fetchData();
     } catch (error) {
-      alert('Erro ao buscar o modelo do contrato. Verifique a sua conexão.');
+      alert('Erro ao alterar status.');
     }
   };
 
-  // 2. DISPARO INTELIGENTE COM INSTRUÇÕES GOV.BR
-  const handleWhatsAppGov = (owner: any) => {
-    if (!owner.phone) {
-      alert('Proprietário sem telefone cadastrado!');
+  // =========================================================
+  // GERAÇÃO DO CONTRATO DE GESTÃO (DONO) COM VARIÁVEIS REAIS
+  // =========================================================
+  const handleGenerateOwnerPDF = () => {
+    const template = storeData?.ownerContractTemplate;
+    
+    if (!template) {
+      alert('Modelo de PDF não configurado! Vá a "Configurações > Modelos e Termos" para criar o Contrato de Gestão.');
       return;
     }
 
-    let phoneNum = owner.phone.replace(/\D/g, '');
-    if (phoneNum.length === 10 || phoneNum.length === 11) {
-      phoneNum = `55${phoneNum}`;
-    }
+    // A Mágica de Substituição: Troca as TAGS pelos valores do formulário
+    let html = template
+      .replace(/{{NOME_CLIENTE}}/g, formData.name || '_________________________')
+      .replace(/{{CPF_CLIENTE}}/g, formData.cpfOrCnpj || '_________________________')
+      .replace(/{{CPF_CNPJ}}/g, formData.cpfOrCnpj || '_________________________')
+      .replace(/{{TELEFONE}}/g, formData.phone || '_________________________')
+      .replace(/{{EMAIL}}/g, formData.email || '_________________________')
+      .replace(/{{NOME_IMOBILIARIA}}/g, storeData?.tradeName || 'Imobiliária')
+      .replace(/{{ENDERECO_IMOVEL}}/g, 'Imóveis confiados à gestão'); // Proprietário pode ter múltiplos imóveis.
 
-    const text = `Olá, *${owner.name}*! Tudo bem?\n\nEstou a enviar o seu Contrato de Gestão em PDF anexo a esta conversa.\n\nPara assinar com validade jurídica e de forma *100% gratuita*, por favor aceda ao portal oficial do Governo Federal:\n👉 https://assinador.iti.br/\n\nBasta fazer login com a sua conta Gov.br, anexar o PDF que lhe enviei, clicar em assinar e devolver-me o ficheiro final.\nQualquer dúvida, estou à disposição!`;
-    const url = `https://wa.me/${phoneNum}?text=${encodeURIComponent(text)}`;
-    
-    window.open(url, '_blank');
-  };
-
-  // 3. UPLOAD DO CONTRATO ASSINADO
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, ownerId: string) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setUploadingId(ownerId);
-    
-    const formData = new FormData();
-    formData.append('file', file);
-
-    try {
-      await api.post(`/owners/${ownerId}/upload`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-      alert('Contrato assinado anexado com sucesso!');
-      fetchOwners();
-    } catch (error) {
-      alert('Erro ao enviar o ficheiro. Verifique se tem menos de 5MB.');
-    } finally {
-      setUploadingId(null);
-      if (fileInputRef.current) fileInputRef.current.value = ''; // Limpa o input
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>Contrato de Gestão - ${formData.name}</title>
+            <style>
+              body { font-family: Arial, sans-serif; padding: 40px; color: #333; line-height: 1.6; }
+            </style>
+          </head>
+          <body>
+            ${html}
+            <script>
+              window.onload = function() { window.print(); }
+            </script>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
     }
   };
 
-  if (isLoading) return <div className="p-8 flex justify-center text-slate-500"><Loader2 className="animate-spin" /></div>;
+  const filteredOwners = owners.filter(o => 
+    o.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    o.cpfOrCnpj?.includes(searchTerm.replace(/\D/g, ''))
+  );
 
   return (
-    <div className="p-8 max-w-7xl mx-auto font-sans">
-      <div className="flex justify-between items-center mb-8">
+    <div className="p-8 max-w-7xl mx-auto font-sans animate-in fade-in duration-300">
+      
+      {/* HEADER */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mb-8">
         <div>
           <h1 className="text-3xl font-bold text-slate-800 flex items-center gap-3">
-            <UserCircle className="text-blue-600" size={32} />
-            Gestão de Proprietários
+            <UserCircle className="text-blue-600 bg-blue-50 p-1.5 rounded-lg" size={36} />
+            Proprietários (Donos)
           </h1>
-          <p className="text-slate-500 mt-1">Cadastre os donos dos imóveis e faça a gestão contratual via Gov.br.</p>
+          <p className="text-slate-500 mt-2 text-sm">Gira os donos dos imóveis, contratos de administração e repasses financeiros.</p>
         </div>
-        <button onClick={() => handleOpenModal()} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-medium flex items-center gap-2 transition-colors">
-          <Plus size={18} /> Novo Proprietário
-        </button>
+        
+        <div className="flex items-center gap-4 w-full md:w-auto">
+          <div className="relative flex-1 md:w-72">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+            <input 
+              type="text" 
+              placeholder="Buscar Nome ou CPF/CNPJ..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm"
+            />
+          </div>
+          <button 
+            onClick={() => handleOpenModal()}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-semibold flex items-center gap-2 transition-all shadow-sm whitespace-nowrap text-sm"
+          >
+            <Plus size={18} /> Novo Proprietário
+          </button>
+        </div>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-        <table className="w-full text-left text-sm">
-          <thead className="bg-slate-50 text-slate-600 font-medium border-b border-slate-200">
-            <tr>
-              <th className="py-4 px-6">Nome / Documento</th>
-              <th className="py-4 px-6">Contatos</th>
-              <th className="py-4 px-6">Imóveis Atrelados</th>
-              <th className="py-4 px-6">Contrato (Gov.br)</th>
-              <th className="py-4 px-6 text-right">Ações</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 text-slate-700">
-            {owners.map(owner => (
-              <tr key={owner.id} className="hover:bg-slate-50 transition-colors">
-                <td className="py-4 px-6">
-                  <p className="font-bold text-slate-800">{owner.name}</p>
-                  <p className="text-xs text-slate-500 font-mono mt-1">CPF/CNPJ: {owner.cpfOrCnpj}</p>
-                </td>
-                <td className="py-4 px-6">
-                  <p className="text-slate-700">{owner.email || <span className="text-red-400 text-xs">Sem e-mail</span>}</p>
-                  <p className="text-xs text-slate-500 mt-1">{owner.phone || 'Sem telefone'}</p>
-                </td>
-                <td className="py-4 px-6">
-                  <span className="bg-slate-100 text-slate-700 px-3 py-1 rounded-full text-xs font-bold">
-                    {owner.properties?.length || 0} Imóveis
-                  </span>
-                </td>
-                <td className="py-4 px-6">
-                  {owner.managementContractUrl ? (
-                    // SE O CONTRATO JÁ FOI DEVOLVIDO E ANEXADO
-                    <div className="flex flex-col gap-2">
-                      <span className="text-xs font-bold text-emerald-600 flex items-center gap-1">
-                        <CheckCircle2 size={14}/> Assinado via Gov.br
-                      </span>
-                      <a href={owner.managementContractUrl} target="_blank" rel="noreferrer" className="text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-1.5 rounded w-fit flex items-center justify-center gap-1 hover:bg-emerald-100 transition-colors">
-                        <FileText size={14}/> Visualizar Arquivo
-                      </a>
-                    </div>
-                  ) : (
-                    // FLUXO DE ASSINATURA MANUAL
-                    <div className="flex flex-col gap-2">
-                      <span className="text-xs font-bold text-orange-600 flex items-center gap-1 mb-1">
-                        Pendente de Assinatura
-                      </span>
-                      
-                      <div className="flex gap-2 flex-wrap max-w-[250px]">
-                        {/* 1. Gerar PDF */}
-                        <button onClick={() => handlePrintContract(owner)} className="text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200 px-2 py-1.5 rounded flex items-center gap-1 hover:bg-slate-200 transition-colors">
-                          <Printer size={12}/>1. Gerar PDF
-                        </button>
-                        
-                        {/* 2. Enviar WhatsApp */}
-                        <button onClick={() => handleWhatsAppGov(owner)} className="text-[10px] font-bold bg-green-50 text-green-700 border border-green-200 px-2 py-1.5 rounded flex items-center gap-1 hover:bg-green-100 transition-colors">
-                          <MessageCircle size={12}/> 2. Enviar
-                        </button>
-
-                        {/* 3. Subir Assinado */}
-                        <label className={`text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200 px-2 py-1.5 rounded flex items-center gap-1 hover:bg-blue-100 transition-colors cursor-pointer ${uploadingId === owner.id ? 'opacity-50' : ''}`}>
-                          {uploadingId === owner.id ? <Loader2 size={12} className="animate-spin" /> : <UploadCloud size={12}/>}
-                          3. Anexar Assinado
-                          <input 
-                            type="file" 
-                            accept="application/pdf" 
-                            className="hidden" 
-                            onChange={(e) => handleFileUpload(e, owner.id)}
-                            disabled={uploadingId === owner.id}
-                          />
-                        </label>
-                      </div>
-                    </div>
-                  )}
-                </td>
-                <td className="py-4 px-6 text-right">
-                  <button onClick={() => handleOpenModal(owner)} className="text-blue-600 hover:text-blue-800 font-medium bg-blue-50 px-3 py-2 rounded-lg">
-                    <Edit size={16} />
-                  </button>
-                </td>
+      {/* LISTAGEM DE PROPRIETÁRIOS */}
+      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-100 text-xs uppercase tracking-wider text-slate-500 font-semibold">
+                <th className="p-4">Proprietário</th>
+                <th className="p-4">Contactos</th>
+                <th className="p-4">Imóveis em Gestão</th>
+                <th className="p-4 text-center">Status</th>
+                <th className="p-4 text-right">Ações</th>
               </tr>
-            ))}
-            {owners.length === 0 && (
-              <tr><td colSpan={5} className="py-8 text-center text-slate-500">Nenhum proprietário cadastrado.</td></tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-slate-100 text-sm">
+              {isLoading ? (
+                <tr><td colSpan={5} className="p-8 text-center text-slate-400"><Loader2 className="animate-spin inline mr-2"/> Carregando proprietários...</td></tr>
+              ) : filteredOwners.length === 0 ? (
+                <tr><td colSpan={5} className="p-8 text-center text-slate-400 font-medium">Nenhum proprietário encontrado.</td></tr>
+              ) : (
+                filteredOwners.map((owner) => (
+                  <tr key={owner.id} className="hover:bg-slate-50/50 transition-colors group">
+                    <td className="p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl flex items-center justify-center font-bold shrink-0 bg-blue-50 text-blue-600 border border-blue-100">
+                          {owner.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="font-bold text-slate-800">{owner.name}</p>
+                          <p className="text-xs text-slate-500 font-medium flex items-center gap-1 mt-0.5">
+                            {owner.cpfOrCnpj.length > 11 ? maskCnpj(owner.cpfOrCnpj) : maskCpf(owner.cpfOrCnpj)}
+                          </p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="p-4">
+                      <p className="text-sm text-slate-700 flex items-center gap-2"><Phone size={14} className="text-slate-400"/> {maskPhone(owner.phone || '')}</p>
+                      <p className="text-xs text-slate-500 flex items-center gap-2 mt-1"><Mail size={14} className="text-slate-400"/> {owner.email || 'Sem e-mail'}</p>
+                    </td>
+                    <td className="p-4">
+                      <div className="flex items-center gap-2">
+                        <Home size={16} className="text-slate-400"/>
+                        <span className="font-bold text-slate-700">{owner.properties?.length || 0}</span>
+                        <span className="text-xs text-slate-500">imóveis</span>
+                      </div>
+                    </td>
+                    <td className="p-4 text-center">
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border ${owner.isActive ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${owner.isActive ? 'bg-emerald-500' : 'bg-red-500'}`}></span>
+                        {owner.isActive ? 'Ativo' : 'Inativo'}
+                      </span>
+                    </td>
+                    <td className="p-4 text-right">
+                      <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => handleOpenModal(owner)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-transparent hover:border-blue-100" title="Editar">
+                          <Edit size={16} />
+                        </button>
+                        <button onClick={() => handleToggleStatus(owner.id)} className={`p-2 rounded-lg transition-colors border border-transparent ${owner.isActive ? 'text-red-500 hover:bg-red-50 hover:border-red-100' : 'text-emerald-600 hover:bg-emerald-50 hover:border-emerald-100'}`} title={owner.isActive ? 'Desativar' : 'Ativar'}>
+                          <Power size={16} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      {/* MODAL DE CADASTRO / EDIÇÃO */}
+      {/* MODAL DE CADASTRO/EDIÇÃO */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden">
-            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-              <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                {editingId ? <Edit size={20} className="text-blue-600"/> : <Plus size={20} className="text-blue-600"/>}
-                {editingId ? 'Editar Proprietário' : 'Novo Proprietário'}
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col animate-in zoom-in-95 duration-200">
+            
+            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 rounded-t-2xl shrink-0">
+              <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                {editingId ? <Edit className="text-blue-600" size={24}/> : <UserCircle className="text-blue-600" size={24}/>}
+                {editingId ? 'Editar Proprietário' : 'Cadastrar Proprietário'}
               </h2>
-              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X size={20}/></button>
+              <button onClick={() => setIsModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-lg transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto flex-1">
+              <form id="ownerForm" onSubmit={handleSubmit} className="space-y-8">
+                
+                {/* DADOS PRINCIPAIS */}
+                <section>
+                  <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2 border-b border-slate-100 pb-2">
+                    <UserCircle size={16} className="text-blue-500"/> Dados Pessoais
+                  </h3>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Nome Completo / Razão Social *</label>
+                      <input required type="text" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">CPF ou CNPJ *</label>
+                      <input required type="text" value={formData.cpfOrCnpj} onChange={(e) => setFormData({...formData, cpfOrCnpj: e.target.value.length > 14 ? maskCnpj(e.target.value) : maskCpf(e.target.value)})} placeholder="000.000.000-00" className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Telefone / WhatsApp *</label>
+                      <input required type="text" value={formData.phone} onChange={(e) => setFormData({...formData, phone: maskPhone(e.target.value)})} placeholder="(00) 00000-0000" className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">E-mail</label>
+                      <input type="email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
+                    </div>
+                  </div>
+                </section>
+
+                {/* FINANCEIRO */}
+                <section>
+                  <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2 border-b border-slate-100 pb-2">
+                    <Landmark size={16} className="text-blue-500"/> Repasse Financeiro
+                  </h3>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 mb-1">Dados Bancários ou Chave PIX</label>
+                    <textarea value={formData.bankData} onChange={(e) => setFormData({...formData, bankData: e.target.value})} rows={3} placeholder="Ex: Banco Itaú, Ag: 0000, Conta: 00000-0, Chave PIX: email@email.com..." className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm resize-y bg-slate-50"></textarea>
+                  </div>
+                </section>
+
+                {/* DOCUMENTOS / VISTORIA / CONTRATO GESTÃO */}
+                <section className="bg-blue-50 p-5 rounded-xl border border-blue-200">
+                  <h3 className="text-sm font-bold text-blue-900 mb-4 flex items-center gap-2">
+                    <FolderOpen size={16}/> Documentação e Vistoria
+                  </h3>
+                  
+                  <div className="grid grid-cols-1 gap-5">
+                    {/* NOVO CAMPO: VISTORIA / GOOGLE DRIVE */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">Link de Vistoria / Fotos dos Imóveis (Google Drive)</label>
+                      <input type="url" value={formData.inspectionUrl} onChange={e => setFormData({...formData, inspectionUrl: e.target.value})} placeholder="https://drive.google.com/..." className="w-full px-4 py-2.5 border border-blue-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white" />
+                      <p className="text-[10px] text-blue-600 mt-1">Cole aqui o link da pasta contendo a vistoria, fotos e documentação dos imóveis sob gestão.</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">Contrato de Administração Assinado (PDF/Drive)</label>
+                      <input type="url" value={formData.managementContractUrl} onChange={e => setFormData({...formData, managementContractUrl: e.target.value})} placeholder="https://..." className="w-full px-4 py-2.5 border border-blue-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white" />
+                    </div>
+
+                    <div className="border-t border-blue-200 pt-4 mt-2">
+                      <p className="text-xs text-slate-600 mb-2 font-medium">Ainda não gerou o contrato para o proprietário assinar?</p>
+                      <button 
+                        type="button" 
+                        onClick={handleGenerateOwnerPDF}
+                        className="w-full md:w-auto px-4 py-2.5 text-xs font-bold text-indigo-700 bg-indigo-100 hover:bg-indigo-200 border border-indigo-300 rounded-lg flex items-center justify-center gap-2 transition-colors shadow-sm"
+                      >
+                        <FileDown size={16}/> Gerar e Imprimir Contrato de Gestão
+                      </button>
+                    </div>
+                  </div>
+                </section>
+
+              </form>
+            </div>
+
+            {/* RODAPÉ DO MODAL (BOTÕES) */}
+            <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 rounded-b-2xl shrink-0">
+              <button type="button" onClick={() => setIsModalOpen(false)} className="px-5 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-200 rounded-xl transition-colors">
+                Cancelar
+              </button>
+              <button type="submit" form="ownerForm" disabled={isSaving} className="px-6 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all shadow-sm flex items-center gap-2 disabled:opacity-70">
+                {isSaving ? <Loader2 size={16} className="animate-spin" /> : <CheckSquare size={16}/>}
+                {editingId ? 'Salvar Alterações' : 'Cadastrar Proprietário'}
+              </button>
             </div>
             
-            <form onSubmit={handleSave} className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
-                  <label className="block text-sm font-semibold text-slate-700 mb-1">Nome Completo / Razão Social</label>
-                  <input required type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500" />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1">CPF ou CNPJ</label>
-                  <input required type="text" value={form.cpfOrCnpj} onChange={e => setForm({...form, cpfOrCnpj: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500" />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1 flex items-center justify-between">
-                    E-mail
-                  </label>
-                  <input type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 bg-white" />
-                </div>
-                
-                <div className="col-span-2">
-                  <label className="block text-sm font-semibold text-slate-700 mb-1">WhatsApp / Telefone</label>
-                  <input type="text" placeholder="(11) 99999-9999" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500" />
-                </div>
-                
-                <div className="col-span-2">
-                  <label className="block text-sm font-semibold text-slate-700 mb-1">Dados Bancários (Para Repasse)</label>
-                  <textarea rows={2} placeholder="Banco, Agência, Conta, Pix..." value={form.bankData} onChange={e => setForm({...form, bankData: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 resize-none" />
-                </div>
-
-                <div className="col-span-2">
-                  <label className="block text-sm font-semibold text-slate-700 mb-1">Link do Contrato Assinado (Opcional)</label>
-                  <input type="text" placeholder="https://drive.google.com/..." value={form.managementContractUrl} onChange={e => setForm({...form, managementContractUrl: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500" />
-                  <p className="text-[10px] text-slate-500 mt-1">Cole aqui o link caso prefira armazenar o PDF na nuvem (Google Drive, OneDrive).</p>
-                </div>
-              </div>
-
-              <div className="pt-4 flex justify-end gap-3 border-t border-slate-100 mt-4">
-                <button type="button" onClick={() => setIsModalOpen(false)} className="px-5 py-2.5 text-slate-600 font-medium hover:bg-slate-100 rounded-lg">Cancelar</button>
-                <button type="submit" disabled={isSaving} className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg flex items-center gap-2">
-                  {isSaving ? <Loader2 size={18} className="animate-spin" /> : 'Salvar Dados'}
-                </button>
-              </div>
-            </form>
           </div>
         </div>
       )}
