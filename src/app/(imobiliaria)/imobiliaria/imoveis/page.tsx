@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { api } from '../../../../lib/api';
-import { Plus, Edit, X, CheckCircle2, XCircle, Loader2, Home, MapPin, DollarSign, Camera, User, UserCheck } from 'lucide-react';
+import { Plus, Edit, X, CheckCircle2, XCircle, Loader2, Home, MapPin, DollarSign, Camera, User, UserCheck, FileSignature, Key } from 'lucide-react';
 
 // Lista padrão de características (pode adicionar mais se precisar)
 const AVAILABLE_AMENITIES = [
@@ -21,13 +21,14 @@ export default function ImoveisPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Estado inicial do formulário completo (agora com amenities)
+  // Estado inicial do formulário completo (agora com campos de propostas e termo)
   const [form, setForm] = useState({
     title: '', type: 'Casa', category: 'Residencial', transaction: 'Locação',
     price: '', condoFee: '', iptu: '',
     area: '', bedrooms: '', bathrooms: '', garage: '', yearBuilt: '',
     cep: '', address: '', neighborhood: '', city: '', state: '',
     description: '', imageUrls: '', brokerId: '', ownerId: '', inspectionUrl: '',
+    rentProposalUrl: '', saleProposalUrl: '', keyTermUrl: '', // NOVOS CAMPOS
     amenities: [] as string[]
   });
 
@@ -79,6 +80,9 @@ export default function ImoveisPage() {
         brokerId: property.brokerId || '',
         ownerId: property.ownerId || '',
         inspectionUrl: property.inspectionUrl || '',
+        rentProposalUrl: property.rentProposalUrl || '', // NOVO CAMPO
+        saleProposalUrl: property.saleProposalUrl || '', // NOVO CAMPO
+        keyTermUrl: property.keyTermUrl || '',           // NOVO CAMPO
         amenities: property.amenities || []
       });
     } else {
@@ -88,6 +92,7 @@ export default function ImoveisPage() {
         price: '', condoFee: '', iptu: '', area: '', bedrooms: '', bathrooms: '', garage: '', yearBuilt: '',
         cep: '', address: '', neighborhood: '', city: '', state: '',
         description: '', imageUrls: '', brokerId: '', ownerId: '', inspectionUrl: '',
+        rentProposalUrl: '', saleProposalUrl: '', keyTermUrl: '', // NOVOS CAMPOS
         amenities: []
       });
     }
@@ -175,18 +180,27 @@ export default function ImoveisPage() {
                   <p className="font-bold text-slate-800 text-base">{prop.title}</p>
                   <p className="text-xs text-slate-500 flex items-center gap-1 mt-1"><MapPin size={12}/> {prop.neighborhood}, {prop.city}</p>
                   <div className="flex items-center gap-2 mt-2">
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${prop.rentStatus === 'Alugado' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                      {prop.rentStatus === 'Alugado' ? 'ALUGADO' : 'VAGO'}
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${prop.rentStatus === 'Alugado' ? 'bg-amber-100 text-amber-700' : prop.rentStatus === 'Vendido' ? 'bg-purple-100 text-purple-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                      {prop.rentStatus ? prop.rentStatus.toUpperCase() : 'VAGO'}
                     </span>
                     <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-bold">{prop.type}</span>
                   </div>
                 </td>
                 
                 <td className="py-4 px-6">
-                  <span className={`text-xs font-bold px-2 py-1 rounded-full ${prop.transaction === 'Venda' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
-                    {prop.transaction}
-                  </span>
-                  <p className="font-bold text-slate-800 mt-2 text-lg">R$ {Number(prop.price).toLocaleString('pt-BR')}</p>
+                  <div className="flex flex-col items-start gap-1.5">
+                    <span className={`text-xs font-bold px-2 py-1 rounded-full ${prop.transaction === 'Venda' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                      {prop.transaction}
+                    </span>
+                    <p className="font-bold text-slate-800 text-lg">R$ {Number(prop.price).toLocaleString('pt-BR')}</p>
+                    
+                    {/* INDICADORES DE PROPOSTAS E TERMOS */}
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {prop.saleProposalUrl && <span className="bg-indigo-50 text-indigo-600 border border-indigo-200 text-[9px] px-1.5 py-0.5 rounded font-bold uppercase" title="Possui Proposta de Venda">Proposta Venda</span>}
+                      {prop.rentProposalUrl && <span className="bg-orange-50 text-orange-600 border border-orange-200 text-[9px] px-1.5 py-0.5 rounded font-bold uppercase" title="Possui Proposta de Aluguel">Proposta Aluguel</span>}
+                      {prop.keyTermUrl && <span className="bg-amber-50 text-amber-600 border border-amber-200 text-[9px] px-1.5 py-0.5 rounded font-bold uppercase" title="Possui Termo de Chaves">Termo de Chaves</span>}
+                    </div>
+                  </div>
                 </td>
                 
                 <td className="py-4 px-6 space-y-2">
@@ -353,10 +367,10 @@ export default function ImoveisPage() {
                   </div>
                 </div>
 
-                {/* SECÇÃO 5: GESTÃO & CAPTAÇÃO */}
+                {/* SECÇÃO 5: GESTÃO & CAPTAÇÃO (AGORA COM PROPOSTAS E TERMOS) */}
                 <div className="bg-blue-50 p-6 rounded-xl border border-blue-100">
                   <h3 className="text-sm font-bold text-blue-800 uppercase tracking-wider mb-4 border-b border-blue-200 pb-2 flex items-center gap-2">
-                    <UserCheck size={18}/> 5. Gestão & Captação
+                    <UserCheck size={18}/> 5. Gestão, Captação & Documentos
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     
@@ -377,12 +391,32 @@ export default function ImoveisPage() {
                       </select>
                     </div>
 
-                    <div className="md:col-span-2">
+                    <div>
                       <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">
-                        <Camera size={14}/> Laudo da Vistoria Inicial (Link)
+                        <FileSignature size={14}/> Proposta de Aluguel (Link PDF)
                       </label>
-                      <input type="url" value={form.inspectionUrl} onChange={e => setForm({...form, inspectionUrl: e.target.value})} className="w-full px-4 py-2.5 border border-blue-200 rounded-lg outline-none focus:border-blue-500 text-sm bg-white" placeholder="Ex: Link do Google Drive com as fotos" />
-                      <p className="text-[11px] text-blue-600 mt-1">Anexe o registo do estado de conservação no momento da captação.</p>
+                      <input type="url" value={form.rentProposalUrl} onChange={e => setForm({...form, rentProposalUrl: e.target.value})} className="w-full px-4 py-2.5 border border-blue-200 rounded-lg outline-none focus:border-blue-500 text-sm bg-white" placeholder="Link do Google Drive..." />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">
+                        <FileSignature size={14}/> Proposta de Venda (Link PDF)
+                      </label>
+                      <input type="url" value={form.saleProposalUrl} onChange={e => setForm({...form, saleProposalUrl: e.target.value})} className="w-full px-4 py-2.5 border border-blue-200 rounded-lg outline-none focus:border-blue-500 text-sm bg-white" placeholder="Link do Google Drive..." />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">
+                        <Key size={14}/> Termo de Chaves (Link PDF)
+                      </label>
+                      <input type="url" value={form.keyTermUrl} onChange={e => setForm({...form, keyTermUrl: e.target.value})} className="w-full px-4 py-2.5 border border-blue-200 rounded-lg outline-none focus:border-blue-500 text-sm bg-white" placeholder="Link do Google Drive..." />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">
+                        <Camera size={14}/> Laudo da Vistoria Inicial (Link PDF)
+                      </label>
+                      <input type="url" value={form.inspectionUrl} onChange={e => setForm({...form, inspectionUrl: e.target.value})} className="w-full px-4 py-2.5 border border-blue-200 rounded-lg outline-none focus:border-blue-500 text-sm bg-white" placeholder="Link do Google Drive..." />
                     </div>
 
                   </div>
