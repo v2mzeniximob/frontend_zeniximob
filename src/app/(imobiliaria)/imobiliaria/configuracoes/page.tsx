@@ -48,10 +48,11 @@ const settingsSchema = z.object({
   // Modelos de Contrato e Termos
   ownerContractTemplate: z.string().optional(),
   tenantContractTemplate: z.string().optional(),
+  saleContractTemplate: z.string().optional(), // NOVO CAMPO: Compra e Venda
   saleProposalTemplate: z.string().optional(),
   rentProposalTemplate: z.string().optional(),
   keyTermTemplate: z.string().optional(),
-  financingTemplate: z.string().optional(), // NOVO
+  financingTemplate: z.string().optional(), 
 
   mpAccessToken: z.string().optional(),
   mpPublicKey: z.string().optional(),
@@ -64,10 +65,8 @@ export default function ConfiguracoesLojaPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFetchingCep, setIsFetchingCep] = useState(false);
   
-  // TABS: dados | aparencia | contratos | financeiro | seguradoras
   const [activeTab, setActiveTab] = useState<'dados' | 'aparencia' | 'contratos' | 'financeiro' | 'seguradoras'>('dados');
 
-  // Estado das Seguradoras
   const [insuranceCompanies, setInsuranceCompanies] = useState<any[]>([]);
   const [isInsuranceModalOpen, setIsInsuranceModalOpen] = useState(false);
   const [insuranceForm, setInsuranceForm] = useState({ name: '', cnpj: '', contactInfo: '' });
@@ -111,10 +110,11 @@ export default function ConfiguracoesLojaPage() {
         whatsappDisplay: data.whatsappDisplay || '',
         ownerContractTemplate: data.ownerContractTemplate || '',
         tenantContractTemplate: data.tenantContractTemplate || '',
+        saleContractTemplate: data.saleContractTemplate || '', // NOVO CAMPO: Compra e Venda
         saleProposalTemplate: data.saleProposalTemplate || '',
         rentProposalTemplate: data.rentProposalTemplate || '',
         keyTermTemplate: data.keyTermTemplate || '',
-        financingTemplate: data.financingTemplate || '', // NOVO
+        financingTemplate: data.financingTemplate || '', 
         mpAccessToken: data.mpAccessToken || '',
         mpPublicKey: data.mpPublicKey || '',
       });
@@ -168,9 +168,6 @@ export default function ConfiguracoesLojaPage() {
     }
   }
 
-  // =====================================
-  // FUNÇÕES DE SEGURADORAS
-  // =====================================
   async function handleSaveInsurance(e: React.FormEvent) {
     e.preventDefault();
     setIsSavingInsurance(true);
@@ -356,17 +353,25 @@ export default function ConfiguracoesLojaPage() {
               <textarea {...register('tenantContractTemplate')} rows={8} placeholder="Pelo presente instrumento..." className="w-full px-4 py-3 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 font-mono text-xs resize-y"></textarea>
             </div>
 
+            {/* Contrato Compra e Venda (NOVO) */}
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+              <div className="flex items-center gap-2 text-indigo-600 mb-4 border-b border-slate-100 pb-2">
+                <FileSignature size={20} /><h2 className="font-semibold">Contrato de Compra e Venda</h2>
+              </div>
+              <textarea {...register('saleContractTemplate')} rows={8} placeholder="Instrumento particular de promessa de compra e venda..." className="w-full px-4 py-3 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 font-mono text-xs resize-y"></textarea>
+            </div>
+
             {/* Contrato Gestão (Proprietário) */}
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-              <div className="flex items-center gap-2 text-blue-600 mb-4 border-b border-slate-100 pb-2">
+              <div className="flex items-center gap-2 text-slate-700 mb-4 border-b border-slate-100 pb-2">
                 <FileSignature size={20} /><h2 className="font-semibold">Contrato de Gestão (Dono)</h2>
               </div>
-              <textarea {...register('ownerContractTemplate')} rows={8} placeholder="Autorizo a imobiliária..." className="w-full px-4 py-3 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 font-mono text-xs resize-y"></textarea>
+              <textarea {...register('ownerContractTemplate')} rows={8} placeholder="Autorizo a imobiliária..." className="w-full px-4 py-3 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-slate-500 font-mono text-xs resize-y"></textarea>
             </div>
 
             {/* Proposta Venda */}
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-              <div className="flex items-center gap-2 text-indigo-600 mb-4 border-b border-slate-100 pb-2">
+              <div className="flex items-center gap-2 text-indigo-500 mb-4 border-b border-slate-100 pb-2">
                 <DollarSign size={20} /><h2 className="font-semibold">Proposta de Venda</h2>
               </div>
               <textarea {...register('saleProposalTemplate')} rows={8} placeholder="Proponho a compra do imóvel..." className="w-full px-4 py-3 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 font-mono text-xs resize-y"></textarea>
