@@ -15,7 +15,8 @@ import {
   UserCircle,
   DollarSign,
   Calendar,
-  Camera
+  Camera,
+  Briefcase
 } from 'lucide-react';
 import { destroyCookie } from 'nookies';
 
@@ -27,10 +28,11 @@ export function RealEstateSidebar() {
   const menuItems = [
     { name: 'Dashboard', icon: LayoutDashboard, path: '/imobiliaria/dashboard' },
     { name: 'Imóveis', icon: Home, path: '/imobiliaria/imoveis' },
-    { name: 'Leads (CRM)', icon: Users, path: '/imobiliaria/leads' },
+    { name: 'Clientes (CRM)', icon: UserCircle, path: '/imobiliaria/clientes' },
+    { name: 'Leads (CRM)', icon: Briefcase, path: '/imobiliaria/leads' },
     { name: 'Visitas', icon: Calendar, path: '/imobiliaria/visitas' },
     { name: 'Proprietários', icon: UserCircle, path: '/imobiliaria/proprietarios' },
-    { name: 'Inquilinos', icon: UserCircle, path: '/imobiliaria/inquilinos' },
+    { name: 'Inquilinos', icon: Users, path: '/imobiliaria/inquilinos' },
     { name: 'Contratos', icon: Key, path: '/imobiliaria/contratos'},
     { name: 'Financeiro', icon: DollarSign, path: '/imobiliaria/financeiro' },
     { name: 'Vistorias', icon: Camera, path: '/imobiliaria/vistorias' },

@@ -4,26 +4,26 @@ import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { api } from '../../../lib/api';
+import { api } from '@/src/lib/api';
 
 import { Plus, Power, X, Loader2, Building2, Link as LinkIcon, Edit, Search, Filter } from 'lucide-react';
 import { maskCep, maskCnpj, maskCpf, maskPhone } from '@/src/utils/mask';
 
 const realEstateSchema = z.object({
-  planId: z.string().min(1, 'Selecione um plano'),
+  planId: z.string().optional(),
   franchiseeId: z.string().optional(),
   cnpj: z.string().min(18, 'CNPJ incompleto'),
   corporateName: z.string().min(3, 'Razão social obrigatória'),
   tradeName: z.string().min(3, 'Nome fantasia obrigatório'),
   stateRegistration: z.string().optional(),
   cityRegistration: z.string().optional(),
-  cep: z.string().min(9, 'CEP incompleto'),
-  address: z.string().min(5, 'Endereço obrigatório'),
-  phone: z.string().min(14, 'Telefone incompleto'),
-  respName: z.string().min(3, 'Nome do responsável obrigatório'),
-  respCpf: z.string().min(14, 'CPF incompleto'),
-  respPhone: z.string().min(14, 'Telefone do responsável incompleto'),
-  respAddress: z.string().min(5, 'Endereço do responsável obrigatório'),
+  cep: z.string().min(9, 'CEP incompleto').optional(),
+  address: z.string().min(5, 'Endereço obrigatório').optional(),
+  phone: z.string().min(14, 'Telefone incompleto').optional(),
+  respName: z.string().optional(),
+  respCpf: z.string().optional(),
+  respPhone: z.string().optional(),
+  respAddress: z.string().optional(),
   email: z.string().email('E-mail inválido'),
   password: z.string().optional(),
   contractUrl: z.string().url('URL inválida').optional().or(z.literal('')),
@@ -75,8 +75,8 @@ export default function ImobiliariasPage() {
   const filteredRealEstates = realEstates.filter(re => {
     const term = searchTerm.toLowerCase();
     const matchesSearch = 
-      re.tradeName.toLowerCase().includes(term) ||
-      re.cnpj.includes(term) ||
+      re.tradeName?.toLowerCase().includes(term) ||
+      re.cnpj?.includes(term) ||
       (re.respCpf && re.respCpf.includes(term));
       
     const matchesStatus = 
@@ -114,7 +114,8 @@ export default function ImobiliariasPage() {
   function handleCreateNew() {
     setEditingId(null);
     reset({
-      planId: '', franchiseeId: '', cnpj: '', corporateName: '', tradeName: '', stateRegistration: '', cityRegistration: '',
+      planId: plans.length > 0 ? plans[0].id : '', 
+      franchiseeId: '', cnpj: '', corporateName: '', tradeName: '', stateRegistration: '', cityRegistration: '',
       cep: '', address: '', phone: '', respName: '', respCpf: '', respPhone: '', respAddress: '',
       email: '', contractUrl: '', password: ''
     });
@@ -165,11 +166,6 @@ export default function ImobiliariasPage() {
   }
 
   async function onSubmit(data: RealEstateForm) {
-    if (!editingId && (!data.password || data.password.length < 6)) {
-      alert("Para um novo cadastro, a senha é obrigatória (mínimo 6 caracteres).");
-      return;
-    }
-
     setIsSubmitting(true);
     try {
       const payload = {
@@ -186,6 +182,7 @@ export default function ImobiliariasPage() {
         await api.put(`/real-estates/${editingId}`, payload);
       } else {
         await api.post('/real-estates', payload);
+        alert("Imobiliária cadastrada! A senha de acesso inicial é: 123456");
       }
       
       await fetchData();
@@ -198,6 +195,7 @@ export default function ImobiliariasPage() {
   }
 
   async function toggleStatus(id: string) {
+    if(!confirm('Deseja mesmo alterar o status desta imobiliária?')) return;
     try {
       await api.patch(`/real-estates/${id}/status`);
       fetchData();
@@ -241,8 +239,8 @@ export default function ImobiliariasPage() {
             <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-100">
               <tr>
                 <th className="px-6 py-4">Imobiliária</th>
-                <th className="px-6 py-4">CNPJ / CPF Resp.</th>
-                <th className="px-6 py-4">Plano Vinculado</th>
+                <th className="px-6 py-4">CNPJ / Inscrições</th>
+                <th className="px-6 py-4">Responsável</th>
                 <th className="px-6 py-4">Contrato</th>
                 <th className="px-6 py-4 text-center">Status</th>
                 <th className="px-6 py-4 text-right">Ações</th>
@@ -262,23 +260,31 @@ export default function ImobiliariasPage() {
               ) : (
                 filteredRealEstates.map((re) => (
                   <tr key={re.id} className="hover:bg-slate-50/50 transition-colors">
-                    <td className="px-6 py-4 font-medium text-slate-800">{re.tradeName}</td>
+                    <td className="px-6 py-4">
+                        <p className="font-bold text-slate-800">{re.tradeName}</p>
+                        <p className="text-xs text-blue-600 font-medium mt-1">{re.plan?.name || 'Sem plano'}</p>
+                    </td>
                     <td className="px-6 py-4">
                       <div className="flex flex-col">
                         <span>{maskCnpj(re.cnpj)}</span>
+                        <span className="text-xs text-slate-400 mt-1">IE: {re.stateRegistration} | IM: {re.cityRegistration}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex flex-col">
+                        <span className="font-medium text-slate-700">{re.respName}</span>
                         <span className="text-xs text-slate-400 mt-1">CPF: {maskCpf(re.respCpf || '')}</span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-blue-600 font-medium">{re.plan?.name || 'Sem plano'}</td>
                     <td className="px-6 py-4">
                       {re.contractUrl ? (
-                        <a href={re.contractUrl} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline flex items-center gap-1 text-xs">
-                          <LinkIcon size={14} /> Ver Doc
+                        <a href={re.contractUrl} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline flex items-center gap-1 text-xs font-bold">
+                          <LinkIcon size={14} /> Ver PDF
                         </a>
                       ) : <span className="text-slate-400 text-xs">Nenhum</span>}
                     </td>
                     <td className="px-6 py-4 text-center">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${ re.isActive ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500' }`}>
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium border ${ re.isActive ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-600 border-red-200' }`}>
                         {re.isActive ? 'Ativa' : 'Inativa'}
                       </span>
                     </td>
@@ -300,13 +306,14 @@ export default function ImobiliariasPage() {
         </div>
       </div>
 
-      <div className={`fixed inset-0 bg-black/40 backdrop-blur-sm items-center justify-center z-50 p-4 ${isModalOpen ? 'flex animate-in fade-in zoom-in duration-200' : 'hidden'}`}>
+      <div className={`fixed inset-0 bg-slate-900/50 backdrop-blur-sm items-center justify-center z-50 p-4 ${isModalOpen ? 'flex animate-in fade-in zoom-in-95 duration-200' : 'hidden'}`}>
         <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-          <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 sticky top-0 z-10">
-            <h2 className="text-xl font-semibold text-slate-800">
+          <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50 sticky top-0 z-10">
+            <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+              <Building2 className="text-blue-600" size={24}/>
               {editingId ? 'Editar Imobiliária' : 'Cadastrar Nova Imobiliária'}
             </h2>
-            <button type="button" onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 transition-colors">
+            <button type="button" onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 hover:bg-slate-200 p-2 rounded-lg transition-colors">
               <X size={20} />
             </button>
           </div>
@@ -314,19 +321,18 @@ export default function ImobiliariasPage() {
           <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-6">
             
             <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100 mb-6">
-              <h3 className="text-sm font-semibold text-blue-800 mb-3">Vínculos Operacionais</h3>
+              <h3 className="text-sm font-semibold text-blue-800 mb-3 uppercase tracking-wider">Vínculos Operacionais</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Plano (Obrigatório)</label>
-                  <select {...register('planId')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white">
-                    <option value="">Selecione um plano ativo...</option>
+                  <label className="block text-sm font-bold text-slate-700 mb-1">Plano Base *</label>
+                  <select {...register('planId')} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+                    <option value="">Selecione um plano...</option>
                     {plans.map(p => <option key={p.id} value={p.id}>{p.name} - R$ {p.price}</option>)}
                   </select>
-                  {errors.planId && <span className="text-red-500 text-xs">{errors.planId.message}</span>}
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Franquia (Opcional)</label>
-                  <select {...register('franchiseeId')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+                  <label className="block text-sm font-bold text-slate-700 mb-1">Franquia Vinculada (Opcional)</label>
+                  <select {...register('franchiseeId')} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white">
                     <option value="">Nenhuma (Pertence ao Master)</option>
                     {franchisees.map(f => <option key={f.id} value={f.id}>{f.tradeName}</option>)}
                   </select>
@@ -335,114 +341,109 @@ export default function ImobiliariasPage() {
             </div>
 
             <div>
-              <h3 className="text-sm font-semibold text-slate-800 border-b border-slate-100 pb-2 mb-4">Dados da Empresa</h3>
+              <h3 className="text-sm font-bold text-slate-500 border-b border-slate-100 pb-2 mb-4 uppercase tracking-wider">1. Dados da Empresa</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                 <div>
-                  <label className="flex items-center gap-2 text-sm font-medium text-slate-700 mb-1">
-                    CNPJ {isFetchingCnpj && <Loader2 size={14} className="animate-spin text-blue-500" />}
+                  <label className="flex items-center gap-2 text-sm font-bold text-slate-700 mb-1">
+                    CNPJ * {isFetchingCnpj && <Loader2 size={14} className="animate-spin text-blue-500" />}
                   </label>
-                  <input type="text" {...register('cnpj')} onChange={handleCnpjManualChange} placeholder="00.000.000/0000-00" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                  <input type="text" {...register('cnpj')} onChange={handleCnpjManualChange} placeholder="00.000.000/0000-00" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
                   {errors.cnpj && <span className="text-red-500 text-xs">{errors.cnpj.message}</span>}
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Razão Social</label>
-                  <input type="text" {...register('corporateName')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50" />
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-bold text-slate-700 mb-1">Razão Social *</label>
+                  <input type="text" {...register('corporateName')} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50" />
                   {errors.corporateName && <span className="text-red-500 text-xs">{errors.corporateName.message}</span>}
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Nome Fantasia</label>
-                  <input type="text" {...register('tradeName')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50" />
+                <div className="md:col-span-1">
+                  <label className="block text-sm font-bold text-slate-700 mb-1">Nome Fantasia *</label>
+                  <input type="text" {...register('tradeName')} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50" />
                   {errors.tradeName && <span className="text-red-500 text-xs">{errors.tradeName.message}</span>}
                 </div>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Inscrição Estadual</label>
-                  <input type="text" {...register('stateRegistration')} placeholder="Opcional ou ISENTO" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                  <label className="block text-sm font-bold text-slate-700 mb-1">Inscrição Estadual</label>
+                  <input type="text" {...register('stateRegistration')} placeholder="Opcional ou ISENTO" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Inscrição Municipal</label>
-                  <input type="text" {...register('cityRegistration')} placeholder="Opcional ou ISENTO" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                  <label className="block text-sm font-bold text-slate-700 mb-1">Inscrição Municipal</label>
+                  <input type="text" {...register('cityRegistration')} placeholder="Opcional ou ISENTO" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
                 </div>
               </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div>
-                <label className="flex items-center gap-2 text-sm font-medium text-slate-700 mb-1">
-                  CEP {isFetchingCep && <Loader2 size={14} className="animate-spin text-blue-500" />}
-                </label>
-                <input type="text" {...register('cep')} onChange={handleCepManualChange} placeholder="00000-000" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
-                {errors.cep && <span className="text-red-500 text-xs">{errors.cep.message}</span>}
-              </div>
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-slate-700 mb-1">Endereço da Empresa</label>
-                <input type="text" {...register('address')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50" />
-                {errors.address && <span className="text-red-500 text-xs">{errors.address.message}</span>}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Telefone da Empresa</label>
-                <input type="text" {...register('phone')} onChange={(e) => setValue('phone', maskPhone(e.target.value), { shouldValidate: true })} placeholder="(00) 00000-0000" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
-                {errors.phone && <span className="text-red-500 text-xs">{errors.phone.message}</span>}
+              
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div>
+                  <label className="flex items-center gap-2 text-sm font-bold text-slate-700 mb-1">
+                    CEP {isFetchingCep && <Loader2 size={14} className="animate-spin text-blue-500" />}
+                  </label>
+                  <input type="text" {...register('cep')} onChange={handleCepManualChange} placeholder="00000-000" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                  {errors.cep && <span className="text-red-500 text-xs">{errors.cep.message}</span>}
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-bold text-slate-700 mb-1">Endereço da Empresa</label>
+                  <input type="text" {...register('address')} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-slate-50" />
+                  {errors.address && <span className="text-red-500 text-xs">{errors.address.message}</span>}
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-1">Telefone / WhatsApp</label>
+                  <input type="text" {...register('phone')} onChange={(e) => setValue('phone', maskPhone(e.target.value), { shouldValidate: true })} placeholder="(00) 00000-0000" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                  {errors.phone && <span className="text-red-500 text-xs">{errors.phone.message}</span>}
+                </div>
               </div>
             </div>
 
             <div>
-              <h3 className="text-sm font-semibold text-slate-800 border-b border-slate-100 pb-2 mb-4">Dados do Responsável</h3>
+              <h3 className="text-sm font-bold text-slate-500 border-b border-slate-100 pb-2 mb-4 uppercase tracking-wider">2. Dados do Responsável Legal</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Nome Completo</label>
-                  <input type="text" {...register('respName')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
-                  {errors.respName && <span className="text-red-500 text-xs">{errors.respName.message}</span>}
+                  <label className="block text-sm font-bold text-slate-700 mb-1">Nome Completo</label>
+                  <input type="text" {...register('respName')} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">CPF do Responsável</label>
-                  <input type="text" {...register('respCpf')} onChange={(e) => setValue('respCpf', maskCpf(e.target.value), { shouldValidate: true })} placeholder="000.000.000-00" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
-                  {errors.respCpf && <span className="text-red-500 text-xs">{errors.respCpf.message}</span>}
+                  <label className="block text-sm font-bold text-slate-700 mb-1">CPF do Responsável</label>
+                  <input type="text" {...register('respCpf')} onChange={(e) => setValue('respCpf', maskCpf(e.target.value), { shouldValidate: true })} placeholder="000.000.000-00" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Celular / WhatsApp (Resp.)</label>
-                  <input type="text" {...register('respPhone')} onChange={(e) => setValue('respPhone', maskPhone(e.target.value), { shouldValidate: true })} placeholder="(00) 00000-0000" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
-                  {errors.respPhone && <span className="text-red-500 text-xs">{errors.respPhone.message}</span>}
+                  <label className="block text-sm font-bold text-slate-700 mb-1">Celular / WhatsApp Pessoal</label>
+                  <input type="text" {...register('respPhone')} onChange={(e) => setValue('respPhone', maskPhone(e.target.value), { shouldValidate: true })} placeholder="(00) 00000-0000" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Endereço Residencial do Responsável</label>
-                <input type="text" {...register('respAddress')} placeholder="Rua, Número, Bairro, Cidade - Estado" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
-                {errors.respAddress && <span className="text-red-500 text-xs">{errors.respAddress.message}</span>}
+                <label className="block text-sm font-bold text-slate-700 mb-1">Endereço Residencial do Responsável</label>
+                <input type="text" {...register('respAddress')} placeholder="Rua, Número, Bairro, Cidade - Estado" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
               </div>
             </div>
 
-            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-              <label className="block text-sm font-medium text-slate-700 mb-1">URL do Contrato Assinado (Opcional)</label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                  <LinkIcon size={18} />
-                </div>
-                <input type="url" {...register('contractUrl')} placeholder="Ex: https://drive.google.com/..." className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-slate-700" />
-              </div>
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+              <h3 className="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2"><LinkIcon size={16}/> Documentos</h3>
+              <label className="block text-sm font-medium text-slate-600 mb-1">URL do Contrato Assinado entre Master e Imobiliária (Opcional)</label>
+              <input type="url" {...register('contractUrl')} placeholder="Ex: Link do Google Drive / PDF" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-slate-700" />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">E-mail de Login</label>
-                <input type="email" {...register('email')} placeholder="acesso@imobiliaria.com.br" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
-                {errors.email && <span className="text-red-500 text-xs">{errors.email.message}</span>}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  {editingId ? 'Nova Senha (deixe em branco para não alterar)' : 'Senha Provisória'}
-                </label>
-                <input type="password" {...register('password')} placeholder="••••••••" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
-              </div>
+            <div>
+               <h3 className="text-sm font-bold text-slate-500 border-b border-slate-100 pb-2 mb-4 uppercase tracking-wider">3. Acesso à Plataforma</h3>
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                 <div>
+                   <label className="block text-sm font-bold text-slate-700 mb-1">E-mail de Login *</label>
+                   <input type="email" {...register('email')} placeholder="acesso@imobiliaria.com.br" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                   {errors.email && <span className="text-red-500 text-xs">{errors.email.message}</span>}
+                 </div>
+                 <div>
+                   <label className="block text-sm font-bold text-slate-700 mb-1">
+                     Senha
+                   </label>
+                   <input type="password" {...register('password')} placeholder="Será gerada automaticamente" disabled className="w-full px-4 py-2 border border-slate-200 rounded-lg outline-none bg-slate-100 cursor-not-allowed" />
+                   {!editingId && <p className="text-xs text-blue-600 mt-1 font-medium">A senha padrão 123456 será criada automaticamente.</p>}
+                 </div>
+               </div>
             </div>
 
-            <div className="pt-4 flex justify-end gap-3 border-t border-slate-100">
-              <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg transition-colors">
+            <div className="pt-6 flex justify-end gap-3 border-t border-slate-100">
+              <button type="button" onClick={() => setIsModalOpen(false)} className="px-5 py-2.5 text-slate-600 font-bold hover:bg-slate-200 rounded-xl transition-colors">
                 Cancelar
               </button>
-              <button type="submit" disabled={isSubmitting} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition-colors flex items-center disabled:opacity-70">
-                {isSubmitting ? <Loader2 className="animate-spin" size={20} /> : (editingId ? 'Salvar Alterações' : 'Cadastrar Imobiliária')}
+              <button type="submit" disabled={isSubmitting} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-bold transition-all shadow-sm flex items-center gap-2 disabled:opacity-70">
+                {isSubmitting && <Loader2 className="animate-spin" size={20} />}
+                {editingId ? 'Salvar Alterações' : 'Cadastrar Imobiliária'}
               </button>
             </div>
           </form>
