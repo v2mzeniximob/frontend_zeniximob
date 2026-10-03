@@ -31,9 +31,9 @@ export default function VitrineLojaPage(props: { params: Promise<{ slug: string 
         
         const allProperties = response.data.properties || [];
         
-        // Separa os imóveis de Locação e Venda
-        setPropertiesRent(allProperties.filter((p: any) => p.transaction === 'Aluguel' || p.transaction === 'Venda e Aluguel'));
-        setPropertiesSale(allProperties.filter((p: any) => p.transaction === 'Venda' || p.transaction === 'Venda e Aluguel'));
+        // CORREÇÃO AQUI: Procurar pela palavra exata salva no banco de dados ("Locação")
+        setPropertiesRent(allProperties.filter((p: any) => p.transaction === 'Locação' || p.transaction === 'Aluguel' || p.transaction === 'Venda e Locação'));
+        setPropertiesSale(allProperties.filter((p: any) => p.transaction === 'Venda' || p.transaction === 'Venda e Locação'));
       } catch (err: any) {
         setError(err.response?.data?.error || 'Erro ao carregar a imobiliária.');
       } finally {
@@ -79,7 +79,8 @@ export default function VitrineLojaPage(props: { params: Promise<{ slug: string 
             <div>
               <p className="text-lg font-extrabold text-slate-900">
                 {formatCurrency(prop.price)}
-                {prop.transaction === 'Aluguel' && <span className="text-xs font-normal text-slate-500"> / mês</span>}
+                {/* CORREÇÃO AQUI TAMBÉM */}
+                {(prop.transaction === 'Locação' || prop.transaction === 'Aluguel') && <span className="text-xs font-normal text-slate-500"> / mês</span>}
               </p>
             </div>
             
@@ -149,7 +150,7 @@ export default function VitrineLojaPage(props: { params: Promise<{ slug: string 
               <select value={searchFilter.transaction} onChange={e => setSearchFilter({...searchFilter, transaction: e.target.value})} className="w-full border-b-2 border-slate-200 pb-2 text-slate-800 font-medium outline-none focus:border-blue-600 bg-transparent">
                 <option value="Todos">Comprar ou Alugar</option>
                 <option value="Venda">Comprar</option>
-                <option value="Aluguel">Alugar</option>
+                <option value="Locação">Alugar</option>
               </select>
             </div>
             <div className="w-full md:w-1/4">
@@ -246,7 +247,6 @@ export default function VitrineLojaPage(props: { params: Promise<{ slug: string 
               {storeData.footerText || 'Especialistas em realizar os seus sonhos. Encontre as melhores opções de compra, venda e locação.'}
             </p>
             <div className="flex gap-4">
-              {/* SUBSTITUÍDOS OS COMPONENTES PELO SVG NATIVO (Sem Erros) */}
               {storeData.instagramUrl && (
                 <a href={storeData.instagramUrl} target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="20" x="2" y="2" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/></svg>
