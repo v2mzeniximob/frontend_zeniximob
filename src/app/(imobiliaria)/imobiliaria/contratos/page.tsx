@@ -3,30 +3,33 @@
 import { useState, useEffect } from 'react';
 import { api } from '../../../../lib/api';
 import { 
-  Key, Plus, X, Loader2, FileText, CheckCircle2, AlertCircle, Home, User, DollarSign, Calendar
+  FileSignature, Plus, Search, Loader2, Home, User, Link as LinkIcon, 
+  FileDown, AlertCircle, X, CheckSquare, Trash2, Calendar, DollarSign, Key
 } from 'lucide-react';
+
+const initialForm = {
+  type: 'Locação', // 'Locação' ou 'Venda'
+  propertyId: '',
+  tenantId: '',
+  startDate: '',
+  endDate: '',
+  rentValue: '',
+  adminFeePercent: '',
+  documentUrl: ''
+};
 
 export default function ContratosPage() {
   const [contracts, setContracts] = useState<any[]>([]);
   const [properties, setProperties] = useState<any[]>([]);
   const [clients, setClients] = useState<any[]>([]);
+  const [storeData, setStoreData] = useState<any>(null); 
   
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-
-  // O estado do formulário reativo
-  const [form, setForm] = useState({
-    type: 'Locação', // Locação ou Venda
-    propertyId: '',
-    tenantId: '', // Serve tanto para Inquilino quanto para Comprador
-    startDate: '',
-    endDate: '',
-    rentValue: '',
-    adminFeePercent: '',
-    readjustmentIndex: 'IGP-M',
-    documentUrl: ''
-  });
+  const [searchTerm, setSearchTerm] = useState('');
+  
+  const [formData, setFormData] = useState<any>(initialForm);
 
   useEffect(() => {
     fetchData();
@@ -35,50 +38,122 @@ export default function ContratosPage() {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      // Busca Contratos, Imóveis Disponíveis e Clientes
-      const [resContracts, resProps, resClients] = await Promise.all([
+      const [resContracts, resProps, resClients, resStore] = await Promise.all([
         api.get('/contracts'),
         api.get('/properties').catch(() => ({ data: [] })),
-        api.get('/clients')
+        api.get('/clients').catch(() => ({ data: [] })),
+        api.get('/my-store').catch(() => ({ data: {} }))
       ]);
       setContracts(resContracts.data);
-      // Filtra para mostrar apenas imóveis que não estejam alugados/vendidos no dropdown
+      // Filtramos apenas imóveis vagos/disponíveis
       setProperties(resProps.data.filter((p: any) => p.rentStatus === 'Vago' || p.rentStatus === 'Disponível'));
       setClients(resClients.data);
+      setStoreData(resStore.data);
     } catch (error) {
-      console.error('Erro ao buscar dados:', error);
+      console.error('Erro ao carregar dados:', error);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleSave = async (e: React.FormEvent) => {
+  const handleOpenModal = () => {
+    setFormData(initialForm);
+    setIsModalOpen(true);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
     try {
-      await api.post('/contracts', form);
+      await api.post('/contracts', formData);
       alert('Contrato gerado com sucesso! Faturas criadas no sistema.');
       setIsModalOpen(false);
-      setForm({
-        type: 'Locação', propertyId: '', tenantId: '', startDate: '', endDate: '', rentValue: '', adminFeePercent: '', readjustmentIndex: 'IGP-M', documentUrl: ''
-      });
       fetchData();
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Erro ao gerar contrato.');
+      alert(error.response?.data?.error || 'Erro ao emitir contrato. Verifique se existe uma Proposta Aceita.');
     } finally {
       setIsSaving(false);
     }
   };
 
-  const handleEndContract = async (id: string) => {
-    if(!confirm('Tem certeza que deseja encerrar este contrato? O imóvel voltará a ficar disponível.')) return;
+  const handleDelete = async (id: string) => {
+    if(!confirm('Tem certeza? Isso excluirá o contrato e todas as faturas geradas, e o imóvel voltará a ficar vago.')) return;
     try {
-      await api.put(`/contracts/${id}`, { status: 'Encerrado' });
+      await api.delete(`/contracts/${id}`);
       fetchData();
     } catch (error) {
-      alert('Erro ao encerrar contrato.');
+      alert('Erro ao excluir contrato.');
     }
   };
+
+  // =========================================================
+  // GERAÇÃO DO PDF DE CONTRATO
+  // =========================================================
+  const handleGeneratePDF = () => {
+    if (!formData.tenantId || !formData.propertyId) {
+      alert("Por favor, selecione um Imóvel e um Cliente antes de gerar o PDF.");
+      return;
+    }
+
+    const template = formData.type === 'Venda' ? storeData?.saleContractTemplate : storeData?.tenantContractTemplate;
+    const titlePDF = formData.type === 'Venda' ? 'Contrato de Venda' : 'Contrato de Locação';
+
+    if (!template) {
+      alert(`O modelo do ${titlePDF} não está configurado. Vá a Configurações > Modelos e Termos para configurá-lo.`);
+      return;
+    }
+
+    const clientData = clients.find(c => c.id === formData.tenantId);
+    const propertyData = properties.find(p => p.id === formData.propertyId);
+
+    if (!clientData || !propertyData) {
+      alert('Erro ao carregar dados do cliente ou imóvel.');
+      return;
+    }
+
+    const formatCurrency = (value: number) => {
+      return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+    };
+
+    const clienteNome = clientData.clientType === 'PJ' ? clientData.corporateName : clientData.name;
+    const endereco = propertyData.neighborhood ? `${propertyData.address} - ${propertyData.neighborhood}, ${propertyData.city}` : propertyData.address;
+
+    let html = template
+      .replace(/{{NOME_CLIENTE}}/g, clienteNome || '_________________________')
+      .replace(/{{CPF_CLIENTE}}/g, clientData.document || '_________________________')
+      .replace(/{{CPF_CNPJ}}/g, clientData.document || '_________________________')
+      .replace(/{{TELEFONE}}/g, clientData.phone || '_________________________')
+      .replace(/{{EMAIL}}/g, clientData.email || '_________________________')
+      .replace(/{{ENDERECO_IMOVEL}}/g, endereco || '_________________________')
+      .replace(/{{VALOR}}/g, formData.rentValue ? `R$ ${formData.rentValue}` : formatCurrency(propertyData.price))
+      .replace(/{{NOME_IMOBILIARIA}}/g, storeData?.tradeName || 'Imobiliária');
+
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>${titlePDF} - ${clienteNome}</title>
+            <style>
+              body { font-family: Arial, sans-serif; padding: 40px; color: #333; line-height: 1.6; }
+            </style>
+          </head>
+          <body>
+            ${html}
+            <script>
+              window.onload = function() { window.print(); }
+            </script>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+    }
+  };
+
+  const filteredContracts = contracts.filter(c => 
+    c.property?.title?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    c.tenant?.name?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <div className="p-8 max-w-[1600px] mx-auto font-sans animate-in fade-in duration-300">
@@ -87,189 +162,190 @@ export default function ContratosPage() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mb-8">
         <div>
           <h1 className="text-3xl font-bold text-slate-800 flex items-center gap-3">
-            <Key className="text-blue-600 bg-blue-50 p-1.5 rounded-lg" size={36} />
+            <FileSignature className="text-blue-600 bg-blue-50 p-1.5 rounded-lg" size={36} />
             Gestão de Contratos
           </h1>
-          <p className="text-slate-500 mt-2 text-sm">Gere contratos de Locação ou Venda. A emissão criará as faturas financeiras automaticamente.</p>
+          <p className="text-slate-500 mt-2 text-sm">Emita novos contratos para gerar as faturas automaticamente no painel financeiro.</p>
         </div>
-        <button onClick={() => setIsModalOpen(true)} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-semibold flex items-center gap-2 transition-all shadow-sm">
-          <Plus size={18} /> Novo Contrato
-        </button>
+        
+        <div className="flex items-center gap-4 w-full md:w-auto">
+          <div className="relative flex-1 md:w-72">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+            <input 
+              type="text" 
+              placeholder="Buscar por Imóvel ou Cliente..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm"
+            />
+          </div>
+          <button 
+            onClick={handleOpenModal}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-semibold flex items-center gap-2 transition-all shadow-sm whitespace-nowrap text-sm"
+          >
+            <Plus size={18} /> Emitir Contrato
+          </button>
+        </div>
       </div>
 
       {/* LISTAGEM DE CONTRATOS */}
       <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-100 text-xs uppercase tracking-wider text-slate-500 font-semibold">
-                <th className="p-4">Imóvel & Tipo</th>
-                <th className="p-4">Cliente Associado</th>
-                <th className="p-4">Financeiro</th>
-                <th className="p-4 text-center">Status</th>
-                <th className="p-4 text-right">Ações</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-sm">
-              {isLoading ? (
-                <tr><td colSpan={5} className="p-8 text-center text-slate-400"><Loader2 className="animate-spin inline mr-2"/> Carregando contratos...</td></tr>
-              ) : contracts.length === 0 ? (
-                <tr><td colSpan={5} className="p-12 text-center text-slate-400 font-medium">Nenhum contrato ativo no sistema.</td></tr>
-              ) : (
-                contracts.map((contract) => (
-                  <tr key={contract.id} className="hover:bg-slate-50/50 transition-colors">
-                    <td className="p-4">
-                      <p className="font-bold text-slate-800 flex items-center gap-2"><Home size={14} className="text-slate-400"/> {contract.property?.title || 'Imóvel Excluído'}</p>
-                      <span className={`inline-block mt-1 text-[10px] font-bold px-2 py-0.5 rounded border ${contract.type === 'Venda' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>
-                        {contract.type.toUpperCase()}
-                      </span>
-                    </td>
-                    <td className="p-4">
-                      <p className="font-bold text-slate-700 flex items-center gap-2"><User size={14} className="text-slate-400"/> {contract.tenant?.name || 'Cliente Excluído'}</p>
-                      <p className="text-xs text-slate-500 mt-1">Doc: {contract.tenant?.document}</p>
-                    </td>
-                    <td className="p-4">
-                      <p className="font-semibold text-emerald-600 flex items-center gap-1"><DollarSign size={14}/> R$ {contract.rentValue?.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p>
-                      <p className="text-xs text-slate-500 mt-1">
-                        {contract.type === 'Locação' ? `Taxa Admin: ${contract.adminFeePercent}%` : `Comissão: ${contract.adminFeePercent}%`}
-                      </p>
-                    </td>
-                    <td className="p-4 text-center">
-                      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${contract.status === 'Ativo' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${contract.status === 'Ativo' ? 'bg-emerald-500' : 'bg-slate-400'}`}></span>
-                        {contract.status}
-                      </span>
-                    </td>
-                    <td className="p-4 text-right">
-                      {contract.status === 'Ativo' && (
-                        <button onClick={() => handleEndContract(contract.id)} className="text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-colors border border-red-100">
-                          Encerrar
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+        <table className="w-full text-left border-collapse">
+          <thead>
+            <tr className="bg-slate-50 border-b border-slate-100 text-xs uppercase tracking-wider text-slate-500 font-semibold">
+              <th className="p-4">Imóvel & Tipo</th>
+              <th className="p-4">Inquilino / Comprador</th>
+              <th className="p-4">Início</th>
+              <th className="p-4 text-center">Status</th>
+              <th className="p-4 text-right">Ações</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 text-sm">
+            {isLoading ? <tr><td colSpan={5} className="p-8 text-center text-slate-400"><Loader2 className="animate-spin inline mr-2"/> Carregando contratos...</td></tr> : 
+             filteredContracts.length === 0 ? <tr><td colSpan={5} className="p-8 text-center text-slate-400">Nenhum contrato ativo.</td></tr> :
+             filteredContracts.map(c => (
+               <tr key={c.id} className="hover:bg-slate-50/50 transition-colors">
+                 <td className="p-4">
+                   <p className="font-bold text-slate-800 flex items-center gap-2"><Home size={14} className="text-slate-400"/> {c.property?.title}</p>
+                   <span className={`inline-block mt-1 text-[10px] font-bold px-2 py-0.5 rounded border ${c.type === 'Venda' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>{c.type.toUpperCase()}</span>
+                 </td>
+                 <td className="p-4">
+                   <p className="font-bold text-slate-700 flex items-center gap-2"><User size={14} className="text-slate-400"/> {c.tenant?.name}</p>
+                 </td>
+                 <td className="p-4">
+                   <p className="text-slate-600 flex items-center gap-2"><Calendar size={14} className="text-slate-400"/> {new Date(c.startDate).toLocaleDateString('pt-BR')}</p>
+                 </td>
+                 <td className="p-4 text-center">
+                   <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border 
+                     ${c.status === 'Ativo' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
+                     {c.status}
+                   </span>
+                 </td>
+                 <td className="p-4 text-right">
+                   <div className="flex justify-end gap-3 items-center">
+                     {c.documentUrl ? (
+                       <a href={c.documentUrl} target="_blank" rel="noreferrer" className="text-blue-500 hover:text-blue-700 font-bold text-xs flex items-center gap-1"><LinkIcon size={14}/> PDF</a>
+                     ) : <span className="text-slate-400 text-xs">S/ Doc</span>}
+                     <button onClick={() => handleDelete(c.id)} className="p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 rounded transition-colors" title="Excluir"><Trash2 size={16}/></button>
+                   </div>
+                 </td>
+               </tr>
+             ))
+            }
+          </tbody>
+        </table>
       </div>
 
-      {/* MODAL: NOVO CONTRATO */}
+      {/* MODAL EMISSÃO DE CONTRATO */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-200">
             
-            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50 rounded-t-2xl">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
               <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-                <FileText className="text-blue-600" size={24}/>
-                Emissão de Contrato
+                <FileSignature className="text-blue-600" size={24}/> Emissão de Contrato
               </h2>
               <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:bg-slate-200 p-2 rounded-lg transition-colors"><X size={20}/></button>
             </div>
             
-            <div className="p-6 overflow-y-auto flex-1">
-              <form id="contract-form" onSubmit={handleSave} className="space-y-6">
+            <form onSubmit={handleSubmit} className="p-6 space-y-6">
+              
+              {/* TIPO DE CONTRATO */}
+              <div className="flex gap-4">
+                <label className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-xl border-2 cursor-pointer transition-all ${formData.type === 'Locação' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-slate-200 hover:border-slate-300 text-slate-600'}`}>
+                  <input type="radio" name="type" value="Locação" checked={formData.type === 'Locação'} onChange={(e) => setFormData({...formData, type: e.target.value})} className="hidden" />
+                  <Key size={18}/> <span className="font-bold text-sm">Locação (Aluguel)</span>
+                </label>
+                <label className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-xl border-2 cursor-pointer transition-all ${formData.type === 'Venda' ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-slate-200 hover:border-slate-300 text-slate-600'}`}>
+                  <input type="radio" name="type" value="Venda" checked={formData.type === 'Venda'} onChange={(e) => setFormData({...formData, type: e.target.value})} className="hidden" />
+                  <DollarSign size={18}/> <span className="font-bold text-sm">Venda de Imóvel</span>
+                </label>
+              </div>
+
+              {/* IMÓVEL E INQUILINO */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Selecione o Imóvel *</label>
+                  <select required value={formData.propertyId} onChange={e => setFormData({...formData, propertyId: e.target.value})} className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-sm">
+                    <option value="">Selecione...</option>
+                    {properties.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Selecione o {formData.type === 'Venda' ? 'Comprador' : 'Inquilino'} *</label>
+                  <select required value={formData.tenantId} onChange={e => setFormData({...formData, tenantId: e.target.value})} className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-sm">
+                    <option value="">Selecione...</option>
+                    {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              {/* DADOS FINANCEIROS */}
+              <div>
+                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+                  <span className="text-slate-400">$</span> DADOS FINANCEIROS & PRAZOS
+                </h3>
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Data de Início / 1ª Parcela *</label>
+                    <input required type="date" value={formData.startDate} onChange={e => setFormData({...formData, startDate: e.target.value})} className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Data de Término do Contrato {formData.type === 'Venda' && '(Opcional)'}</label>
+                    <input type="date" value={formData.endDate} onChange={e => setFormData({...formData, endDate: e.target.value})} className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white" />
+                    {formData.type === 'Venda' && <p className="text-[10px] text-slate-400 mt-1">Deixe vazio para gerar apenas 1 parcela/fatura.</p>}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Valor {formData.type === 'Venda' ? 'Total (R$)' : 'Mensal do Aluguel (R$)'} *</label>
+                    <input required type="number" step="0.01" value={formData.rentValue} onChange={e => setFormData({...formData, rentValue: e.target.value})} placeholder="0.00" className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Taxa Admin / Comissão (%)</label>
+                    <input type="number" step="0.1" value={formData.adminFeePercent} onChange={e => setFormData({...formData, adminFeePercent: e.target.value})} placeholder="Ex: 10" className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white" />
+                  </div>
+                </div>
+              </div>
+
+              {/* LINK DO CONTRATO + BOTÃO DE PDF */}
+              <div className="bg-slate-50 p-5 rounded-xl border border-slate-200">
+                <label className="block text-sm font-bold text-slate-700 mb-1">Link do Contrato Assinado (PDF / Google Drive)</label>
+                <input type="url" value={formData.documentUrl} onChange={e => setFormData({...formData, documentUrl: e.target.value})} placeholder="https://..." className="w-full px-4 py-2.5 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white mb-4" />
                 
-                {/* TIPO DE CONTRATO */}
-                <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100">
-                  <label className="block text-sm font-bold text-blue-900 mb-3 uppercase tracking-wider">Natureza da Operação</label>
-                  <div className="flex gap-4">
-                    <label className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-xl border-2 cursor-pointer transition-all ${form.type === 'Locação' ? 'border-blue-600 bg-white text-blue-700 shadow-sm' : 'border-slate-200 hover:border-slate-300 text-slate-500 bg-slate-50'}`}>
-                      <input type="radio" name="type" value="Locação" checked={form.type === 'Locação'} onChange={(e) => setForm({...form, type: e.target.value})} className="hidden" />
-                      <Key size={18}/> <span className="font-bold">Locação (Aluguel)</span>
-                    </label>
-                    <label className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-xl border-2 cursor-pointer transition-all ${form.type === 'Venda' ? 'border-indigo-600 bg-white text-indigo-700 shadow-sm' : 'border-slate-200 hover:border-slate-300 text-slate-500 bg-slate-50'}`}>
-                      <input type="radio" name="type" value="Venda" checked={form.type === 'Venda'} onChange={(e) => setForm({...form, type: e.target.value})} className="hidden" />
-                      <DollarSign size={18}/> <span className="font-bold">Venda do Imóvel</span>
-                    </label>
-                  </div>
+                <div className="border-t border-slate-200 pt-4 flex flex-col md:flex-row justify-between items-center gap-4">
+                  <p className="text-xs text-slate-500 font-medium">Ainda não gerou o documento?</p>
+                  <button 
+                    type="button" 
+                    onClick={handleGeneratePDF}
+                    className="w-full md:w-auto px-4 py-2.5 text-xs font-bold text-indigo-700 bg-indigo-100 hover:bg-indigo-200 border border-indigo-300 rounded-lg flex items-center justify-center gap-2 transition-colors shadow-sm"
+                  >
+                    <FileDown size={16}/> Gerar e Imprimir Contrato (PDF)
+                  </button>
                 </div>
+              </div>
 
-                {/* SELEÇÃO DE ENTIDADES */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-1">Selecione o Imóvel *</label>
-                    <select required value={form.propertyId} onChange={e => setForm({...form, propertyId: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-sm">
-                      <option value="">Buscar imóvel disponível...</option>
-                      {properties.map(p => <option key={p.id} value={p.id}>{p.title} - {p.code}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-1">
-                      {form.type === 'Locação' ? 'Selecione o Inquilino *' : 'Selecione o Comprador *'}
-                    </label>
-                    <select required value={form.tenantId} onChange={e => setForm({...form, tenantId: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-sm">
-                      <option value="">Buscar cliente no CRM...</option>
-                      {clients.map(c => <option key={c.id} value={c.id}>{c.name || c.corporateName} (Doc: {c.document})</option>)}
-                    </select>
-                  </div>
+              {/* AVISO DO SISTEMA */}
+              <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl flex gap-3 text-amber-800 text-sm">
+                <AlertCircle className="shrink-0 mt-0.5" size={18}/>
+                <div>
+                  <p className="font-bold mb-1">Atenção: <span className="font-normal">Ao salvar, o sistema irá automaticamente:</span></p>
+                  <ol className="list-decimal pl-4 space-y-1 text-xs font-medium text-amber-700">
+                    <li>Mudar o status do imóvel para <strong>{formData.type === 'Venda' ? 'Vendido' : 'Alugado'}</strong>.</li>
+                    <li>Mudar o perfil do cliente para <strong>{formData.type === 'Venda' ? 'Comprador' : 'Inquilino'}</strong>.</li>
+                    <li>Gerar as faturas/parcelas financeiras para o período selecionado.</li>
+                  </ol>
                 </div>
+              </div>
 
-                {/* DADOS FINANCEIROS */}
-                <div className="border-t border-slate-100 pt-6">
-                  <h3 className="text-sm font-bold text-slate-500 mb-4 uppercase tracking-wider flex items-center gap-2"><DollarSign size={16}/> Dados Financeiros & Prazos</h3>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                    <div>
-                      <label className="block text-sm font-bold text-slate-700 mb-1">Data de Início / 1ª Parcela *</label>
-                      <input required type="date" value={form.startDate} onChange={e => setForm({...form, startDate: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm text-slate-700" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-bold text-slate-700 mb-1">
-                        {form.type === 'Locação' ? 'Data de Término do Contrato *' : 'Data da Última Parcela (Opcional)'}
-                      </label>
-                      <input required={form.type === 'Locação'} type="date" value={form.endDate} onChange={e => setForm({...form, endDate: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm text-slate-700" />
-                      {form.type === 'Venda' && <p className="text-[10px] text-slate-400 mt-1">Deixe vazio se for pagamento à vista (1 parcela).</p>}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="md:col-span-2">
-                      <label className="block text-sm font-bold text-slate-700 mb-1">
-                        {form.type === 'Locação' ? 'Valor Mensal do Aluguel (R$) *' : 'Valor da Parcela / Venda (R$) *'}
-                      </label>
-                      <input required type="number" step="0.01" value={form.rentValue} onChange={e => setForm({...form, rentValue: e.target.value})} placeholder="0.00" className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-slate-50 font-bold" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-bold text-slate-700 mb-1">
-                        {form.type === 'Locação' ? 'Taxa Admin (%)' : 'Comissão (%)'}
-                      </label>
-                      <input type="number" step="0.1" value={form.adminFeePercent} onChange={e => setForm({...form, adminFeePercent: e.target.value})} placeholder="Ex: 10" className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
-                    </div>
-                  </div>
-                </div>
-
-                {/* ARQUIVOS ANEXOS */}
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                  <label className="block text-sm font-bold text-slate-700 mb-1">Link do Contrato Assinado (PDF / Google Drive)</label>
-                  <input type="url" value={form.documentUrl} onChange={e => setForm({...form, documentUrl: e.target.value})} placeholder="https://..." className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white" />
-                </div>
-
-                {/* ALERTA DE AUTOMAÇÃO */}
-                <div className="flex gap-3 bg-amber-50 p-4 rounded-xl border border-amber-200 text-amber-800 text-sm">
-                  <AlertCircle className="shrink-0 mt-0.5" size={18}/>
-                  <p>
-                    <strong>Atenção:</strong> Ao salvar, o sistema irá automaticamente: <br/>
-                    1. Mudar o status do imóvel para <b>{form.type === 'Locação' ? 'Alugado' : 'Vendido'}</b>.<br/>
-                    2. Mudar o perfil do cliente para <b>{form.type === 'Locação' ? 'Inquilino' : 'Comprador'}</b>.<br/>
-                    3. Gerar as faturas/parcelas financeiras para o período selecionado.
-                  </p>
-                </div>
-
-              </form>
-            </div>
-
-            <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 rounded-b-2xl shrink-0">
-              <button onClick={() => setIsModalOpen(false)} className="px-5 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-200 rounded-xl transition-colors">
-                Cancelar
-              </button>
-              <button form="contract-form" type="submit" disabled={isSaving} className="px-6 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all shadow-sm flex items-center gap-2 disabled:opacity-70">
-                {isSaving ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16}/>}
-                Confirmar & Gerar Faturas
-              </button>
-            </div>
-            
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                <button type="button" onClick={() => setIsModalOpen(false)} className="px-5 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-200 rounded-xl transition-colors">Cancelar</button>
+                <button type="submit" disabled={isSaving} className="px-6 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all flex items-center gap-2">
+                  {isSaving ? <Loader2 size={16} className="animate-spin" /> : <CheckSquare size={16}/>} Confirmar & Gerar Faturas
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
