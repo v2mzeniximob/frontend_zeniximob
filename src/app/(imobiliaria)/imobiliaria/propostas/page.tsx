@@ -4,13 +4,14 @@ import { useState, useEffect } from 'react';
 import { api } from '../../../../lib/api';
 import { 
   FileSignature, Key, Plus, X, Loader2, CheckCircle, 
-  XCircle, Home, User, Link as LinkIcon, Briefcase
+  XCircle, Home, User, Link as LinkIcon, Briefcase, FileDown
 } from 'lucide-react';
 
 export default function PropostasPage() {
   const [activeTab, setActiveTab] = useState<'propostas' | 'termos'>('propostas');
   const [proposals, setProposals] = useState<any[]>([]);
   const [keyTerms, setKeyTerms] = useState<any[]>([]);
+  const [storeData, setStoreData] = useState<any>(null); // Guardar as configs da loja (Templates)
   
   // Opções para o formulário
   const [properties, setProperties] = useState<any[]>([]);
@@ -36,18 +37,20 @@ export default function PropostasPage() {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const [resProp, resTerm, resImov, resCli, resBrok] = await Promise.all([
+      const [resProp, resTerm, resImov, resCli, resBrok, resStore] = await Promise.all([
         api.get('/proposals'),
         api.get('/key-terms'),
         api.get('/properties').catch(() => ({ data: [] })),
         api.get('/clients').catch(() => ({ data: [] })),
-        api.get('/brokers').catch(() => ({ data: [] }))
+        api.get('/brokers').catch(() => ({ data: [] })),
+        api.get('/my-store').catch(() => ({ data: {} })) // Traz os templates
       ]);
       setProposals(resProp.data);
       setKeyTerms(resTerm.data);
       setProperties(resImov.data);
       setClients(resCli.data);
       setBrokers(resBrok.data);
+      setStoreData(resStore.data);
     } catch (error) {
       console.error('Erro ao buscar dados:', error);
     } finally {
@@ -85,6 +88,85 @@ export default function PropostasPage() {
       fetchData();
     } catch (error) {
       alert('Erro ao atualizar status.');
+    }
+  };
+
+  // =========================================================
+  // MOTOR DE GERAÇÃO DE PDF (PROPOSTAS E TERMOS)
+  // =========================================================
+  const handleGeneratePDF = () => {
+    if (!form.clientId || !form.propertyId) {
+      alert("Por favor, selecione um Cliente e um Imóvel antes de gerar o PDF.");
+      return;
+    }
+
+    let template = '';
+    let titlePDF = '';
+
+    if (activeTab === 'termos') {
+      template = storeData?.keyTermTemplate;
+      titlePDF = 'Termo de Chaves';
+    } else {
+      if (form.type === 'Venda') {
+        template = storeData?.saleProposalTemplate;
+        titlePDF = 'Proposta de Venda';
+      } else {
+        template = storeData?.rentProposalTemplate;
+        titlePDF = 'Proposta de Locação';
+      }
+    }
+
+    if (!template) {
+      alert('O modelo deste documento não está configurado. Vá a Configurações > Modelos e Termos e preencha a caixa correspondente.');
+      return;
+    }
+
+    // Procura os dados reais nas listas
+    const clientData = clients.find(c => c.id === form.clientId);
+    const propertyData = properties.find(p => p.id === form.propertyId);
+
+    if (!clientData || !propertyData) {
+      alert('Erro ao encontrar os dados do cliente ou imóvel para gerar o PDF.');
+      return;
+    }
+
+    const formatCurrency = (value: number) => {
+      return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+    };
+
+    const clienteNome = clientData.clientType === 'PJ' ? clientData.corporateName : clientData.name;
+    const endereco = propertyData.neighborhood ? `${propertyData.address} - ${propertyData.neighborhood}, ${propertyData.city}` : propertyData.address;
+
+    // Substituição das Tags Mágicas
+    let html = template
+      .replace(/{{NOME_CLIENTE}}/g, clienteNome || '_________________________')
+      .replace(/{{CPF_CLIENTE}}/g, clientData.document || '_________________________')
+      .replace(/{{CPF_CNPJ}}/g, clientData.document || '_________________________')
+      .replace(/{{TELEFONE}}/g, clientData.phone || '_________________________')
+      .replace(/{{EMAIL}}/g, clientData.email || '_________________________')
+      .replace(/{{ENDERECO_IMOVEL}}/g, endereco || '_________________________')
+      .replace(/{{VALOR}}/g, formatCurrency(propertyData.price) || '_________________________')
+      .replace(/{{NOME_IMOBILIARIA}}/g, storeData?.tradeName || 'Imobiliária');
+
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>${titlePDF} - ${clienteNome}</title>
+            <style>
+              body { font-family: Arial, sans-serif; padding: 40px; color: #333; line-height: 1.6; }
+            </style>
+          </head>
+          <body>
+            ${html}
+            <script>
+              window.onload = function() { window.print(); }
+            </script>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
     }
   };
 
@@ -272,15 +354,30 @@ export default function PropostasPage() {
                 </select>
               </div>
 
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                <label className="block text-sm font-bold text-slate-700 mb-1">Link do Documento (PDF / Drive)</label>
-                <input type="url" value={form.documentUrl} onChange={e => setForm({...form, documentUrl: e.target.value})} placeholder="https://..." className="w-full px-4 py-2.5 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white" />
+              <div className="bg-slate-50 p-5 rounded-xl border border-slate-200">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mb-4">
+                  <div className="w-full">
+                    <label className="block text-sm font-bold text-slate-700 mb-1">Link do Documento (Drive/PDF) após assinado</label>
+                    <input type="url" value={form.documentUrl} onChange={e => setForm({...form, documentUrl: e.target.value})} placeholder="https://..." className="w-full px-4 py-2.5 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white" />
+                  </div>
+                </div>
+
+                <div className="border-t border-slate-200 pt-4 mt-2">
+                  <p className="text-xs text-slate-500 mb-2 font-medium">Ainda não gerou o documento para assinatura?</p>
+                  <button 
+                    type="button" 
+                    onClick={handleGeneratePDF}
+                    className="w-full md:w-auto px-4 py-2.5 text-xs font-bold text-emerald-700 bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 rounded-lg flex items-center justify-center gap-2 transition-colors"
+                  >
+                    <FileDown size={16}/> Gerar e Baixar PDF ({activeTab === 'propostas' ? `Proposta de ${form.type}` : 'Termo de Chaves'})
+                  </button>
+                </div>
               </div>
 
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-5 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-200 rounded-xl transition-colors">Cancelar</button>
                 <button type="submit" disabled={isSaving} className="px-6 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all flex items-center gap-2">
-                  {isSaving ? <Loader2 size={16} className="animate-spin" /> : <FileSignature size={16}/>} Salvar Documento
+                  {isSaving ? <Loader2 size={16} className="animate-spin" /> : <FileSignature size={16}/>} Salvar Registo
                 </button>
               </div>
             </form>
