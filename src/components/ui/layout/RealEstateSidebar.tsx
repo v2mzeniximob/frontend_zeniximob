@@ -16,7 +16,8 @@ import {
   DollarSign,
   Calendar,
   Camera,
-  Briefcase
+  Briefcase,
+  FileSignature // NOVO ICONE
 } from 'lucide-react';
 import { destroyCookie } from 'nookies';
 
@@ -30,6 +31,7 @@ export function RealEstateSidebar() {
     { name: 'Imóveis', icon: Home, path: '/imobiliaria/imoveis' },
     { name: 'Clientes (CRM)', icon: UserCircle, path: '/imobiliaria/clientes' },
     { name: 'Leads (CRM)', icon: Briefcase, path: '/imobiliaria/leads' },
+    { name: 'Propostas e Termos', icon: FileSignature, path: '/imobiliaria/propostas' }, // NOVA TELA
     { name: 'Visitas', icon: Calendar, path: '/imobiliaria/visitas' },
     { name: 'Proprietários', icon: UserCircle, path: '/imobiliaria/proprietarios' },
     { name: 'Inquilinos', icon: Users, path: '/imobiliaria/inquilinos' },
@@ -51,7 +53,6 @@ export function RealEstateSidebar() {
         isCollapsed ? 'w-20 px-2' : 'w-64 px-4'
       }`}
     >
-      {/* Cabeçalho / Logo (Não rola) */}
       <div className={`flex items-center gap-3 py-6 mb-2 border-b border-slate-100 shrink-0 relative ${isCollapsed ? 'justify-center' : ''}`}>
         <div className="w-10 h-10 min-w-[2.5rem] bg-blue-600 rounded-xl flex items-center justify-center font-bold text-white shadow-md">
           Z
@@ -64,7 +65,6 @@ export function RealEstateSidebar() {
           </div>
         )}
 
-        {/* Botão de Recolher/Expandir */}
         <button 
           onClick={() => setIsCollapsed(!isCollapsed)}
           className="absolute -right-4 top-8 bg-white border border-slate-200 text-slate-400 hover:text-blue-600 rounded-full p-1.5 shadow-sm transition-colors z-30"
@@ -73,7 +73,6 @@ export function RealEstateSidebar() {
         </button>
       </div>
 
-      {/* Navegação (ROLA AQUI) */}
       <nav className="flex-1 space-y-1.5 overflow-y-auto overflow-x-hidden mb-4 pr-1 
         scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent hover:scrollbar-thumb-slate-300">
         {menuItems.map((item) => {
@@ -101,7 +100,6 @@ export function RealEstateSidebar() {
         })}
       </nav>
 
-      {/* Rodapé / Logout (Não rola, fica sempre visível no fundo) */}
       <div className={`py-4 border-t border-slate-100 shrink-0 ${isCollapsed ? 'px-0' : 'px-1'}`}>
         <button 
           onClick={handleLogout}

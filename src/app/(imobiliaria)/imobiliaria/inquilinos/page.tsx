@@ -39,10 +39,10 @@ export default function InquilinosPage() {
       setEditingId(tenant.id);
       setForm({
         name: tenant.name || '',
-        cpf: tenant.document || '', // O backend agora manda 'document'
+        cpf: tenant.document || '',
         email: tenant.email || '',
         phone: tenant.phone || '',
-        currentAddress: tenant.street || '', // O backend agora manda 'street'
+        currentAddress: tenant.street || '',
         documentUrl: tenant.documentUrl || '',
         maritalStatus: tenant.maritalStatus || 'Solteiro(a)',
         spouseName: tenant.spouseName || '',

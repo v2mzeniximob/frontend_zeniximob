@@ -7,40 +7,34 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { api } from '../../../../lib/api';
 import { 
   Loader2, Save, Store, MapPin, Lock, Globe,
-  Image as ImageIcon, Link as LinkIcon, FileText, Building2, FileSignature, DollarSign
+  Image as ImageIcon, Link as LinkIcon, FileText, Building2, FileSignature, DollarSign, Key
 } from 'lucide-react';
 import { maskCep, maskPhone } from '@/src/utils/mask';
 
-// Função auxiliar para máscara de CNPJ
 const maskCnpj = (value: string) => {
   return value
     .replace(/\D/g, '')
     .replace(/(\d{2})(\d)/, '$1.$2')
     .replace(/(\d{3})(\d)/, '$1.$2')
     .replace(/(\d{3})(\d)/, '$1/$2')
-    .replace(/(\d{4})(\d{1,2})/, '$1-$2')             
-    .replace(/(-\d{2})\d+?$/, '$1');
+    .replace(/(\d{4})(\d{1,2})/, '$1-$2')                 .replace(/(-\d{2})\d+?$/, '$1');
 };
 
 const settingsSchema = z.object({
-  // Dados Cadastrais
   tradeName: z.string().min(3, 'Nome fantasia obrigatório'),
   corporateName: z.string().min(3, 'Razão social obrigatória'),
   cnpj: z.string().optional(),
-  stateRegistration: z.string().optional(), // Inscrição Estadual
-  municipalRegistration: z.string().optional(), // Inscrição Municipal
+  stateRegistration: z.string().optional(),
+  municipalRegistration: z.string().optional(),
   
-  // Contato e Endereço
   phone: z.string().min(14, 'Telefone incompleto'),
   email: z.string().email('E-mail inválido'),
   cep: z.string().min(9, 'CEP incompleto'),
   address: z.string().min(5, 'Endereço obrigatório'),
   
-  // Vitrine e Segurança
   slug: z.string().min(3, 'Slug da vitrine obrigatório').regex(/^[a-z0-9-]+$/, 'Use apenas letras minúsculas, números e hifens (sem espaços)'),
   password: z.string().optional(),
   
-  // Aparência (URLs)
   logoUrl: z.string().optional(),
   heroImageUrl: z.string().optional(),
   aboutText: z.string().optional(),
@@ -49,11 +43,13 @@ const settingsSchema = z.object({
   facebookUrl: z.string().optional(),
   whatsappDisplay: z.string().optional(),
 
-  // Modelos de Contrato
+  // Modelos de Contrato e Termos
   ownerContractTemplate: z.string().optional(),
   tenantContractTemplate: z.string().optional(),
+  saleProposalTemplate: z.string().optional(),
+  rentProposalTemplate: z.string().optional(),
+  keyTermTemplate: z.string().optional(),
 
-  // NOVOS CAMPOS: Integração Financeira Mercado Pago
   mpAccessToken: z.string().optional(),
   mpPublicKey: z.string().optional(),
 });
@@ -65,7 +61,6 @@ export default function ConfiguracoesLojaPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFetchingCep, setIsFetchingCep] = useState(false);
   
-  // Adicionada a aba 'financeiro'
   const [activeTab, setActiveTab] = useState<'dados' | 'aparencia' | 'contratos' | 'financeiro'>('dados');
 
   const { register, handleSubmit, setValue, reset, watch, formState: { errors } } = useForm<SettingsForm>({
@@ -101,8 +96,9 @@ export default function ConfiguracoesLojaPage() {
         whatsappDisplay: data.whatsappDisplay || '',
         ownerContractTemplate: data.ownerContractTemplate || '',
         tenantContractTemplate: data.tenantContractTemplate || '',
-        
-        // Carrega as credenciais financeiras
+        saleProposalTemplate: data.saleProposalTemplate || '',
+        rentProposalTemplate: data.rentProposalTemplate || '',
+        keyTermTemplate: data.keyTermTemplate || '',
         mpAccessToken: data.mpAccessToken || '',
         mpPublicKey: data.mpPublicKey || '',
       });
@@ -156,27 +152,23 @@ export default function ConfiguracoesLojaPage() {
   if (isLoading) return <div className="flex justify-center items-center h-64"><Loader2 className="animate-spin text-blue-500" size={32} /></div>;
 
   return (
-    <div className="space-y-6 animate-in fade-in zoom-in duration-300 max-w-4xl pb-12">
+    <div className="space-y-6 animate-in fade-in zoom-in duration-300 max-w-5xl pb-12">
       <div>
         <h1 className="text-2xl font-bold text-slate-800">Configurações da Loja</h1>
         <p className="text-slate-500 text-sm">Atualize os dados cadastrais e a vitrine pública da sua imobiliária.</p>
       </div>
 
       <div className="flex flex-wrap gap-4 border-b border-slate-200">
-        <button onClick={() => setActiveTab('dados')} className={`pb-4 px-2 font-medium text-sm flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'dados' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><Building2 size={18} /> Dados da Imobiliária</button>
-        <button onClick={() => setActiveTab('aparencia')} className={`pb-4 px-2 font-medium text-sm flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'aparencia' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><ImageIcon size={18} /> Aparência do Site</button>
-        <button onClick={() => setActiveTab('contratos')} className={`pb-4 px-2 font-medium text-sm flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'contratos' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><FileSignature size={18} /> Modelos de Contrato</button>
-        {/* NOVA ABA FINANCEIRO */}
-        <button onClick={() => setActiveTab('financeiro')} className={`pb-4 px-2 font-medium text-sm flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'financeiro' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><DollarSign size={18} /> Financeiro / Gateway</button>
+        <button type="button" onClick={() => setActiveTab('dados')} className={`pb-4 px-2 font-medium text-sm flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'dados' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><Building2 size={18} /> Dados da Imobiliária</button>
+        <button type="button" onClick={() => setActiveTab('aparencia')} className={`pb-4 px-2 font-medium text-sm flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'aparencia' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><ImageIcon size={18} /> Aparência do Site</button>
+        <button type="button" onClick={() => setActiveTab('contratos')} className={`pb-4 px-2 font-medium text-sm flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'contratos' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><FileSignature size={18} /> Modelos e Termos</button>
+        <button type="button" onClick={() => setActiveTab('financeiro')} className={`pb-4 px-2 font-medium text-sm flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'financeiro' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><DollarSign size={18} /> Financeiro / Gateway</button>
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         
-        {/* =======================================================
-            ABA 1: DADOS CADASTRAIS
-            ======================================================= */}
+        {/* ABA 1: DADOS CADASTRAIS */}
         <div className={activeTab === 'dados' ? 'space-y-6 animate-in fade-in slide-in-from-left-2' : 'hidden'}>
-          
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
             <div className="flex items-center gap-2 text-blue-600 mb-6 border-b border-slate-100 pb-2">
               <Building2 size={20} />
@@ -235,11 +227,8 @@ export default function ConfiguracoesLojaPage() {
           </div>
         </div>
 
-        {/* =======================================================
-            ABA 2: APARÊNCIA DO SITE
-            ======================================================= */}
+        {/* ABA 2: APARÊNCIA DO SITE */}
         <div className={activeTab === 'aparencia' ? 'space-y-6 animate-in fade-in slide-in-from-right-2' : 'hidden'}>
-          
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
             <div className="flex items-center gap-2 text-blue-600 mb-6 border-b border-slate-100 pb-2"><ImageIcon size={20} /><h2 className="font-semibold text-lg">Imagens do Site Público (Links)</h2></div>
 
@@ -280,69 +269,66 @@ export default function ConfiguracoesLojaPage() {
           </div>
         </div>
 
-        {/* =======================================================
-            ABA 3: MODELOS DE CONTRATO
-            ======================================================= */}
+        {/* ABA 3: MODELOS DE CONTRATOS, PROPOSTAS E TERMOS */}
         <div className={activeTab === 'contratos' ? 'space-y-6 animate-in fade-in slide-in-from-right-2' : 'hidden'}>
           
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-            <div className="flex items-center gap-2 text-blue-600 mb-4 border-b border-slate-100 pb-2">
-              <FileSignature size={20} />
-              <h2 className="font-semibold text-lg">Modelo de Contrato de Gestão (Proprietário)</h2>
+          <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 text-blue-800 text-sm">
+            <p className="font-semibold">Variáveis Universais</p>
+            <p>Use estas variáveis (exatamente como estão escritas) dentro dos seus textos. O sistema vai substituí-las pelos dados reais do cliente e do imóvel quando for gerar o documento.</p>
+            <div className="flex flex-wrap gap-2 mt-3">
+              <code className="text-[10px] font-bold bg-white text-blue-700 px-2 py-1 rounded border border-blue-200">{`{{NOME_CLIENTE}}`}</code>
+              <code className="text-[10px] font-bold bg-white text-blue-700 px-2 py-1 rounded border border-blue-200">{`{{CPF_CNPJ}}`}</code>
+              <code className="text-[10px] font-bold bg-white text-blue-700 px-2 py-1 rounded border border-blue-200">{`{{TELEFONE}}`}</code>
+              <code className="text-[10px] font-bold bg-white text-blue-700 px-2 py-1 rounded border border-blue-200">{`{{ENDERECO_IMOVEL}}`}</code>
+              <code className="text-[10px] font-bold bg-white text-blue-700 px-2 py-1 rounded border border-blue-200">{`{{VALOR}}`}</code>
+              <code className="text-[10px] font-bold bg-white text-blue-700 px-2 py-1 rounded border border-blue-200">{`{{NOME_IMOBILIARIA}}`}</code>
             </div>
-            
-            <div className="mb-4 bg-blue-50 p-4 rounded-xl border border-blue-100">
-              <p className="text-sm font-semibold text-blue-900 mb-2">Variáveis automáticas disponíveis:</p>
-              <div className="flex flex-wrap gap-2">
-                <code className="text-[11px] font-bold bg-white text-blue-700 px-2 py-1 rounded shadow-sm border border-blue-200">{`{{NOME_PROPRIETARIO}}`}</code>
-                <code className="text-[11px] font-bold bg-white text-blue-700 px-2 py-1 rounded shadow-sm border border-blue-200">{`{{CPF_CNPJ}}`}</code>
-                <code className="text-[11px] font-bold bg-white text-blue-700 px-2 py-1 rounded shadow-sm border border-blue-200">{`{{TELEFONE}}`}</code>
-                <code className="text-[11px] font-bold bg-white text-blue-700 px-2 py-1 rounded shadow-sm border border-blue-200">{`{{BANCO}}`}</code>
-                <code className="text-[11px] font-bold bg-white text-blue-700 px-2 py-1 rounded shadow-sm border border-blue-200">{`{{NOME_IMOBILIARIA}}`}</code>
-                <code className="text-[11px] font-bold bg-white text-blue-700 px-2 py-1 rounded shadow-sm border border-blue-200">{`{{CNPJ_IMOBILIARIA}}`}</code>
-              </div>
-              <p className="text-xs text-blue-700 mt-3">Cole abaixo o seu texto com tags HTML (<code>&lt;p&gt;</code>, <code>&lt;strong&gt;</code>, etc) e insira as variáveis nos locais onde deseja que o sistema preencha automaticamente os dados do cliente.</p>
-            </div>
-            
-            <textarea 
-              {...register('ownerContractTemplate')} 
-              rows={15} 
-              placeholder="Exemplo: <p>Pelo presente instrumento particular, de um lado {{NOME_PROPRIETARIO}}...</p>"
-              className="w-full px-4 py-3 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm resize-y"
-            ></textarea>
           </div>
 
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-            <div className="flex items-center gap-2 text-emerald-600 mb-4 border-b border-slate-100 pb-2">
-              <FileText size={20} />
-              <h2 className="font-semibold text-lg">Modelo de Contrato de Locação (Inquilino)</h2>
-            </div>
-            
-            <div className="mb-4 bg-emerald-50 p-4 rounded-xl border border-emerald-100">
-              <p className="text-sm font-semibold text-emerald-900 mb-2">Variáveis automáticas disponíveis:</p>
-              <div className="flex flex-wrap gap-2">
-                <code className="text-[11px] font-bold bg-white text-emerald-700 px-2 py-1 rounded shadow-sm border border-emerald-200">{`{{NOME_INQUILINO}}`}</code>
-                <code className="text-[11px] font-bold bg-white text-emerald-700 px-2 py-1 rounded shadow-sm border border-emerald-200">{`{{CPF_INQUILINO}}`}</code>
-                <code className="text-[11px] font-bold bg-white text-emerald-700 px-2 py-1 rounded shadow-sm border border-emerald-200">{`{{ENDERECO_IMOVEL}}`}</code>
-                <code className="text-[11px] font-bold bg-white text-emerald-700 px-2 py-1 rounded shadow-sm border border-emerald-200">{`{{DATA_INICIO}}`}</code>
-                <code className="text-[11px] font-bold bg-white text-emerald-700 px-2 py-1 rounded shadow-sm border border-emerald-200">{`{{DATA_FIM}}`}</code>
-                <code className="text-[11px] font-bold bg-white text-emerald-700 px-2 py-1 rounded shadow-sm border border-emerald-200">{`{{VALOR_ALUGUEL}}`}</code>
-                <code className="text-[11px] font-bold bg-white text-emerald-700 px-2 py-1 rounded shadow-sm border border-emerald-200">{`{{INDICE_REAJUSTE}}`}</code>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Contrato Locação */}
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+              <div className="flex items-center gap-2 text-emerald-600 mb-4 border-b border-slate-100 pb-2">
+                <FileText size={20} /><h2 className="font-semibold">Contrato de Locação</h2>
               </div>
+              <textarea {...register('tenantContractTemplate')} rows={8} placeholder="Pelo presente instrumento..." className="w-full px-4 py-3 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 font-mono text-xs resize-y"></textarea>
             </div>
-            
-            <textarea 
-              {...register('tenantContractTemplate')} 
-              rows={15} 
-              placeholder="Exemplo: <p>O valor do aluguel será de {{VALOR_ALUGUEL}}, com início em {{DATA_INICIO}}...</p>"
-              className="w-full px-4 py-3 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 font-mono text-sm resize-y"
-            ></textarea>
+
+            {/* Contrato Gestão (Proprietário) */}
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+              <div className="flex items-center gap-2 text-blue-600 mb-4 border-b border-slate-100 pb-2">
+                <FileSignature size={20} /><h2 className="font-semibold">Contrato de Gestão (Dono)</h2>
+              </div>
+              <textarea {...register('ownerContractTemplate')} rows={8} placeholder="Autorizo a imobiliária..." className="w-full px-4 py-3 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 font-mono text-xs resize-y"></textarea>
+            </div>
+
+            {/* Proposta Venda */}
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+              <div className="flex items-center gap-2 text-indigo-600 mb-4 border-b border-slate-100 pb-2">
+                <DollarSign size={20} /><h2 className="font-semibold">Proposta de Venda</h2>
+              </div>
+              <textarea {...register('saleProposalTemplate')} rows={8} placeholder="Proponho a compra do imóvel..." className="w-full px-4 py-3 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 font-mono text-xs resize-y"></textarea>
+            </div>
+
+            {/* Proposta Aluguel */}
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+              <div className="flex items-center gap-2 text-orange-500 mb-4 border-b border-slate-100 pb-2">
+                <FileText size={20} /><h2 className="font-semibold">Proposta de Locação</h2>
+              </div>
+              <textarea {...register('rentProposalTemplate')} rows={8} placeholder="Proponho a locação do imóvel..." className="w-full px-4 py-3 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-orange-500 font-mono text-xs resize-y"></textarea>
+            </div>
+
+            {/* Termo de Chaves */}
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 md:col-span-2">
+              <div className="flex items-center gap-2 text-amber-500 mb-4 border-b border-slate-100 pb-2">
+                <Key size={20} /><h2 className="font-semibold">Termo de Entrega de Chaves</h2>
+              </div>
+              <textarea {...register('keyTermTemplate')} rows={6} placeholder="Declaro que recebi as chaves..." className="w-full px-4 py-3 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-amber-500 font-mono text-xs resize-y"></textarea>
+            </div>
           </div>
         </div>
 
-        {/* =======================================================
-            ABA 4: FINANCEIRO / GATEWAY (MERCADO PAGO)
-            ======================================================= */}
+        {/* ABA 4: FINANCEIRO / GATEWAY (MERCADO PAGO) */}
         <div className={activeTab === 'financeiro' ? 'space-y-6 animate-in fade-in slide-in-from-right-2' : 'hidden'}>
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
             <div className="flex items-center gap-2 text-blue-600 mb-4 border-b border-slate-100 pb-2">
