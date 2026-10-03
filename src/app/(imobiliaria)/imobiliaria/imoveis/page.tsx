@@ -11,6 +11,14 @@ const AVAILABLE_AMENITIES = [
   'Móveis Planejados', 'Portaria 24h', 'Salão de Festas'
 ];
 
+// Função local para aplicar a máscara do CEP
+const maskCep = (value: string) => {
+  return value
+    .replace(/\D/g, '')
+    .replace(/(\d{5})(\d)/, '$1-$2')
+    .replace(/(-\d{3})\d+?$/, '$1');
+};
+
 export default function ImoveisPage() {
   const [properties, setProperties] = useState<any[]>([]);
   const [brokers, setBrokers] = useState<any[]>([]);
@@ -20,15 +28,16 @@ export default function ImoveisPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isFetchingCep, setIsFetchingCep] = useState(false); // NOVO ESTADO: Controle do Loading do CEP
 
-  // Estado inicial do formulário completo (agora com campos de propostas e termo)
+  // Estado inicial do formulário completo
   const [form, setForm] = useState({
     title: '', type: 'Casa', category: 'Residencial', transaction: 'Locação',
     price: '', condoFee: '', iptu: '',
     area: '', bedrooms: '', bathrooms: '', garage: '', yearBuilt: '',
     cep: '', address: '', neighborhood: '', city: '', state: '',
     description: '', imageUrls: '', brokerId: '', ownerId: '', inspectionUrl: '',
-    rentProposalUrl: '', saleProposalUrl: '', keyTermUrl: '', // NOVOS CAMPOS
+    rentProposalUrl: '', saleProposalUrl: '', keyTermUrl: '',
     amenities: [] as string[]
   });
 
@@ -80,9 +89,9 @@ export default function ImoveisPage() {
         brokerId: property.brokerId || '',
         ownerId: property.ownerId || '',
         inspectionUrl: property.inspectionUrl || '',
-        rentProposalUrl: property.rentProposalUrl || '', // NOVO CAMPO
-        saleProposalUrl: property.saleProposalUrl || '', // NOVO CAMPO
-        keyTermUrl: property.keyTermUrl || '',           // NOVO CAMPO
+        rentProposalUrl: property.rentProposalUrl || '',
+        saleProposalUrl: property.saleProposalUrl || '',
+        keyTermUrl: property.keyTermUrl || '',
         amenities: property.amenities || []
       });
     } else {
@@ -92,7 +101,7 @@ export default function ImoveisPage() {
         price: '', condoFee: '', iptu: '', area: '', bedrooms: '', bathrooms: '', garage: '', yearBuilt: '',
         cep: '', address: '', neighborhood: '', city: '', state: '',
         description: '', imageUrls: '', brokerId: '', ownerId: '', inspectionUrl: '',
-        rentProposalUrl: '', saleProposalUrl: '', keyTermUrl: '', // NOVOS CAMPOS
+        rentProposalUrl: '', saleProposalUrl: '', keyTermUrl: '',
         amenities: []
       });
     }
@@ -133,7 +142,6 @@ export default function ImoveisPage() {
     }
   };
 
-  // Função para controlar os checkboxes
   const handleToggleAmenity = (amenity: string) => {
     setForm(prev => {
       const isSelected = prev.amenities.includes(amenity);
@@ -143,6 +151,34 @@ export default function ImoveisPage() {
         return { ...prev, amenities: [...prev.amenities, amenity] };
       }
     });
+  };
+
+  // NOVA FUNÇÃO: Busca automática do CEP
+  const handleCepChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const masked = maskCep(e.target.value);
+    setForm({ ...form, cep: masked });
+
+    if (masked.length === 9) { // Ex: "00000-000"
+      setIsFetchingCep(true);
+      try {
+        const rawCep = masked.replace(/\D/g, '');
+        const response = await api.get(`/integrations/cep/${rawCep}`);
+        const data = response.data;
+        
+        // Atualiza o formulário preservando o que não foi alterado
+        setForm(prev => ({
+          ...prev,
+          address: data.street || prev.address,
+          neighborhood: data.neighborhood || prev.neighborhood,
+          city: data.city || prev.city,
+          state: data.state || prev.state
+        }));
+      } catch (error) {
+        console.log('CEP não encontrado.');
+      } finally {
+        setIsFetchingCep(false);
+      }
+    }
   };
 
   if (isLoading) return <div className="p-8 flex justify-center text-slate-500"><Loader2 className="animate-spin" /></div>;
@@ -327,8 +363,10 @@ export default function ImoveisPage() {
                   <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">3. Localização</h3>
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div className="md:col-span-1">
-                      <label className="block text-xs font-bold text-slate-600 mb-1">CEP</label>
-                      <input required type="text" value={form.cep} onChange={e => setForm({...form, cep: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm" />
+                      <label className="flex items-center gap-2 text-xs font-bold text-slate-600 mb-1">
+                        CEP {isFetchingCep && <Loader2 size={12} className="animate-spin text-blue-500" />}
+                      </label>
+                      <input required type="text" value={form.cep} onChange={handleCepChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm" placeholder="00000-000" />
                     </div>
                     <div className="md:col-span-3">
                       <label className="block text-xs font-bold text-slate-600 mb-1">Endereço Completo</label>
