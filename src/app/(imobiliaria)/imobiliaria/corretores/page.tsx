@@ -2,20 +2,36 @@
 
 import { useState, useEffect } from 'react';
 import { api } from '../../../../lib/api';
-import { Users, Plus, Edit, X, Search, CheckCircle2, XCircle, Loader2, UserCircle, Link as LinkIcon, FileText, ExternalLink } from 'lucide-react';
+import { 
+  Users, Plus, Search, Edit, Power, Loader2, UserCircle, Phone, Mail, 
+  Briefcase, Percent, FileSpreadsheet, Filter, Download,
+  DollarSign,
+  X
+} from 'lucide-react';
+import { maskCpf, maskPhone } from '@/src/utils/mask';
+
+const initialForm = {
+  name: '', cpf: '', creci: '', phone: '', email: '', password: '', 
+  saleCommission: '', rentCommission: ''
+};
 
 export default function CorretoresPage() {
+  const [activeTab, setActiveTab] = useState<'lista' | 'relatorios'>('lista');
   const [brokers, setBrokers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [formData, setFormData] = useState<any>(initialForm);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
-  // Estado atualizado com o creciDocumentUrl
-  const [form, setForm] = useState({
-    name: '', email: '', cpf: '', creci: '', phone: '', password: '', 
-    profileImageUrl: '', creciDocumentUrl: ''
-  });
+  // ===============================================
+  // ESTADOS DO RELATÓRIO DE COMISSÕES
+  // ===============================================
+  const [reportFilter, setReportFilter] = useState({ brokerId: 'Todos', type: 'Todos', startDate: '', endDate: '' });
+  const [reportData, setReportData] = useState<any[]>([]);
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
 
   useEffect(() => {
     fetchBrokers();
@@ -27,47 +43,50 @@ export default function CorretoresPage() {
       const response = await api.get('/brokers');
       setBrokers(response.data);
     } catch (error) {
-      console.error('Erro ao buscar corretores:', error);
+      console.error('Erro ao listar corretores:', error);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleOpenModal = (broker?: any) => {
+  const handleOpenModal = (broker: any = null) => {
     if (broker) {
       setEditingId(broker.id);
-      // Puxa todos os dados com fallback seguro (evitando undefined que causa bugs no form)
-      setForm({
-        name: broker.name || '', 
-        email: broker.email || '', 
-        cpf: broker.cpf || '', 
-        creci: broker.creci || '', 
-        phone: broker.phone || '', 
-        password: '', // Senha sempre limpa
-        profileImageUrl: broker.profileImageUrl || '',
-        creciDocumentUrl: broker.creciDocumentUrl || ''
+      setFormData({
+        ...broker,
+        password: '', // Não trazemos a senha para edição
+        cpf: maskCpf(broker.cpf),
+        phone: maskPhone(broker.phone),
+        saleCommission: broker.saleCommission || '',
+        rentCommission: broker.rentCommission || ''
       });
     } else {
       setEditingId(null);
-      setForm({ 
-        name: '', email: '', cpf: '', creci: '', phone: '', password: '', 
-        profileImageUrl: '', creciDocumentUrl: '' 
-      });
+      setFormData(initialForm);
     }
     setIsModalOpen(true);
   };
 
-  const handleSave = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
     try {
-      if (editingId) {
-        await api.put(`/brokers/${editingId}`, form);
-        alert('Corretor atualizado com sucesso!');
-      } else {
-        await api.post('/brokers', form);
-        alert('Corretor cadastrado com sucesso!');
+      const payload = { ...formData };
+      payload.cpf = payload.cpf.replace(/\D/g, '');
+      payload.phone = payload.phone.replace(/\D/g, '');
+
+      if (!editingId && !payload.password) {
+        alert("A senha é obrigatória para novos corretores.");
+        setIsSaving(false);
+        return;
       }
+
+      if (editingId) {
+        await api.put(`/brokers/${editingId}`, payload);
+      } else {
+        await api.post('/brokers', payload);
+      }
+      
       setIsModalOpen(false);
       fetchBrokers();
     } catch (error: any) {
@@ -78,7 +97,7 @@ export default function CorretoresPage() {
   };
 
   const handleToggleStatus = async (id: string) => {
-    if (!confirm('Deseja alterar o status deste corretor?')) return;
+    if(!confirm('Deseja alterar o status deste corretor?')) return;
     try {
       await api.patch(`/brokers/${id}/status`);
       fetchBrokers();
@@ -87,152 +106,365 @@ export default function CorretoresPage() {
     }
   };
 
-  if (isLoading) return <div className="p-8 flex justify-center text-slate-500"><Loader2 className="animate-spin" /></div>;
+  // ===============================================
+  // FUNÇÕES DO RELATÓRIO
+  // ===============================================
+  const generateReport = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsGeneratingReport(true);
+    try {
+      const queryParams = new URLSearchParams(reportFilter).toString();
+      const response = await api.get(`/brokers/reports/commissions?${queryParams}`);
+      setReportData(response.data);
+    } catch (error) {
+      alert('Erro ao gerar relatório.');
+    } finally {
+      setIsGeneratingReport(false);
+    }
+  };
+
+  const exportToCSV = () => {
+    if (reportData.length === 0) return;
+    
+    // Cabeçalhos
+    const headers = ['Data', 'Tipo', 'Imóvel', 'Cliente', 'Corretor', 'Valor Operação (R$)', '% Comissão', 'Valor Comissão (R$)', 'Status'];
+    
+    // Linhas
+    const rows = reportData.map(r => [
+      new Date(r.date).toLocaleDateString('pt-BR'),
+      r.type,
+      `"${r.propertyTitle}"`, // Aspas para não quebrar CSV se tiver vírgulas
+      `"${r.clientName}"`,
+      `"${r.brokerName}"`,
+      r.operationValue.toFixed(2),
+      r.commissionPercent,
+      r.commissionValue.toFixed(2),
+      r.status
+    ]);
+
+    const csvContent = "data:text/csv;charset=utf-8,\uFEFF" 
+      + headers.join(";") + "\n" 
+      + rows.map(e => e.join(";")).join("\n");
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `Relatorio_Comissoes_${new Date().getTime()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+  };
+
+  const filteredBrokers = brokers.filter(b => 
+    b.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    b.cpf.includes(searchTerm.replace(/\D/g, ''))
+  );
 
   return (
-    <div className="p-8 max-w-7xl mx-auto font-sans">
-      <div className="flex justify-between items-center mb-8">
+    <div className="p-8 max-w-[1600px] mx-auto font-sans animate-in fade-in duration-300">
+      
+      {/* HEADER */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-slate-800">Meus Corretores</h1>
-          <p className="text-slate-500">Faça a gestão da sua equipa de vendas e perfil público no site.</p>
+          <h1 className="text-3xl font-bold text-slate-800 flex items-center gap-3">
+            <Users className="text-blue-600 bg-blue-50 p-1.5 rounded-lg" size={36} />
+            Gestão de Equipe & Comissões
+          </h1>
+          <p className="text-slate-500 mt-2 text-sm">Gira os seus corretores, defina percentagens de comissão e extraia relatórios financeiros.</p>
         </div>
-        <button onClick={() => handleOpenModal()} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-colors">
-          <Plus size={18} /> Novo Corretor
+      </div>
+
+      {/* ABAS */}
+      <div className="flex gap-4 border-b border-slate-200 mb-6">
+        <button 
+          onClick={() => setActiveTab('lista')} 
+          className={`pb-4 px-4 font-semibold text-sm flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'lista' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+        >
+          <Users size={18} /> Equipe de Corretores
+        </button>
+        <button 
+          onClick={() => setActiveTab('relatorios')} 
+          className={`pb-4 px-4 font-semibold text-sm flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'relatorios' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+        >
+          <FileSpreadsheet size={18} /> Relatório de Comissões
         </button>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-        <table className="w-full text-left text-sm">
-          <thead className="bg-slate-50 text-slate-600 font-medium border-b border-slate-200">
-            <tr>
-              <th className="py-4 px-6 w-16">Foto</th>
-              <th className="py-4 px-6">Nome / CRECI</th>
-              <th className="py-4 px-6">Contactos</th>
-              <th className="py-4 px-6">Status</th>
-              <th className="py-4 px-6 text-right">Ações</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 text-slate-700">
-            {brokers.map(broker => (
-              <tr key={broker.id} className="hover:bg-slate-50">
-                <td className="py-3 px-6">
-                  {broker.profileImageUrl ? (
-                    <img src={broker.profileImageUrl} alt={broker.name} className="w-10 h-10 rounded-full object-cover border border-slate-200" />
-                  ) : (
-                    <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center text-slate-400"><UserCircle size={24} /></div>
-                  )}
-                </td>
-                <td className="py-3 px-6">
-                  <p className="font-bold text-slate-800">{broker.name}</p>
-                  <div className="flex items-center gap-2">
-                    <p className="text-xs text-slate-500">CRECI: {broker.creci}</p>
-                    {broker.creciDocumentUrl && (
-                      <a href={broker.creciDocumentUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline flex items-center gap-1" title="Visualizar Anexo">
-                        <FileText size={12}/> Anexo
-                      </a>
-                    )}
-                  </div>
-                </td>
-                <td className="py-3 px-6">
-                  <p>{broker.email}</p>
-                  <p className="text-xs text-slate-500">{broker.phone}</p>
-                </td>
-                <td className="py-3 px-6">
-                  <button onClick={() => handleToggleStatus(broker.id)} className="focus:outline-none">
-                    {broker.isActive 
-                      ? <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1"><CheckCircle2 size={12}/> Ativo</span>
-                      : <span className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1"><XCircle size={12}/> Inativo</span>
-                    }
-                  </button>
-                </td>
-                <td className="py-3 px-6 text-right">
-                  <button onClick={() => handleOpenModal(broker)} className="text-blue-600 hover:text-blue-800 font-medium bg-blue-50 px-3 py-1.5 rounded-lg">Editar</button>
-                </td>
-              </tr>
-            ))}
-            {brokers.length === 0 && (
-              <tr><td colSpan={5} className="py-12 text-center text-slate-500">Nenhum corretor cadastrado na sua loja.</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-slate-100 flex justify-between items-center sticky top-0 bg-white z-10">
-              <h2 className="text-xl font-bold text-slate-800">{editingId ? 'Editar Corretor' : 'Novo Corretor'}</h2>
-              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X size={24}/></button>
+      {/* ================================================== */}
+      {/* ABA 1: LISTA DE CORRETORES */}
+      {/* ================================================== */}
+      {activeTab === 'lista' && (
+        <>
+          <div className="flex flex-col md:flex-row justify-between gap-4 mb-6">
+            <div className="relative flex-1 md:max-w-md">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+              <input 
+                type="text" 
+                placeholder="Buscar por Nome ou CPF..." 
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm"
+              />
             </div>
-            
-            <form onSubmit={handleSave} className="p-6 space-y-8">
-              
-              {/* Secção de Imagens e Documentos */}
-              <div className="space-y-6 pb-6 border-b border-slate-100">
-                
-                {/* Foto de Perfil */}
-                <div className="flex flex-col md:flex-row items-center gap-6">
-                  <div className="w-20 h-20 shrink-0 rounded-full bg-slate-100 flex items-center justify-center border-4 border-white shadow-sm overflow-hidden text-slate-400">
-                    {form.profileImageUrl ? (
-                      <img src={form.profileImageUrl} alt="Preview" className="w-full h-full object-cover" />
-                    ) : (
-                      <UserCircle size={40}/>
-                    )}
-                  </div>
-                  <div className="flex-1 w-full">
-                    <label className="block text-sm font-bold text-slate-700 mb-2 flex items-center gap-2"><LinkIcon size={16}/> Link da Foto de Perfil (URL)</label>
-                    <input 
-                      type="url" 
-                      placeholder="https://exemplo.com/foto.jpg"
-                      value={form.profileImageUrl} 
-                      onChange={(e) => setForm({...form, profileImageUrl: e.target.value})} 
-                      className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500" 
-                    />
-                  </div>
-                </div>
+            <button onClick={() => handleOpenModal()} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-semibold flex items-center gap-2 transition-all shadow-sm">
+              <Plus size={18} /> Novo Corretor
+            </button>
+          </div>
 
-                {/* PDF do CRECI */}
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                  <div className="flex justify-between items-end mb-2">
-                    <label className="block text-sm font-bold text-slate-700 flex items-center gap-2"><FileText size={16}/> Link do PDF/Imagem do CRECI (Opcional)</label>
-                    {form.creciDocumentUrl && (
-                      <a href={form.creciDocumentUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-blue-600 hover:underline flex items-center gap-1 bg-blue-100 px-2 py-1 rounded">
-                        <ExternalLink size={14}/> Visualizar Anexo Atual
-                      </a>
-                    )}
-                  </div>
-                  <input 
-                    type="url" 
-                    placeholder="https://exemplo.com/documento-creci.pdf"
-                    value={form.creciDocumentUrl} 
-                    onChange={(e) => setForm({...form, creciDocumentUrl: e.target.value})} 
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 bg-white" 
-                  />
-                </div>
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-100 text-xs uppercase tracking-wider text-slate-500 font-semibold">
+                  <th className="p-4">Corretor</th>
+                  <th className="p-4">Contactos</th>
+                  <th className="p-4">Comissões (Venda / Aluguel)</th>
+                  <th className="p-4 text-center">Status</th>
+                  <th className="p-4 text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-sm">
+                {isLoading ? (
+                  <tr><td colSpan={5} className="p-8 text-center text-slate-400"><Loader2 className="animate-spin inline mr-2"/> Carregando corretores...</td></tr>
+                ) : filteredBrokers.length === 0 ? (
+                  <tr><td colSpan={5} className="p-8 text-center text-slate-400">Nenhum corretor cadastrado.</td></tr>
+                ) : (
+                  filteredBrokers.map((broker) => (
+                    <tr key={broker.id} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="p-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl flex items-center justify-center font-bold bg-blue-50 text-blue-600 border border-blue-100">
+                            {broker.name.charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <p className="font-bold text-slate-800">{broker.name}</p>
+                            <p className="text-xs text-slate-500">CRECI: {broker.creci}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="p-4">
+                        <p className="text-sm text-slate-700 flex items-center gap-2"><Phone size={14} className="text-slate-400"/> {maskPhone(broker.phone)}</p>
+                        <p className="text-xs text-slate-500 flex items-center gap-2 mt-1"><Mail size={14} className="text-slate-400"/> {broker.email}</p>
+                      </td>
+                      <td className="p-4">
+                        <div className="flex gap-2">
+                          <span className="bg-indigo-50 text-indigo-700 text-xs font-bold px-2 py-1 rounded border border-indigo-200" title="Comissão de Venda">{broker.saleCommission || 0}% Venda</span>
+                          <span className="bg-orange-50 text-orange-700 text-xs font-bold px-2 py-1 rounded border border-orange-200" title="Comissão de Locação">{broker.rentCommission || 0}% Locação</span>
+                        </div>
+                      </td>
+                      <td className="p-4 text-center">
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border ${broker.isActive ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${broker.isActive ? 'bg-emerald-500' : 'bg-red-500'}`}></span>
+                          {broker.isActive ? 'Ativo' : 'Inativo'}
+                        </span>
+                      </td>
+                      <td className="p-4 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <button onClick={() => handleOpenModal(broker)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-transparent" title="Editar"><Edit size={16} /></button>
+                          <button onClick={() => handleToggleStatus(broker.id)} className={`p-2 rounded-lg transition-colors border border-transparent ${broker.isActive ? 'text-red-500 hover:bg-red-50' : 'text-emerald-600 hover:bg-emerald-50'}`} title={broker.isActive ? 'Desativar' : 'Ativar'}><Power size={16} /></button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
 
+      {/* ================================================== */}
+      {/* ABA 2: RELATÓRIOS FINANCEIROS */}
+      {/* ================================================== */}
+      {activeTab === 'relatorios' && (
+        <div className="space-y-6 animate-in fade-in duration-300">
+          
+          {/* BARRA DE FILTROS */}
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+            <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2 border-b border-slate-100 pb-2"><Filter size={16}/> Filtros do Relatório</h3>
+            <form onSubmit={generateReport} className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">Corretor</label>
+                <select value={reportFilter.brokerId} onChange={e => setReportFilter({...reportFilter, brokerId: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-sm">
+                  <option value="Todos">Geral (Todos)</option>
+                  {brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </select>
               </div>
-
-              {/* Secção de Dados Principais */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div><label className="block text-sm mb-1 text-slate-600">Nome Completo</label><input required type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})} className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500" /></div>
-                <div><label className="block text-sm mb-1 text-slate-600">CRECI</label><input required type="text" value={form.creci} onChange={e => setForm({...form, creci: e.target.value})} className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500" /></div>
-                <div><label className="block text-sm mb-1 text-slate-600">CPF</label><input required type="text" value={form.cpf} onChange={e => setForm({...form, cpf: e.target.value})} disabled={!!editingId} className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-slate-50 outline-none" title={editingId ? 'CPF não pode ser alterado' : ''} /></div>
-                <div><label className="block text-sm mb-1 text-slate-600">Telefone / WhatsApp</label><input required type="text" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500" /></div>
-                <div className="md:col-span-2"><label className="block text-sm mb-1 text-slate-600">E-mail (Acesso ao painel)</label><input required type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500" /></div>
-                
-                <div className="md:col-span-2 bg-slate-50 p-4 rounded-xl border border-slate-200 mt-2">
-                  <label className="block text-sm font-bold text-slate-700 mb-1">Palavra-passe de Acesso {editingId && <span className="text-xs text-slate-400 font-normal">(Deixe vazio para manter a atual)</span>}</label>
-                  <input type="password" value={form.password} onChange={e => setForm({...form, password: e.target.value})} required={!editingId} className="w-full md:w-1/2 px-3 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 bg-white" />
-                </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">Natureza</label>
+                <select value={reportFilter.type} onChange={e => setReportFilter({...reportFilter, type: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-sm">
+                  <option value="Todos">Locação e Venda</option>
+                  <option value="Locação">Apenas Locação</option>
+                  <option value="Venda">Apenas Venda</option>
+                </select>
               </div>
-
-              <div className="pt-4 flex justify-end gap-3 border-t">
-                <button type="button" onClick={() => setIsModalOpen(false)} className="px-5 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg">Cancelar</button>
-                <button type="submit" disabled={isSaving} className="px-5 py-2 bg-blue-600 text-white font-medium rounded-lg flex items-center gap-2">
-                  {isSaving && <Loader2 size={16} className="animate-spin" />} Salvar Corretor
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">Data Inicial</label>
+                <input type="date" value={reportFilter.startDate} onChange={e => setReportFilter({...reportFilter, startDate: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">Data Final</label>
+                <input type="date" value={reportFilter.endDate} onChange={e => setReportFilter({...reportFilter, endDate: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" />
+              </div>
+              <div>
+                <button type="submit" disabled={isGeneratingReport} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg flex justify-center items-center gap-2 transition-all">
+                  {isGeneratingReport ? <Loader2 size={16} className="animate-spin" /> : <Search size={16}/>} Filtrar
                 </button>
               </div>
             </form>
+          </div>
+
+          {/* DASHBOARD SUMÁRIO (Kardex) */}
+          {reportData.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+                <div className="p-3 bg-blue-50 text-blue-600 rounded-xl"><Briefcase size={24}/></div>
+                <div>
+                  <p className="text-xs font-bold text-slate-500 uppercase">Negócios Fechados</p>
+                  <h3 className="text-2xl font-black text-slate-800">{reportData.length}</h3>
+                </div>
+              </div>
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+                <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl"><DollarSign size={24}/></div>
+                <div>
+                  <p className="text-xs font-bold text-slate-500 uppercase">Volume de Operações</p>
+                  <h3 className="text-2xl font-black text-slate-800">{formatCurrency(reportData.reduce((acc, curr) => acc + curr.operationValue, 0))}</h3>
+                </div>
+              </div>
+              <div className="bg-white p-5 rounded-2xl border border-emerald-500 shadow-sm flex items-center gap-4 bg-emerald-50/30">
+                <div className="p-3 bg-emerald-100 text-emerald-700 rounded-xl"><Percent size={24}/></div>
+                <div>
+                  <p className="text-xs font-bold text-emerald-800 uppercase">Total em Comissões</p>
+                  <h3 className="text-2xl font-black text-emerald-700">{formatCurrency(reportData.reduce((acc, curr) => acc + curr.commissionValue, 0))}</h3>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TABELA DE RESULTADOS */}
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+            <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <h3 className="font-bold text-slate-700">Resultado do Relatório</h3>
+              {reportData.length > 0 && (
+                <button onClick={exportToCSV} className="text-sm font-bold text-emerald-700 bg-emerald-100 hover:bg-emerald-200 px-4 py-2 rounded-lg flex items-center gap-2 transition-colors">
+                  <Download size={16}/> Exportar para Excel / CSV
+                </button>
+              )}
+            </div>
+            
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-white border-b border-slate-100 text-xs uppercase tracking-wider text-slate-500 font-semibold">
+                    <th className="p-4">Data</th>
+                    <th className="p-4">Tipo & Imóvel</th>
+                    <th className="p-4">Corretor</th>
+                    <th className="p-4">Valor Operação</th>
+                    <th className="p-4">Base Comissão</th>
+                    <th className="p-4 text-right text-emerald-700">Valor Comissão</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-sm">
+                  {reportData.length === 0 ? (
+                    <tr><td colSpan={6} className="p-10 text-center text-slate-400">Utilize os filtros acima para gerar o relatório.</td></tr>
+                  ) : (
+                    reportData.map((row, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                        <td className="p-4 text-slate-600">{new Date(row.date).toLocaleDateString('pt-BR')}</td>
+                        <td className="p-4">
+                          <span className={`inline-block mb-1 text-[10px] font-bold px-2 py-0.5 rounded border ${row.type === 'Venda' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>{row.type}</span>
+                          <p className="font-bold text-slate-800 line-clamp-1" title={row.propertyTitle}>{row.propertyTitle}</p>
+                        </td>
+                        <td className="p-4 font-semibold text-slate-700">{row.brokerName}</td>
+                        <td className="p-4 font-bold text-slate-700">{formatCurrency(row.operationValue)}</td>
+                        <td className="p-4 text-slate-500">{row.commissionPercent}%</td>
+                        <td className="p-4 text-right font-black text-emerald-600">{formatCurrency(row.commissionValue)}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================================================== */}
+      {/* MODAL CADASTRAR/EDITAR CORRETOR */}
+      {/* ================================================== */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col animate-in zoom-in-95 duration-200">
+            
+            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 rounded-t-2xl shrink-0">
+              <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                {editingId ? <Edit className="text-blue-600" size={24}/> : <UserCircle className="text-blue-600" size={24}/>}
+                {editingId ? 'Editar Corretor' : 'Cadastrar Corretor'}
+              </h2>
+              <button onClick={() => setIsModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-lg transition-colors"><X size={20} /></button>
+            </div>
+
+            <div className="p-6 overflow-y-auto flex-1">
+              <form id="brokerForm" onSubmit={handleSubmit} className="space-y-6">
+                
+                <section>
+                  <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2 border-b border-slate-100 pb-2"><UserCircle size={16} className="text-blue-500"/> Dados Profissionais</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="md:col-span-2">
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Nome Completo *</label>
+                      <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">CPF *</label>
+                      <input required type="text" value={formData.cpf} onChange={e => setFormData({...formData, cpf: maskCpf(e.target.value)})} placeholder="000.000.000-00" className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">CRECI *</label>
+                      <input required type="text" value={formData.creci} onChange={e => setFormData({...formData, creci: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Telefone / WhatsApp *</label>
+                      <input required type="text" value={formData.phone} onChange={e => setFormData({...formData, phone: maskPhone(e.target.value)})} placeholder="(00) 00000-0000" className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">E-mail (Acesso à Plataforma) *</label>
+                      <input required type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Senha {editingId && '(Deixe em branco para não alterar)'} {(!editingId) && '*'}</label>
+                      <input type="password" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-slate-50" />
+                    </div>
+                  </div>
+                </section>
+
+                <section className="bg-blue-50 p-5 rounded-xl border border-blue-200">
+                  <h3 className="text-sm font-bold text-blue-900 mb-4 flex items-center gap-2"><Percent size={16}/> Comissionamento Padrão</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">Comissão em Vendas (%)</label>
+                      <input type="number" step="0.1" value={formData.saleCommission} onChange={e => setFormData({...formData, saleCommission: e.target.value})} placeholder="Ex: 3" className="w-full p-2.5 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">Comissão em Locações (%)</label>
+                      <input type="number" step="0.1" value={formData.rentCommission} onChange={e => setFormData({...formData, rentCommission: e.target.value})} placeholder="Ex: 10" className="w-full p-2.5 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white" />
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-slate-500 mt-3 font-medium">Estes valores serão usados automaticamente para calcular o relatório financeiro de honorários.</p>
+                </section>
+
+              </form>
+            </div>
+
+            <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 rounded-b-2xl shrink-0">
+              <button type="button" onClick={() => setIsModalOpen(false)} className="px-5 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-200 rounded-xl transition-colors">Cancelar</button>
+              <button type="submit" form="brokerForm" disabled={isSaving} className="px-6 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all shadow-sm flex items-center gap-2 disabled:opacity-70">
+                {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16}/>} {editingId ? 'Salvar Alterações' : 'Cadastrar Corretor'}
+              </button>
+            </div>
+            
           </div>
         </div>
       )}
