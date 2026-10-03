@@ -7,7 +7,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { api } from '../../../../lib/api';
 import { 
   Loader2, Save, Store, MapPin, Lock, Globe,
-  Image as ImageIcon, Link as LinkIcon, FileText, Building2, FileSignature, DollarSign, Key
+  Image as ImageIcon, Link as LinkIcon, FileText, Building2, FileSignature, DollarSign, Key,
+  ShieldCheck, Plus, Trash2, Power, X
 } from 'lucide-react';
 import { maskCep, maskPhone } from '@/src/utils/mask';
 
@@ -17,7 +18,8 @@ const maskCnpj = (value: string) => {
     .replace(/(\d{2})(\d)/, '$1.$2')
     .replace(/(\d{3})(\d)/, '$1.$2')
     .replace(/(\d{3})(\d)/, '$1/$2')
-    .replace(/(\d{4})(\d{1,2})/, '$1-$2')                 .replace(/(-\d{2})\d+?$/, '$1');
+    .replace(/(\d{4})(\d{1,2})/, '$1-$2')                
+    .replace(/(-\d{2})\d+?$/, '$1');
 };
 
 const settingsSchema = z.object({
@@ -49,6 +51,7 @@ const settingsSchema = z.object({
   saleProposalTemplate: z.string().optional(),
   rentProposalTemplate: z.string().optional(),
   keyTermTemplate: z.string().optional(),
+  financingTemplate: z.string().optional(), // NOVO
 
   mpAccessToken: z.string().optional(),
   mpPublicKey: z.string().optional(),
@@ -61,7 +64,14 @@ export default function ConfiguracoesLojaPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFetchingCep, setIsFetchingCep] = useState(false);
   
-  const [activeTab, setActiveTab] = useState<'dados' | 'aparencia' | 'contratos' | 'financeiro'>('dados');
+  // TABS: dados | aparencia | contratos | financeiro | seguradoras
+  const [activeTab, setActiveTab] = useState<'dados' | 'aparencia' | 'contratos' | 'financeiro' | 'seguradoras'>('dados');
+
+  // Estado das Seguradoras
+  const [insuranceCompanies, setInsuranceCompanies] = useState<any[]>([]);
+  const [isInsuranceModalOpen, setIsInsuranceModalOpen] = useState(false);
+  const [insuranceForm, setInsuranceForm] = useState({ name: '', cnpj: '', contactInfo: '' });
+  const [isSavingInsurance, setIsSavingInsurance] = useState(false);
 
   const { register, handleSubmit, setValue, reset, watch, formState: { errors } } = useForm<SettingsForm>({
     resolver: zodResolver(settingsSchema)
@@ -71,10 +81,15 @@ export default function ConfiguracoesLojaPage() {
   const currentLogo = watch('logoUrl');
   const currentHero = watch('heroImageUrl');
 
-  async function fetchMyStoreData() {
+  async function fetchData() {
+    setIsLoading(true);
     try {
-      const response = await api.get('/my-store');
-      const data = response.data;
+      const [resStore, resInsurance] = await Promise.all([
+        api.get('/my-store'),
+        api.get('/insurance-companies').catch(() => ({ data: [] }))
+      ]);
+      
+      const data = resStore.data;
       reset({
         tradeName: data.tradeName || '',
         corporateName: data.corporateName || '',
@@ -99,18 +114,22 @@ export default function ConfiguracoesLojaPage() {
         saleProposalTemplate: data.saleProposalTemplate || '',
         rentProposalTemplate: data.rentProposalTemplate || '',
         keyTermTemplate: data.keyTermTemplate || '',
+        financingTemplate: data.financingTemplate || '', // NOVO
         mpAccessToken: data.mpAccessToken || '',
         mpPublicKey: data.mpPublicKey || '',
       });
+
+      setInsuranceCompanies(resInsurance.data);
+
     } catch (error) {
-      console.error('Erro ao carregar dados da loja:', error);
+      console.error('Erro ao carregar dados:', error);
     } finally {
       setIsLoading(false);
     }
   }
 
   useEffect(() => {
-    fetchMyStoreData();
+    fetchData();
   }, []);
 
   async function handleCepManualChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -149,23 +168,54 @@ export default function ConfiguracoesLojaPage() {
     }
   }
 
+  // =====================================
+  // FUNÇÕES DE SEGURADORAS
+  // =====================================
+  async function handleSaveInsurance(e: React.FormEvent) {
+    e.preventDefault();
+    setIsSavingInsurance(true);
+    try {
+      await api.post('/insurance-companies', insuranceForm);
+      setIsInsuranceModalOpen(false);
+      setInsuranceForm({ name: '', cnpj: '', contactInfo: '' });
+      const res = await api.get('/insurance-companies');
+      setInsuranceCompanies(res.data);
+    } catch (error) {
+      alert('Erro ao salvar seguradora.');
+    } finally {
+      setIsSavingInsurance(false);
+    }
+  }
+
+  async function handleToggleInsuranceStatus(id: string) {
+    if(!confirm('Deseja alterar o status desta Seguradora?')) return;
+    try {
+      await api.patch(`/insurance-companies/${id}/status`);
+      const res = await api.get('/insurance-companies');
+      setInsuranceCompanies(res.data);
+    } catch (error) {
+      alert('Erro ao alterar status.');
+    }
+  }
+
   if (isLoading) return <div className="flex justify-center items-center h-64"><Loader2 className="animate-spin text-blue-500" size={32} /></div>;
 
   return (
     <div className="space-y-6 animate-in fade-in zoom-in duration-300 max-w-5xl pb-12">
       <div>
         <h1 className="text-2xl font-bold text-slate-800">Configurações da Loja</h1>
-        <p className="text-slate-500 text-sm">Atualize os dados cadastrais e a vitrine pública da sua imobiliária.</p>
+        <p className="text-slate-500 text-sm">Atualize os dados cadastrais, a vitrine pública e as seguradoras parceiras.</p>
       </div>
 
       <div className="flex flex-wrap gap-4 border-b border-slate-200">
         <button type="button" onClick={() => setActiveTab('dados')} className={`pb-4 px-2 font-medium text-sm flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'dados' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><Building2 size={18} /> Dados da Imobiliária</button>
         <button type="button" onClick={() => setActiveTab('aparencia')} className={`pb-4 px-2 font-medium text-sm flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'aparencia' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><ImageIcon size={18} /> Aparência do Site</button>
         <button type="button" onClick={() => setActiveTab('contratos')} className={`pb-4 px-2 font-medium text-sm flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'contratos' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><FileSignature size={18} /> Modelos e Termos</button>
-        <button type="button" onClick={() => setActiveTab('financeiro')} className={`pb-4 px-2 font-medium text-sm flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'financeiro' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><DollarSign size={18} /> Financeiro / Gateway</button>
+        <button type="button" onClick={() => setActiveTab('financeiro')} className={`pb-4 px-2 font-medium text-sm flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'financeiro' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><DollarSign size={18} /> Financeiro</button>
+        <button type="button" onClick={() => setActiveTab('seguradoras')} className={`pb-4 px-2 font-medium text-sm flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'seguradoras' ? 'border-purple-600 text-purple-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><ShieldCheck size={18} /> Seguradoras</button>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+      <form onSubmit={handleSubmit(onSubmit)} className={activeTab !== 'seguradoras' ? "space-y-6" : "hidden"}>
         
         {/* ABA 1: DADOS CADASTRAIS */}
         <div className={activeTab === 'dados' ? 'space-y-6 animate-in fade-in slide-in-from-left-2' : 'hidden'}>
@@ -273,25 +323,37 @@ export default function ConfiguracoesLojaPage() {
         <div className={activeTab === 'contratos' ? 'space-y-6 animate-in fade-in slide-in-from-right-2' : 'hidden'}>
           
           <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 text-blue-800 text-sm">
-            <p className="font-semibold">Variáveis Universais</p>
-            <p>Use estas variáveis (exatamente como estão escritas) dentro dos seus textos. O sistema vai substituí-las pelos dados reais do cliente e do imóvel quando for gerar o documento.</p>
+            <p className="font-semibold">Variáveis Universais (Tags Mágicas)</p>
+            <p>Use estas tags no meio dos textos. O sistema substitui automaticamente na hora de gerar PDF.</p>
             <div className="flex flex-wrap gap-2 mt-3">
               <code className="text-[10px] font-bold bg-white text-blue-700 px-2 py-1 rounded border border-blue-200">{`{{NOME_CLIENTE}}`}</code>
-              <code className="text-[10px] font-bold bg-white text-blue-700 px-2 py-1 rounded border border-blue-200">{`{{CPF_CNPJ}}`}</code>
+              <code className="text-[10px] font-bold bg-white text-blue-700 px-2 py-1 rounded border border-blue-200">{`{{CPF_CLIENTE}}`}</code>
               <code className="text-[10px] font-bold bg-white text-blue-700 px-2 py-1 rounded border border-blue-200">{`{{TELEFONE}}`}</code>
+              <code className="text-[10px] font-bold bg-white text-blue-700 px-2 py-1 rounded border border-blue-200">{`{{EMAIL}}`}</code>
               <code className="text-[10px] font-bold bg-white text-blue-700 px-2 py-1 rounded border border-blue-200">{`{{ENDERECO_IMOVEL}}`}</code>
               <code className="text-[10px] font-bold bg-white text-blue-700 px-2 py-1 rounded border border-blue-200">{`{{VALOR}}`}</code>
-              <code className="text-[10px] font-bold bg-white text-blue-700 px-2 py-1 rounded border border-blue-200">{`{{NOME_IMOBILIARIA}}`}</code>
+              <code className="text-[10px] font-bold bg-white text-blue-700 px-2 py-1 rounded border border-blue-200">{`{{ESCOLARIDADE}}`}</code>
+              <code className="text-[10px] font-bold bg-white text-blue-700 px-2 py-1 rounded border border-blue-200">{`{{LINK_DRIVE}}`}</code>
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            
+            {/* Checklist de Financiamento */}
+            <div className="bg-emerald-50 p-6 rounded-2xl shadow-sm border border-emerald-200 md:col-span-2">
+              <div className="flex items-center gap-2 text-emerald-700 mb-4 border-b border-emerald-200 pb-2">
+                <FileText size={20} /><h2 className="font-semibold">Modelo do Checklist de Financiamento</h2>
+              </div>
+              <p className="text-xs text-emerald-800 mb-2 font-medium">Este é o documento gerado na ficha do cliente comprador. Você pode usar HTML para deixar mais bonito!</p>
+              <textarea {...register('financingTemplate')} rows={6} placeholder="Ex: <h1>Checklist do Cliente {{NOME_CLIENTE}}</h1>..." className="w-full px-4 py-3 border border-emerald-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 font-mono text-xs resize-y bg-white"></textarea>
+            </div>
+
             {/* Contrato Locação */}
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-              <div className="flex items-center gap-2 text-emerald-600 mb-4 border-b border-slate-100 pb-2">
+              <div className="flex items-center gap-2 text-blue-600 mb-4 border-b border-slate-100 pb-2">
                 <FileText size={20} /><h2 className="font-semibold">Contrato de Locação</h2>
               </div>
-              <textarea {...register('tenantContractTemplate')} rows={8} placeholder="Pelo presente instrumento..." className="w-full px-4 py-3 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 font-mono text-xs resize-y"></textarea>
+              <textarea {...register('tenantContractTemplate')} rows={8} placeholder="Pelo presente instrumento..." className="w-full px-4 py-3 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 font-mono text-xs resize-y"></textarea>
             </div>
 
             {/* Contrato Gestão (Proprietário) */}
@@ -344,22 +406,12 @@ export default function ConfiguracoesLojaPage() {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-1">Access Token (Token de Acesso)</label>
-                <input 
-                  type="password" 
-                  {...register('mpAccessToken')} 
-                  placeholder="APP_USR-123456789..." 
-                  className="w-full px-4 py-3 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
-                />
+                <input type="password" {...register('mpAccessToken')} placeholder="APP_USR-123456789..." className="w-full px-4 py-3 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm" />
               </div>
 
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-1">Public Key (Chave Pública)</label>
-                <input 
-                  type="text" 
-                  {...register('mpPublicKey')} 
-                  placeholder="APP_USR-..." 
-                  className="w-full md:w-1/2 px-4 py-3 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
-                />
+                <input type="text" {...register('mpPublicKey')} placeholder="APP_USR-..." className="w-full md:w-1/2 px-4 py-3 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm" />
               </div>
             </div>
           </div>
@@ -372,6 +424,89 @@ export default function ConfiguracoesLojaPage() {
           </button>
         </div>
       </form>
+
+      {/* ======================================================== */}
+      {/* ABA 5: SEGURADORAS (SEPARADA DO FORMULÁRIO PRINCIPAL)    */}
+      {/* ======================================================== */}
+      <div className={activeTab === 'seguradoras' ? 'space-y-6 animate-in fade-in slide-in-from-right-2' : 'hidden'}>
+        <div className="flex justify-between items-center bg-purple-50 border border-purple-200 p-6 rounded-2xl">
+          <div>
+            <h2 className="text-lg font-bold text-purple-900 flex items-center gap-2"><ShieldCheck size={24}/> Gestão de Seguradoras</h2>
+            <p className="text-sm text-purple-700 mt-1">Cadastre as empresas de Seguro Fiança aceites pela sua imobiliária.</p>
+          </div>
+          <button onClick={() => setIsInsuranceModalOpen(true)} className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 shadow-sm transition-colors">
+            <Plus size={16}/> Nova Seguradora
+          </button>
+        </div>
+
+        <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 font-bold uppercase text-xs tracking-wider">
+              <tr>
+                <th className="p-4">Nome da Seguradora</th>
+                <th className="p-4">CNPJ</th>
+                <th className="p-4 text-center">Status</th>
+                <th className="p-4 text-right">Ação</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {insuranceCompanies.length === 0 ? (
+                <tr><td colSpan={4} className="p-8 text-center text-slate-400">Nenhuma seguradora cadastrada.</td></tr>
+              ) : (
+                insuranceCompanies.map(company => (
+                  <tr key={company.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="p-4 font-bold text-slate-800">{company.name}</td>
+                    <td className="p-4 text-slate-600">{company.cnpj ? maskCnpj(company.cnpj) : '-'}</td>
+                    <td className="p-4 text-center">
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase border ${company.isActive ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
+                        {company.isActive ? 'Ativa' : 'Inativa'}
+                      </span>
+                    </td>
+                    <td className="p-4 text-right">
+                      <button onClick={() => handleToggleInsuranceStatus(company.id)} className={`p-2 rounded-lg transition-colors border border-transparent ${company.isActive ? 'text-red-500 hover:bg-red-50 hover:border-red-100' : 'text-emerald-600 hover:bg-emerald-50 hover:border-emerald-100'}`} title={company.isActive ? 'Desativar' : 'Ativar'}>
+                        <Power size={16} />
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* MODAL CADASTRAR SEGURADORA */}
+      {isInsuranceModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95">
+            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2"><ShieldCheck className="text-purple-600" size={20}/> Nova Seguradora</h2>
+              <button onClick={() => setIsInsuranceModalOpen(false)} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-200"><X size={20}/></button>
+            </div>
+            <form onSubmit={handleSaveInsurance} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-1">Nome da Empresa *</label>
+                <input required type="text" value={insuranceForm.name} onChange={e => setInsuranceForm({...insuranceForm, name: e.target.value})} className="w-full px-4 py-2.5 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-purple-500" placeholder="Ex: Porto Seguro" />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-1">CNPJ</label>
+                <input type="text" value={insuranceForm.cnpj} onChange={e => setInsuranceForm({...insuranceForm, cnpj: maskCnpj(e.target.value)})} className="w-full px-4 py-2.5 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-purple-500" placeholder="00.000.000/0000-00" />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-1">Contato / Observações</label>
+                <input type="text" value={insuranceForm.contactInfo} onChange={e => setInsuranceForm({...insuranceForm, contactInfo: e.target.value})} className="w-full px-4 py-2.5 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-purple-500" placeholder="Telefone ou e-mail do consultor..." />
+              </div>
+              <div className="pt-4 border-t border-slate-100 flex justify-end gap-3">
+                <button type="button" onClick={() => setIsInsuranceModalOpen(false)} className="px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100 rounded-lg">Cancelar</button>
+                <button type="submit" disabled={isSavingInsurance} className="px-5 py-2 text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-lg flex items-center gap-2">
+                  {isSavingInsurance ? <Loader2 size={16} className="animate-spin"/> : <Save size={16}/>} Salvar Empresa
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
