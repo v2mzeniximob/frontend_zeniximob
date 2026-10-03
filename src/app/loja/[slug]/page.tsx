@@ -13,13 +13,20 @@ export default function VitrineLojaPage(props: { params: Promise<{ slug: string 
   const slug = params?.slug;
 
   const [storeData, setStoreData] = useState<any>(null);
+  
+  // Guardamos TODOS os imóveis para poder filtrar sem ir ao servidor novamente
+  const [allProperties, setAllProperties] = useState<any[]>([]);
+  
   const [propertiesRent, setPropertiesRent] = useState<any[]>([]);
   const [propertiesSale, setPropertiesSale] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // Filtros da barra de pesquisa
-  const [searchFilter, setSearchFilter] = useState({ transaction: 'Todos', type: 'Todos' });
+  // ==========================================
+  // ESTADOS DO MOTOR DE BUSCA
+  // ==========================================
+  const [searchFilter, setSearchFilter] = useState({ transaction: 'Todos', type: 'Todos', query: '' });
+  const [searchResults, setSearchResults] = useState<any[] | null>(null); // Se for null, mostra a Home. Se for array, mostra resultados.
 
   useEffect(() => {
     if (!slug) return;
@@ -29,11 +36,12 @@ export default function VitrineLojaPage(props: { params: Promise<{ slug: string 
         const response = await api.get(`/public/stores/${slug}`);
         setStoreData(response.data.realEstate);
         
-        const allProperties = response.data.properties || [];
+        const fetchedProperties = response.data.properties || [];
+        setAllProperties(fetchedProperties); // Guarda todos na memória
         
-        // CORREÇÃO AQUI: Procurar pela palavra exata salva no banco de dados ("Locação")
-        setPropertiesRent(allProperties.filter((p: any) => p.transaction === 'Locação' || p.transaction === 'Aluguel' || p.transaction === 'Venda e Locação'));
-        setPropertiesSale(allProperties.filter((p: any) => p.transaction === 'Venda' || p.transaction === 'Venda e Locação'));
+        // Separa os imóveis de Locação e Venda para a Home
+        setPropertiesRent(fetchedProperties.filter((p: any) => p.transaction === 'Locação' || p.transaction === 'Aluguel' || p.transaction?.includes('Locação') || p.transaction?.includes('Aluguel')));
+        setPropertiesSale(fetchedProperties.filter((p: any) => p.transaction === 'Venda' || p.transaction?.includes('Venda')));
       } catch (err: any) {
         setError(err.response?.data?.error || 'Erro ao carregar a imobiliária.');
       } finally {
@@ -44,11 +52,73 @@ export default function VitrineLojaPage(props: { params: Promise<{ slug: string 
     fetchVitrine();
   }, [slug]);
 
+  // ==========================================
+  // FUNÇÕES DE BUSCA E FILTRAGEM
+  // ==========================================
+  const handleSearch = () => {
+    let filtered = allProperties;
+
+    // Filtro 1: Transação
+    if (searchFilter.transaction !== 'Todos') {
+      if (searchFilter.transaction === 'Locação') {
+        filtered = filtered.filter(p => p.transaction === 'Locação' || p.transaction === 'Aluguel' || p.transaction?.includes('Locação') || p.transaction?.includes('Aluguel'));
+      } else if (searchFilter.transaction === 'Venda') {
+        filtered = filtered.filter(p => p.transaction === 'Venda' || p.transaction?.includes('Venda'));
+      }
+    }
+
+    // Filtro 2: Tipo de Imóvel
+    if (searchFilter.type !== 'Todos') {
+      filtered = filtered.filter(p => p.type === searchFilter.type);
+    }
+
+    // Filtro 3: Texto (Cidade, Bairro, Endereço ou Título)
+    if (searchFilter.query.trim() !== '') {
+      const q = searchFilter.query.toLowerCase();
+      filtered = filtered.filter(p => 
+        (p.city && p.city.toLowerCase().includes(q)) ||
+        (p.neighborhood && p.neighborhood.toLowerCase().includes(q)) ||
+        (p.address && p.address.toLowerCase().includes(q)) ||
+        (p.title && p.title.toLowerCase().includes(q))
+      );
+    }
+
+    setSearchResults(filtered);
+    
+    // Rola suavemente para a secção de resultados
+    setTimeout(() => {
+      document.getElementById('area-resultados')?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
+  };
+
+  const clearSearch = () => {
+    setSearchFilter({ transaction: 'Todos', type: 'Todos', query: '' });
+    setSearchResults(null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Função rápida para os botões do Menu e "Ver mais"
+  const triggerCategorySearch = (transaction: string) => {
+    setSearchFilter({ transaction, type: 'Todos', query: '' });
+    
+    let filtered = allProperties;
+    if (transaction === 'Locação') {
+      filtered = filtered.filter(p => p.transaction === 'Locação' || p.transaction === 'Aluguel' || p.transaction?.includes('Locação') || p.transaction?.includes('Aluguel'));
+    } else if (transaction === 'Venda') {
+      filtered = filtered.filter(p => p.transaction === 'Venda' || p.transaction?.includes('Venda'));
+    }
+    
+    setSearchResults(filtered);
+    window.scrollTo({ top: 450, behavior: 'smooth' });
+  };
+
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
   };
 
-  // Componente de Card de Imóvel (Para reutilizar nas duas listas)
+  // ==========================================
+  // COMPONENTE CARD DE IMÓVEL
+  // ==========================================
   const PropertyCard = ({ prop }: { prop: any }) => (
     <Link href={`/loja/${slug}/imovel/${prop.id}`} className="group block">
       <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100 hover:shadow-xl transition-all duration-300 flex flex-col h-full">
@@ -79,7 +149,6 @@ export default function VitrineLojaPage(props: { params: Promise<{ slug: string 
             <div>
               <p className="text-lg font-extrabold text-slate-900">
                 {formatCurrency(prop.price)}
-                {/* CORREÇÃO AQUI TAMBÉM */}
                 {(prop.transaction === 'Locação' || prop.transaction === 'Aluguel') && <span className="text-xs font-normal text-slate-500"> / mês</span>}
               </p>
             </div>
@@ -104,18 +173,18 @@ export default function VitrineLojaPage(props: { params: Promise<{ slug: string 
       {/* 1. CABEÇALHO */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 h-20 flex items-center justify-between">
-          <Link href={`/loja/${slug}`}>
+          <button onClick={clearSearch} className="focus:outline-none">
             {storeData.logoUrl ? (
               <img src={storeData.logoUrl} alt={storeData.tradeName} className="h-12 object-contain" />
             ) : (
               <h1 className="text-2xl font-black text-slate-900 tracking-tight">{storeData.tradeName}</h1>
             )}
-          </Link>
+          </button>
 
           <nav className="hidden md:flex items-center gap-8 text-sm font-semibold text-slate-600">
-            <Link href={`/loja/${slug}`} className="text-blue-600">Início</Link>
-            <a href="#locacao" className="hover:text-blue-600 transition-colors">Locação</a>
-            <a href="#venda" className="hover:text-blue-600 transition-colors">Venda</a>
+            <button onClick={clearSearch} className={`${searchResults === null ? 'text-blue-600' : 'hover:text-blue-600 transition-colors'}`}>Início</button>
+            <button onClick={() => triggerCategorySearch('Locação')} className="hover:text-blue-600 transition-colors">Locação</button>
+            <button onClick={() => triggerCategorySearch('Venda')} className="hover:text-blue-600 transition-colors">Venda</button>
             <Link href={`/loja/${slug}/sobre`} className="hover:text-blue-600 transition-colors">Sobre Nós</Link>
             <Link href={`/loja/${slug}/corretores`} className="hover:text-blue-600 transition-colors">Corretores</Link>
           </nav>
@@ -167,56 +236,97 @@ export default function VitrineLojaPage(props: { params: Promise<{ slug: string 
               <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Localização</label>
               <div className="relative">
                 <Search size={18} className="absolute left-0 top-1 text-slate-400" />
-                <input type="text" placeholder="Digite cidade ou bairro..." className="w-full pl-7 border-b-2 border-slate-200 pb-2 text-slate-800 font-medium outline-none focus:border-blue-600 bg-transparent" />
+                <input 
+                  type="text" 
+                  value={searchFilter.query}
+                  onChange={e => setSearchFilter({...searchFilter, query: e.target.value})}
+                  onKeyDown={e => e.key === 'Enter' && handleSearch()}
+                  placeholder="Digite cidade, bairro ou título..." 
+                  className="w-full pl-7 border-b-2 border-slate-200 pb-2 text-slate-800 font-medium outline-none focus:border-blue-600 bg-transparent" 
+                />
               </div>
             </div>
-            <button className="w-full md:w-auto bg-yellow-400 hover:bg-yellow-500 text-slate-900 font-bold px-8 py-3 rounded-xl transition-colors whitespace-nowrap shadow-md">
+            <button onClick={handleSearch} className="w-full md:w-auto bg-yellow-400 hover:bg-yellow-500 text-slate-900 font-bold px-8 py-3 rounded-xl transition-colors whitespace-nowrap shadow-md">
               BUSCAR IMÓVEIS
             </button>
           </div>
         </div>
       </section>
 
-      <main className="max-w-7xl mx-auto px-4 py-16 space-y-20">
+      <main id="area-resultados" className="max-w-7xl mx-auto px-4 py-16 space-y-20">
         
-        {/* 3. SECÇÃO DE LOCAÇÃO */}
-        {propertiesRent.length > 0 && (
-          <section id="locacao">
-            <div className="text-center mb-10">
-              <h2 className="text-3xl font-bold text-slate-800">Imóveis mais visualizados para Locação</h2>
-              <div className="w-24 h-1 bg-blue-600 mx-auto mt-4 rounded-full"></div>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-              {propertiesRent.slice(0, 8).map(prop => <PropertyCard key={prop.id} prop={prop} />)}
-            </div>
-            {propertiesRent.length > 8 && (
-              <div className="text-center mt-10">
-                <button className="border-2 border-slate-800 text-slate-800 font-bold px-8 py-3 rounded-full hover:bg-slate-800 hover:text-white transition-colors">
-                  Ver mais imóveis para alugar
-                </button>
+        {/* LÓGICA DE EXIBIÇÃO: Se estiver a pesquisar, mostra os resultados. Senão, mostra a Home normal. */}
+        {searchResults !== null ? (
+          <section className="animate-in fade-in duration-500">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 gap-4">
+              <div>
+                <h2 className="text-3xl font-bold text-slate-800">
+                  {searchFilter.transaction === 'Locação' ? 'Imóveis para Locação' : searchFilter.transaction === 'Venda' ? 'Imóveis à Venda' : 'Resultados da Busca'}
+                </h2>
+                <p className="text-slate-500 mt-2">Encontrámos {searchResults.length} imóveis para você.</p>
               </div>
-            )}
-          </section>
-        )}
+              <button onClick={clearSearch} className="text-sm font-bold text-slate-500 hover:text-slate-800 underline">
+                Limpar Busca / Voltar à Início
+              </button>
+            </div>
 
-        {/* 4. SECÇÃO DE VENDA */}
-        {propertiesSale.length > 0 && (
-          <section id="venda">
-            <div className="text-center mb-10">
-              <h2 className="text-3xl font-bold text-slate-800">Imóveis mais visualizados para Venda</h2>
-              <div className="w-24 h-1 bg-blue-600 mx-auto mt-4 rounded-full"></div>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-              {propertiesSale.slice(0, 8).map(prop => <PropertyCard key={prop.id} prop={prop} />)}
-            </div>
-            {propertiesSale.length > 8 && (
-              <div className="text-center mt-10">
-                <button className="border-2 border-slate-800 text-slate-800 font-bold px-8 py-3 rounded-full hover:bg-slate-800 hover:text-white transition-colors">
-                  Ver mais imóveis à venda
+            {searchResults.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                {searchResults.map(prop => <PropertyCard key={prop.id} prop={prop} />)}
+              </div>
+            ) : (
+              <div className="text-center py-20 bg-white rounded-2xl border border-slate-200">
+                <Search size={48} className="mx-auto text-slate-300 mb-4" />
+                <h3 className="text-xl font-bold text-slate-700">Nenhum imóvel encontrado</h3>
+                <p className="text-slate-500 mt-2">Tente ajustar os filtros de busca para ver mais opções.</p>
+                <button onClick={clearSearch} className="mt-6 bg-blue-50 text-blue-600 font-bold px-6 py-2.5 rounded-lg hover:bg-blue-100 transition-colors">
+                  Ver todos os imóveis
                 </button>
               </div>
             )}
           </section>
+        ) : (
+          <>
+            {/* 3. SECÇÃO DE LOCAÇÃO (HOME) */}
+            {propertiesRent.length > 0 && (
+              <section id="locacao">
+                <div className="text-center mb-10">
+                  <h2 className="text-3xl font-bold text-slate-800">Imóveis mais visualizados para Locação</h2>
+                  <div className="w-24 h-1 bg-blue-600 mx-auto mt-4 rounded-full"></div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                  {propertiesRent.slice(0, 8).map(prop => <PropertyCard key={prop.id} prop={prop} />)}
+                </div>
+                {propertiesRent.length > 8 && (
+                  <div className="text-center mt-10">
+                    <button onClick={() => triggerCategorySearch('Locação')} className="border-2 border-slate-800 text-slate-800 font-bold px-8 py-3 rounded-full hover:bg-slate-800 hover:text-white transition-colors">
+                      Ver mais imóveis para alugar
+                    </button>
+                  </div>
+                )}
+              </section>
+            )}
+
+            {/* 4. SECÇÃO DE VENDA (HOME) */}
+            {propertiesSale.length > 0 && (
+              <section id="venda">
+                <div className="text-center mb-10">
+                  <h2 className="text-3xl font-bold text-slate-800">Imóveis mais visualizados para Venda</h2>
+                  <div className="w-24 h-1 bg-blue-600 mx-auto mt-4 rounded-full"></div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                  {propertiesSale.slice(0, 8).map(prop => <PropertyCard key={prop.id} prop={prop} />)}
+                </div>
+                {propertiesSale.length > 8 && (
+                  <div className="text-center mt-10">
+                    <button onClick={() => triggerCategorySearch('Venda')} className="border-2 border-slate-800 text-slate-800 font-bold px-8 py-3 rounded-full hover:bg-slate-800 hover:text-white transition-colors">
+                      Ver mais imóveis à venda
+                    </button>
+                  </div>
+                )}
+              </section>
+            )}
+          </>
         )}
 
       </main>
@@ -264,9 +374,9 @@ export default function VitrineLojaPage(props: { params: Promise<{ slug: string 
           <div>
             <h4 className="text-white font-bold mb-6 uppercase tracking-wider text-sm">Navegação</h4>
             <ul className="space-y-3 text-sm">
-              <li><Link href={`/loja/${slug}`} className="hover:text-white transition-colors">Home</Link></li>
-              <li><a href="#locacao" className="hover:text-white transition-colors">Imóveis para Locação</a></li>
-              <li><a href="#venda" className="hover:text-white transition-colors">Imóveis à Venda</a></li>
+              <li><button onClick={clearSearch} className="hover:text-white transition-colors">Home</button></li>
+              <li><button onClick={() => triggerCategorySearch('Locação')} className="hover:text-white transition-colors">Imóveis para Locação</button></li>
+              <li><button onClick={() => triggerCategorySearch('Venda')} className="hover:text-white transition-colors">Imóveis à Venda</button></li>
               <li><Link href={`/loja/${slug}/sobre`} className="hover:text-white transition-colors">Quem Somos</Link></li>
               <li><Link href={`/loja/${slug}/corretores`} className="hover:text-white transition-colors">Nossa Equipe</Link></li>
             </ul>
