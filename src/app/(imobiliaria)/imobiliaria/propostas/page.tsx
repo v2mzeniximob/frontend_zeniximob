@@ -4,16 +4,16 @@ import { useState, useEffect } from 'react';
 import { api } from '../../../../lib/api';
 import { 
   FileSignature, Key, Plus, X, Loader2, CheckCircle, 
-  XCircle, Home, User, Link as LinkIcon, Briefcase, FileDown
+  XCircle, Home, User, Link as LinkIcon, Briefcase, FileDown,
+  Edit, Trash2 // <-- Novos ícones importados
 } from 'lucide-react';
 
 export default function PropostasPage() {
   const [activeTab, setActiveTab] = useState<'propostas' | 'termos'>('propostas');
   const [proposals, setProposals] = useState<any[]>([]);
   const [keyTerms, setKeyTerms] = useState<any[]>([]);
-  const [storeData, setStoreData] = useState<any>(null); // Guardar as configs da loja (Templates)
+  const [storeData, setStoreData] = useState<any>(null); 
   
-  // Opções para o formulário
   const [properties, setProperties] = useState<any[]>([]);
   const [clients, setClients] = useState<any[]>([]);
   const [brokers, setBrokers] = useState<any[]>([]);
@@ -22,8 +22,11 @@ export default function PropostasPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
+  // Novo estado para saber se estamos a editar um registo existente
+  const [editingId, setEditingId] = useState<string | null>(null);
+
   const [form, setForm] = useState({
-    type: 'Venda', // Locação ou Venda
+    type: 'Venda',
     propertyId: '',
     clientId: '',
     brokerId: '',
@@ -43,7 +46,7 @@ export default function PropostasPage() {
         api.get('/properties').catch(() => ({ data: [] })),
         api.get('/clients').catch(() => ({ data: [] })),
         api.get('/brokers').catch(() => ({ data: [] })),
-        api.get('/my-store').catch(() => ({ data: {} })) // Traz os templates
+        api.get('/my-store').catch(() => ({ data: {} })) 
       ]);
       setProposals(resProp.data);
       setKeyTerms(resTerm.data);
@@ -58,8 +61,20 @@ export default function PropostasPage() {
     }
   };
 
-  const handleOpenModal = () => {
-    setForm({ type: 'Venda', propertyId: '', clientId: '', brokerId: '', documentUrl: '' });
+  const handleOpenModal = (item: any = null) => {
+    if (item) {
+      setEditingId(item.id);
+      setForm({
+        type: item.type,
+        propertyId: item.propertyId,
+        clientId: item.clientId,
+        brokerId: item.brokerId || '',
+        documentUrl: item.documentUrl || ''
+      });
+    } else {
+      setEditingId(null);
+      setForm({ type: 'Venda', propertyId: '', clientId: '', brokerId: '', documentUrl: '' });
+    }
     setIsModalOpen(true);
   };
 
@@ -67,17 +82,30 @@ export default function PropostasPage() {
     e.preventDefault();
     setIsSaving(true);
     try {
-      if (activeTab === 'propostas') {
-        await api.post('/proposals', form);
+      const endpoint = activeTab === 'propostas' ? 'proposals' : 'key-terms';
+      
+      if (editingId) {
+        await api.put(`/${endpoint}/${editingId}`, form);
       } else {
-        await api.post('/key-terms', form);
+        await api.post(`/${endpoint}`, form);
       }
+      
       setIsModalOpen(false);
       fetchData();
     } catch (error) {
-      alert('Erro ao salvar.');
+      alert('Erro ao salvar o registo.');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleDelete = async (id: string, endpoint: string) => {
+    if (!confirm('Deseja realmente excluir este registo? Esta ação não pode ser desfeita.')) return;
+    try {
+      await api.delete(`/${endpoint}/${id}`);
+      fetchData();
+    } catch (error) {
+      alert('Erro ao excluir registo.');
     }
   };
 
@@ -91,9 +119,6 @@ export default function PropostasPage() {
     }
   };
 
-  // =========================================================
-  // MOTOR DE GERAÇÃO DE PDF (PROPOSTAS E TERMOS)
-  // =========================================================
   const handleGeneratePDF = () => {
     if (!form.clientId || !form.propertyId) {
       alert("Por favor, selecione um Cliente e um Imóvel antes de gerar o PDF.");
@@ -121,7 +146,6 @@ export default function PropostasPage() {
       return;
     }
 
-    // Procura os dados reais nas listas
     const clientData = clients.find(c => c.id === form.clientId);
     const propertyData = properties.find(p => p.id === form.propertyId);
 
@@ -137,7 +161,6 @@ export default function PropostasPage() {
     const clienteNome = clientData.clientType === 'PJ' ? clientData.corporateName : clientData.name;
     const endereco = propertyData.neighborhood ? `${propertyData.address} - ${propertyData.neighborhood}, ${propertyData.city}` : propertyData.address;
 
-    // Substituição das Tags Mágicas
     let html = template
       .replace(/{{NOME_CLIENTE}}/g, clienteNome || '_________________________')
       .replace(/{{CPF_CLIENTE}}/g, clientData.document || '_________________________')
@@ -146,7 +169,9 @@ export default function PropostasPage() {
       .replace(/{{EMAIL}}/g, clientData.email || '_________________________')
       .replace(/{{ENDERECO_IMOVEL}}/g, endereco || '_________________________')
       .replace(/{{VALOR}}/g, formatCurrency(propertyData.price) || '_________________________')
-      .replace(/{{NOME_IMOBILIARIA}}/g, storeData?.tradeName || 'Imobiliária');
+      .replace(/{{NOME_IMOBILIARIA}}/g, storeData?.tradeName || 'Imobiliária')
+      .replace(/{{ESCOLARIDADE}}/g, clientData.educationLevel || 'Não informada')
+      .replace(/{{LINK_DRIVE}}/g, clientData.financingDriveLink || 'Nenhum link anexado');
 
     const printWindow = window.open('', '_blank');
     if (printWindow) {
@@ -182,7 +207,7 @@ export default function PropostasPage() {
           </h1>
           <p className="text-slate-500 mt-2 text-sm">Gira as propostas de negociação e a entrega de chaves (obrigatório para gerar contrato).</p>
         </div>
-        <button onClick={handleOpenModal} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-semibold flex items-center gap-2 transition-all shadow-sm">
+        <button onClick={() => handleOpenModal()} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-semibold flex items-center gap-2 transition-all shadow-sm">
           <Plus size={18} /> {activeTab === 'propostas' ? 'Nova Proposta' : 'Novo Termo de Chaves'}
         </button>
       </div>
@@ -243,12 +268,16 @@ export default function PropostasPage() {
                      </span>
                    </td>
                    <td className="p-4 text-right">
-                     {p.status === 'Pendente' && (
-                       <div className="flex justify-end gap-2">
-                         <button onClick={() => updateStatus(p.id, 'Aceita', 'proposals')} className="p-2 text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors border border-emerald-100" title="Aprovar"><CheckCircle size={16}/></button>
-                         <button onClick={() => updateStatus(p.id, 'Recusada', 'proposals')} className="p-2 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors border border-red-100" title="Recusar"><XCircle size={16}/></button>
-                       </div>
-                     )}
+                     <div className="flex items-center justify-end gap-1">
+                       {p.status === 'Pendente' && (
+                         <>
+                           <button onClick={() => updateStatus(p.id, 'Aceita', 'proposals')} className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors border border-transparent" title="Aprovar"><CheckCircle size={16}/></button>
+                           <button onClick={() => updateStatus(p.id, 'Recusada', 'proposals')} className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-transparent" title="Recusar"><XCircle size={16}/></button>
+                         </>
+                       )}
+                       <button onClick={() => handleOpenModal(p)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Editar Proposta"><Edit size={16}/></button>
+                       <button onClick={() => handleDelete(p.id, 'proposals')} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Excluir"><Trash2 size={16}/></button>
+                     </div>
                    </td>
                  </tr>
                ))
@@ -295,11 +324,15 @@ export default function PropostasPage() {
                      </span>
                    </td>
                    <td className="p-4 text-right">
-                     {t.status === 'Pendente' && (
-                       <button onClick={() => updateStatus(t.id, 'Assinado', 'key-terms')} className="px-3 py-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors border border-emerald-100">
-                         Marcar como Assinado
-                       </button>
-                     )}
+                     <div className="flex items-center justify-end gap-1">
+                       {t.status === 'Pendente' && (
+                         <button onClick={() => updateStatus(t.id, 'Assinado', 'key-terms')} className="px-3 py-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors border border-emerald-100 mr-2">
+                           Assinar
+                         </button>
+                       )}
+                       <button onClick={() => handleOpenModal(t)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-transparent" title="Editar Termo"><Edit size={16}/></button>
+                       <button onClick={() => handleDelete(t.id, 'key-terms')} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-transparent" title="Excluir"><Trash2 size={16}/></button>
+                     </div>
                    </td>
                  </tr>
                ))
@@ -309,13 +342,16 @@ export default function PropostasPage() {
         </div>
       )}
 
-      {/* MODAL CADASTRAR */}
+      {/* MODAL CADASTRAR/EDITAR */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-              <h2 className="text-xl font-bold text-slate-800">
-                {activeTab === 'propostas' ? 'Registar Nova Proposta' : 'Registar Termo de Chaves'}
+              <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                {editingId ? <Edit className="text-blue-600" size={24}/> : <Plus className="text-blue-600" size={24}/>}
+                {editingId 
+                  ? (activeTab === 'propostas' ? 'Editar Proposta' : 'Editar Termo') 
+                  : (activeTab === 'propostas' ? 'Registar Nova Proposta' : 'Registar Termo')}
               </h2>
               <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:bg-slate-200 p-2 rounded-lg transition-colors"><X size={20}/></button>
             </div>
@@ -363,13 +399,13 @@ export default function PropostasPage() {
                 </div>
 
                 <div className="border-t border-slate-200 pt-4 mt-2">
-                  <p className="text-xs text-slate-500 mb-2 font-medium">Ainda não gerou o documento para assinatura?</p>
+                  <p className="text-xs text-slate-500 mb-2 font-medium">Precisa gerar o documento em PDF?</p>
                   <button 
                     type="button" 
                     onClick={handleGeneratePDF}
                     className="w-full md:w-auto px-4 py-2.5 text-xs font-bold text-emerald-700 bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 rounded-lg flex items-center justify-center gap-2 transition-colors"
                   >
-                    <FileDown size={16}/> Gerar e Baixar PDF ({activeTab === 'propostas' ? `Proposta de ${form.type}` : 'Termo de Chaves'})
+                    <FileDown size={16}/> Imprimir / Salvar PDF ({activeTab === 'propostas' ? `Proposta de ${form.type}` : 'Termo de Chaves'})
                   </button>
                 </div>
               </div>
@@ -377,7 +413,7 @@ export default function PropostasPage() {
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-5 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-200 rounded-xl transition-colors">Cancelar</button>
                 <button type="submit" disabled={isSaving} className="px-6 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all flex items-center gap-2">
-                  {isSaving ? <Loader2 size={16} className="animate-spin" /> : <FileSignature size={16}/>} Salvar Registo
+                  {isSaving ? <Loader2 size={16} className="animate-spin" /> : <FileSignature size={16}/>} {editingId ? 'Salvar Alterações' : 'Salvar Registo'}
                 </button>
               </div>
             </form>
