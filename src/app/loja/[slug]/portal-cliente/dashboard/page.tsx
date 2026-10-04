@@ -1,16 +1,19 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { api } from '../../../../lib/api';
+import { useRouter, useParams } from 'next/navigation';
+
 import { 
   LogOut, Home, FileText, Wrench, DollarSign, AlertCircle, 
   CheckCircle, Clock, Plus, Building, User, FileDown, Loader2, X,
   MapPin
 } from 'lucide-react';
+import { api } from '@/src/lib/api';
 
 export default function PortalDashboardPage() {
   const router = useRouter();
+  const params = useParams();
+  const slug = params.slug as string; // <-- Pegamos o slug
   
   const [user, setUser] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -33,12 +36,11 @@ export default function PortalDashboardPage() {
   });
 
   useEffect(() => {
-    // Verifica se o usuário está logado no portal
     const token = localStorage.getItem('@ZenixPortal:token');
     const userData = localStorage.getItem('@ZenixPortal:user');
 
     if (!token || !userData) {
-      router.push('/portal-cliente/login');
+      router.push(`/loja/${slug}/portal-cliente/login`); // <-- Redireciona para o login da loja certa!
       return;
     }
 
@@ -52,16 +54,13 @@ export default function PortalDashboardPage() {
     setIsLoading(true);
     try {
       const response = await api.get('/portal/dashboard');
-      
       if (response.data.contracts) setContracts(response.data.contracts);
       if (response.data.tickets) setTickets(response.data.tickets);
       if (response.data.properties) setProperties(response.data.properties);
 
-      // Preenche o propertyId automático se o inquilino for abrir um ticket e tiver só 1 contrato
       if (response.data.contracts && response.data.contracts.length === 1) {
         setTicketForm(prev => ({ ...prev, propertyId: response.data.contracts[0].propertyId }));
       }
-
     } catch (error) {
       console.error('Erro ao buscar dados do portal', error);
     } finally {
@@ -72,7 +71,7 @@ export default function PortalDashboardPage() {
   const handleLogout = () => {
     localStorage.removeItem('@ZenixPortal:token');
     localStorage.removeItem('@ZenixPortal:user');
-    router.push('/portal-cliente/login');
+    router.push(`/loja/${slug}/portal-cliente/login`); 
   };
 
   const formatCurrency = (value: number) => {
