@@ -17,7 +17,8 @@ import {
   Calendar,
   Camera,
   Briefcase,
-  FileSignature // NOVO ICONE
+  FileSignature,
+  Wrench // <-- NOVO ÍCONE IMPORTADO AQUI
 } from 'lucide-react';
 import { destroyCookie } from 'nookies';
 
@@ -31,13 +32,14 @@ export function RealEstateSidebar() {
     { name: 'Imóveis', icon: Home, path: '/imobiliaria/imoveis' },
     { name: 'Clientes (CRM)', icon: UserCircle, path: '/imobiliaria/clientes' },
     { name: 'Leads (CRM)', icon: Briefcase, path: '/imobiliaria/leads' },
-    { name: 'Propostas e Termos', icon: FileSignature, path: '/imobiliaria/propostas' }, // NOVA TELA
+    { name: 'Propostas e Termos', icon: FileSignature, path: '/imobiliaria/propostas' },
     { name: 'Visitas', icon: Calendar, path: '/imobiliaria/visitas' },
     { name: 'Proprietários', icon: UserCircle, path: '/imobiliaria/proprietarios' },
     { name: 'Inquilinos', icon: Users, path: '/imobiliaria/inquilinos' },
     { name: 'Contratos', icon: Key, path: '/imobiliaria/contratos'},
     { name: 'Financeiro', icon: DollarSign, path: '/imobiliaria/financeiro' },
     { name: 'Vistorias', icon: Camera, path: '/imobiliaria/vistorias' },
+    { name: 'Manutenção', icon: Wrench, path: '/imobiliaria/manutencao' }, // <-- NOVO LINK ADICIONADO AQUI
     { name: 'Corretores', icon: Users, path: '/imobiliaria/corretores' },
     { name: 'Configurações', icon: Settings, path: '/imobiliaria/configuracoes' },
   ];
