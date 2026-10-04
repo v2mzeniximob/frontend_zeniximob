@@ -39,7 +39,7 @@ export function RealEstateSidebar() {
     { name: 'Contratos', icon: Key, path: '/imobiliaria/contratos'},
     { name: 'Financeiro', icon: DollarSign, path: '/imobiliaria/financeiro' },
     { name: 'Vistorias', icon: Camera, path: '/imobiliaria/vistorias' },
-    { name: 'Manutenção', icon: Wrench, path: '/imobiliaria/manutencao' }, // <-- NOVO LINK ADICIONADO AQUI
+    { name: 'Chamados de Manutenção', icon: Wrench, path: '/imobiliaria/manutencao' },
     { name: 'Corretores', icon: Users, path: '/imobiliaria/corretores' },
     { name: 'Configurações', icon: Settings, path: '/imobiliaria/configuracoes' },
   ];
