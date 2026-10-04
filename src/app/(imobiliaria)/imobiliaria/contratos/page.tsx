@@ -1,21 +1,23 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { api } from '../../../../lib/api';
+import { api } from '@/src/lib/api';
 import { 
   FileSignature, Plus, Search, Loader2, Home, User, Link as LinkIcon, 
   FileDown, AlertCircle, X, CheckSquare, Trash2, Calendar, DollarSign, Key
 } from 'lucide-react';
 
 const initialForm = {
-  type: 'Locação', // 'Locação' ou 'Venda'
+  type: 'Locação',
   propertyId: '',
   tenantId: '',
   startDate: '',
   endDate: '',
   rentValue: '',
   adminFeePercent: '',
-  documentUrl: ''
+  documentUrl: '',
+  depositValue: '', // NOVO CAMPO: CAUÇÃO
+  depositDate: ''   // NOVO CAMPO: DATA CAUÇÃO
 };
 
 export default function ContratosPage() {
@@ -45,7 +47,6 @@ export default function ContratosPage() {
         api.get('/my-store').catch(() => ({ data: {} }))
       ]);
       setContracts(resContracts.data);
-      // Filtramos apenas imóveis vagos/disponíveis
       setProperties(resProps.data.filter((p: any) => p.rentStatus === 'Vago' || p.rentStatus === 'Disponível'));
       setClients(resClients.data);
       setStoreData(resStore.data);
@@ -86,9 +87,6 @@ export default function ContratosPage() {
     }
   };
 
-  // =========================================================
-  // GERAÇÃO DO PDF DE CONTRATO
-  // =========================================================
   const handleGeneratePDF = () => {
     if (!formData.tenantId || !formData.propertyId) {
       alert("Por favor, selecione um Imóvel e um Cliente antes de gerar o PDF.");
@@ -116,7 +114,7 @@ export default function ContratosPage() {
     };
 
     const clienteNome = clientData.clientType === 'PJ' ? clientData.corporateName : clientData.name;
-    const endereco = propertyData.neighborhood ? `${propertyData.address} - ${propertyData.neighborhood}, ${propertyData.city}` : propertyData.address;
+    const endereco = propertyData.neighborhood ? `${propertyData.address}, ${propertyData.neighborhood}, ${propertyData.city}` : propertyData.address;
 
     let html = template
       .replace(/{{NOME_CLIENTE}}/g, clienteNome || '_________________________')
@@ -239,16 +237,16 @@ export default function ContratosPage() {
       {/* MODAL EMISSÃO DE CONTRATO */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
             
-            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
               <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
                 <FileSignature className="text-blue-600" size={24}/> Emissão de Contrato
               </h2>
               <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:bg-slate-200 p-2 rounded-lg transition-colors"><X size={20}/></button>
             </div>
             
-            <form onSubmit={handleSubmit} className="p-6 space-y-6">
+            <form onSubmit={handleSubmit} className="p-6 space-y-6 overflow-y-auto flex-1">
               
               {/* TIPO DE CONTRATO */}
               <div className="flex gap-4">
@@ -297,7 +295,7 @@ export default function ContratosPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-4 mb-4">
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1">Valor {formData.type === 'Venda' ? 'Total (R$)' : 'Mensal do Aluguel (R$)'} *</label>
                     <input required type="number" step="0.01" value={formData.rentValue} onChange={e => setFormData({...formData, rentValue: e.target.value})} placeholder="0.00" className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white" />
@@ -307,20 +305,30 @@ export default function ContratosPage() {
                     <input type="number" step="0.1" value={formData.adminFeePercent} onChange={e => setFormData({...formData, adminFeePercent: e.target.value})} placeholder="Ex: 10" className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white" />
                   </div>
                 </div>
+
+                {/* NOVO BLOCO: CAUÇÃO */}
+                {formData.type === 'Locação' && (
+                  <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">Valor do Caução (R$) (Opcional)</label>
+                      <input type="number" step="0.01" value={formData.depositValue} onChange={e => setFormData({...formData, depositValue: e.target.value})} placeholder="0.00" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">Vencimento do Caução</label>
+                      <input type="date" value={formData.depositDate} onChange={e => setFormData({...formData, depositDate: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white" />
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* LINK DO CONTRATO + BOTÃO DE PDF */}
               <div className="bg-slate-50 p-5 rounded-xl border border-slate-200">
-                <label className="block text-sm font-bold text-slate-700 mb-1">Link do Contrato Assinado (PDF / Google Drive)</label>
+                <label className="block text-sm font-bold text-slate-700 mb-1">Link do Contrato Assinado (PDF / Drive)</label>
                 <input type="url" value={formData.documentUrl} onChange={e => setFormData({...formData, documentUrl: e.target.value})} placeholder="https://..." className="w-full px-4 py-2.5 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white mb-4" />
                 
                 <div className="border-t border-slate-200 pt-4 flex flex-col md:flex-row justify-between items-center gap-4">
                   <p className="text-xs text-slate-500 font-medium">Ainda não gerou o documento?</p>
-                  <button 
-                    type="button" 
-                    onClick={handleGeneratePDF}
-                    className="w-full md:w-auto px-4 py-2.5 text-xs font-bold text-indigo-700 bg-indigo-100 hover:bg-indigo-200 border border-indigo-300 rounded-lg flex items-center justify-center gap-2 transition-colors shadow-sm"
-                  >
+                  <button type="button" onClick={handleGeneratePDF} className="w-full md:w-auto px-4 py-2.5 text-xs font-bold text-indigo-700 bg-indigo-100 hover:bg-indigo-200 border border-indigo-300 rounded-lg flex items-center justify-center gap-2 transition-colors shadow-sm">
                     <FileDown size={16}/> Gerar e Imprimir Contrato (PDF)
                   </button>
                 </div>
@@ -334,12 +342,12 @@ export default function ContratosPage() {
                   <ol className="list-decimal pl-4 space-y-1 text-xs font-medium text-amber-700">
                     <li>Mudar o status do imóvel para <strong>{formData.type === 'Venda' ? 'Vendido' : 'Alugado'}</strong>.</li>
                     <li>Mudar o perfil do cliente para <strong>{formData.type === 'Venda' ? 'Comprador' : 'Inquilino'}</strong>.</li>
-                    <li>Gerar as faturas/parcelas financeiras para o período selecionado.</li>
+                    <li>Gerar as faturas financeiras {formData.depositValue ? '(incluindo Caução)' : ''}.</li>
                   </ol>
                 </div>
               </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 shrink-0">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-5 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-200 rounded-xl transition-colors">Cancelar</button>
                 <button type="submit" disabled={isSaving} className="px-6 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all flex items-center gap-2">
                   {isSaving ? <Loader2 size={16} className="animate-spin" /> : <CheckSquare size={16}/>} Confirmar & Gerar Faturas
