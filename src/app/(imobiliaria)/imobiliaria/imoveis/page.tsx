@@ -2,7 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { api } from '../../../../lib/api';
-import { Plus, Edit, X, CheckCircle2, XCircle, Loader2, Home, MapPin, DollarSign, Camera, User, UserCheck, FileSignature, Key } from 'lucide-react';
+import { 
+  Plus, Edit, X, CheckCircle2, XCircle, Loader2, Home, 
+  MapPin, DollarSign, Camera, User, UserCheck, FileSignature, 
+  Key, Sparkles, Rss, Link as LinkIcon, Share2
+} from 'lucide-react';
 
 // Lista padrão de características (pode adicionar mais se precisar)
 const AVAILABLE_AMENITIES = [
@@ -23,12 +27,14 @@ export default function ImoveisPage() {
   const [properties, setProperties] = useState<any[]>([]);
   const [brokers, setBrokers] = useState<any[]>([]);
   const [owners, setOwners] = useState<any[]>([]);
+  const [storeSlug, setStoreSlug] = useState<string>(''); // Para gerar o link do XML
   const [isLoading, setIsLoading] = useState(true);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [isFetchingCep, setIsFetchingCep] = useState(false); // NOVO ESTADO: Controle do Loading do CEP
+  const [isFetchingCep, setIsFetchingCep] = useState(false);
+  const [isGeneratingAi, setIsGeneratingAi] = useState(false); // Loading da IA
 
   // Estado inicial do formulário completo
   const [form, setForm] = useState({
@@ -38,6 +44,7 @@ export default function ImoveisPage() {
     cep: '', address: '', neighborhood: '', city: '', state: '',
     description: '', imageUrls: '', brokerId: '', ownerId: '', inspectionUrl: '',
     rentProposalUrl: '', saleProposalUrl: '', keyTermUrl: '',
+    exportToPortals: false, // NOVO CAMPO: Integração XML Portais
     amenities: [] as string[]
   });
 
@@ -48,14 +55,16 @@ export default function ImoveisPage() {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const [resProps, resBrokers, resOwners] = await Promise.all([
+      const [resProps, resBrokers, resOwners, resStore] = await Promise.all([
         api.get('/properties'),
         api.get('/brokers'),
-        api.get('/owners')
+        api.get('/owners'),
+        api.get('/my-store').catch(() => ({ data: {} }))
       ]);
       setProperties(resProps.data);
       setBrokers(resBrokers.data);
       setOwners(resOwners.data);
+      if(resStore.data.slug) setStoreSlug(resStore.data.slug);
     } catch (error) {
       console.error('Erro ao buscar dados:', error);
     } finally {
@@ -92,6 +101,7 @@ export default function ImoveisPage() {
         rentProposalUrl: property.rentProposalUrl || '',
         saleProposalUrl: property.saleProposalUrl || '',
         keyTermUrl: property.keyTermUrl || '',
+        exportToPortals: property.exportToPortals || false, // Carrega o status do XML
         amenities: property.amenities || []
       });
     } else {
@@ -102,6 +112,7 @@ export default function ImoveisPage() {
         cep: '', address: '', neighborhood: '', city: '', state: '',
         description: '', imageUrls: '', brokerId: '', ownerId: '', inspectionUrl: '',
         rentProposalUrl: '', saleProposalUrl: '', keyTermUrl: '',
+        exportToPortals: false,
         amenities: []
       });
     }
@@ -153,19 +164,17 @@ export default function ImoveisPage() {
     });
   };
 
-  // NOVA FUNÇÃO: Busca automática do CEP
   const handleCepChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const masked = maskCep(e.target.value);
     setForm({ ...form, cep: masked });
 
-    if (masked.length === 9) { // Ex: "00000-000"
+    if (masked.length === 9) {
       setIsFetchingCep(true);
       try {
         const rawCep = masked.replace(/\D/g, '');
         const response = await api.get(`/integrations/cep/${rawCep}`);
         const data = response.data;
         
-        // Atualiza o formulário preservando o que não foi alterado
         setForm(prev => ({
           ...prev,
           address: data.street || prev.address,
@@ -181,6 +190,54 @@ export default function ImoveisPage() {
     }
   };
 
+  // =========================================================
+  // GERAÇÃO DE DESCRIÇÃO COM INTELIGÊNCIA ARTIFICIAL
+  // =========================================================
+  const handleGenerateAiDescription = async () => {
+    // Validar se existem os dados mínimos
+    if (!form.type || !form.neighborhood || !form.price) {
+      alert('Preencha pelo menos o Tipo, Bairro e Valor antes de pedir à IA para gerar o texto.');
+      return;
+    }
+
+    setIsGeneratingAi(true);
+    try {
+      const response = await api.post('/ai/generate-description', {
+        type: form.type,
+        transaction: form.transaction,
+        neighborhood: form.neighborhood,
+        city: form.city,
+        bedrooms: form.bedrooms || '0',
+        suites: '0', // Poderia adicionar este campo no futuro
+        garage: form.garage || '0',
+        price: form.price,
+        features: form.amenities.join(', ')
+      });
+
+      // Substitui o texto atual pela obra-prima da IA
+      setForm(prev => ({ ...prev, description: response.data.description }));
+      alert('✨ Descrição gerada com sucesso! Você pode editá-la se preferir.');
+    } catch (error: any) {
+      alert(error.response?.data?.error || 'Erro ao contactar a Inteligência Artificial. Verifique a chave da OpenAI.');
+    } finally {
+      setIsGeneratingAi(false);
+    }
+  };
+
+  // =========================================================
+  // COPIAR LINK DO FEED XML
+  // =========================================================
+  const handleCopyXmlLink = () => {
+    if (!storeSlug) {
+      alert('Erro: O slug da sua loja não está configurado.');
+      return;
+    }
+    // Cria o link absoluto baseando-se na URL atual
+    const xmlUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3333'}/public/xml/${storeSlug}`;
+    navigator.clipboard.writeText(xmlUrl);
+    alert(`Link do Feed XML copiado!\n\nCole este link no painel do Zap Imóveis ou VivaReal:\n${xmlUrl}`);
+  };
+
   if (isLoading) return <div className="p-8 flex justify-center text-slate-500"><Loader2 className="animate-spin" /></div>;
 
   return (
@@ -191,11 +248,16 @@ export default function ImoveisPage() {
             <Home className="text-blue-600" size={32} />
             Catálogo de Imóveis
           </h1>
-          <p className="text-slate-500 mt-1">Gira os seus imóveis, os vínculos com proprietários e captações.</p>
+          <p className="text-slate-500 mt-1">Gira os seus imóveis, vínculos e integrações com portais.</p>
         </div>
-        <button onClick={() => handleOpenModal()} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-medium flex items-center gap-2 transition-colors shadow-sm">
-          <Plus size={18} /> Novo Imóvel
-        </button>
+        <div className="flex gap-3">
+          <button onClick={handleCopyXmlLink} className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2.5 rounded-lg font-bold flex items-center gap-2 transition-colors border border-slate-300">
+            <Rss size={18} className="text-orange-500"/> Link Feed XML (Portais)
+          </button>
+          <button onClick={() => handleOpenModal()} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-bold flex items-center gap-2 transition-colors shadow-sm">
+            <Plus size={18} /> Novo Imóvel
+          </button>
+        </div>
       </div>
 
       <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
@@ -205,7 +267,7 @@ export default function ImoveisPage() {
               <th className="py-4 px-6">Imóvel & Localização</th>
               <th className="py-4 px-6">Transação & Valor</th>
               <th className="py-4 px-6">Proprietário / Captação</th>
-              <th className="py-4 px-6">Status na Vitrine</th>
+              <th className="py-4 px-6">Status (Site & Portais)</th>
               <th className="py-4 px-6 text-right">Ações</th>
             </tr>
           </thead>
@@ -257,17 +319,23 @@ export default function ImoveisPage() {
                   )}
                 </td>
 
-                <td className="py-4 px-6">
-                  <button onClick={() => handleToggleStatus(prop.id)} className="focus:outline-none">
+                <td className="py-4 px-6 space-y-2">
+                  <button onClick={() => handleToggleStatus(prop.id)} className="focus:outline-none block">
                     {prop.isActive 
-                      ? <span className="bg-green-100 text-green-700 px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1 w-fit"><CheckCircle2 size={14}/> Visível (Ativo)</span>
-                      : <span className="bg-red-100 text-red-700 px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1 w-fit"><XCircle size={14}/> Oculto</span>
+                      ? <span className="bg-green-100 text-green-700 px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1 w-fit"><CheckCircle2 size={14}/> Site Oficial</span>
+                      : <span className="bg-red-100 text-red-700 px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1 w-fit"><XCircle size={14}/> Oculto Site</span>
                     }
                   </button>
+                  <div className="block">
+                    {prop.exportToPortals 
+                      ? <span className="bg-orange-100 text-orange-700 px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1 w-fit"><Rss size={14}/> Exporta XML</span>
+                      : <span className="bg-slate-100 text-slate-500 px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1 w-fit"><XCircle size={14}/> Não Exporta</span>
+                    }
+                  </div>
                 </td>
                 
                 <td className="py-4 px-6 text-right">
-                  <button onClick={() => handleOpenModal(prop)} className="text-blue-600 hover:text-blue-800 font-medium bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded-lg transition-colors flex items-center gap-2 ml-auto">
+                  <button onClick={() => handleOpenModal(prop)} className="text-blue-600 hover:text-blue-800 font-bold bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded-lg transition-colors flex items-center gap-2 ml-auto">
                     <Edit size={16} /> Editar
                   </button>
                 </td>
@@ -290,7 +358,16 @@ export default function ImoveisPage() {
                 {editingId ? <Edit className="text-blue-600" size={20}/> : <Plus className="text-blue-600" size={20}/>}
                 {editingId ? 'Editar Imóvel' : 'Cadastrar Novo Imóvel'}
               </h2>
-              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X size={24}/></button>
+              
+              {/* CHECKBOX XML NO CABEÇALHO DO MODAL */}
+              <div className="flex items-center gap-4">
+                <label className="flex items-center gap-2 cursor-pointer bg-orange-50 border border-orange-200 px-4 py-2 rounded-lg transition-colors hover:bg-orange-100">
+                  <input type="checkbox" checked={form.exportToPortals} onChange={(e) => setForm({...form, exportToPortals: e.target.checked})} className="w-4 h-4 text-orange-600 rounded border-orange-300 focus:ring-orange-500" />
+                  <Rss size={16} className="text-orange-600"/>
+                  <span className="text-sm font-bold text-orange-800">Exportar para Zap/VivaReal</span>
+                </label>
+                <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X size={24}/></button>
+              </div>
             </div>
             
             <div className="p-6 overflow-y-auto flex-1">
@@ -405,7 +482,7 @@ export default function ImoveisPage() {
                   </div>
                 </div>
 
-                {/* SECÇÃO 5: GESTÃO & CAPTAÇÃO (AGORA COM PROPOSTAS E TERMOS) */}
+                {/* SECÇÃO 5: GESTÃO & CAPTAÇÃO */}
                 <div className="bg-blue-50 p-6 rounded-xl border border-blue-100">
                   <h3 className="text-sm font-bold text-blue-800 uppercase tracking-wider mb-4 border-b border-blue-200 pb-2 flex items-center gap-2">
                     <UserCheck size={18}/> 5. Gestão, Captação & Documentos
@@ -460,14 +537,30 @@ export default function ImoveisPage() {
                   </div>
                 </div>
 
-                {/* SECÇÃO 6: MÍDIA & DESCRIÇÃO */}
+                {/* SECÇÃO 6: MÍDIA & DESCRIÇÃO COM IA */}
                 <div>
-                  <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">6. Apresentação na Vitrine</h3>
+                  <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2 flex items-center gap-2">
+                    6. Apresentação na Vitrine 
+                  </h3>
                   <div className="space-y-4">
+                    
                     <div>
-                      <label className="block text-xs font-bold text-slate-600 mb-1">Descrição</label>
-                      <textarea rows={4} value={form.description} onChange={e => setForm({...form, description: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm resize-none" placeholder="Descreva os detalhes do imóvel..." />
+                      <div className="flex justify-between items-end mb-2">
+                        <label className="block text-xs font-bold text-slate-600">Descrição Comercial</label>
+                        {/* BOTAO INTELIGÊNCIA ARTIFICIAL */}
+                        <button 
+                          type="button" 
+                          onClick={handleGenerateAiDescription}
+                          disabled={isGeneratingAi}
+                          className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2 rounded-lg flex items-center gap-2 transition-colors disabled:opacity-50"
+                        >
+                          {isGeneratingAi ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                          Gerar Texto com IA
+                        </button>
+                      </div>
+                      <textarea rows={6} value={form.description} onChange={e => setForm({...form, description: e.target.value})} className="w-full px-4 py-3 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm resize-y leading-relaxed bg-slate-50 focus:bg-white transition-colors" placeholder="Escreva à mão ou clique no botão acima para a Inteligência Artificial criar uma descrição persuasiva baseada nos dados..." />
                     </div>
+                    
                     <div>
                       <label className="block text-xs font-bold text-slate-600 mb-1">Links das Imagens (Separados por vírgula)</label>
                       <textarea rows={2} value={form.imageUrls} onChange={e => setForm({...form, imageUrls: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm resize-none" placeholder="https://linkdafoto1.com, https://linkdafoto2.com" />
