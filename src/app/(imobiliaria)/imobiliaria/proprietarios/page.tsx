@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { api } from '../../../../lib/api';
 import { 
   Plus, Search, Edit, Power, Loader2, Home, UserCircle, 
-  MapPin, Phone, Mail, CheckSquare, X, FileSignature, FolderOpen, FileDown, Landmark
+  MapPin, Phone, Mail, CheckSquare, X, FileSignature, FolderOpen, FileDown, Landmark, Key
 } from 'lucide-react';
 import { maskCpf, maskCnpj, maskPhone } from '@/src/utils/mask'; 
 
@@ -15,7 +15,8 @@ const initialForm = {
   phone: '',
   bankData: '',
   inspectionUrl: '',
-  managementContractUrl: ''
+  managementContractUrl: '',
+  password: '' // Novo campo de senha
 };
 
 export default function ProprietariosPage() {
@@ -55,6 +56,7 @@ export default function ProprietariosPage() {
       setFormData({
         ...initialForm,
         ...owner,
+        password: '', // Não carrega a senha original por segurança
         cpfOrCnpj: owner.cpfOrCnpj.length > 14 ? maskCnpj(owner.cpfOrCnpj) : maskCpf(owner.cpfOrCnpj),
         phone: maskPhone(owner.phone || ''),
       });
@@ -303,6 +305,30 @@ export default function ProprietariosPage() {
                   </div>
                 </section>
 
+                {/* ========================================================= */}
+                {/* NOVO MÓDULO: ACESSO AO PORTAL DO CLIENTE (PROPRIETÁRIO)   */}
+                {/* ========================================================= */}
+                <section className="bg-emerald-50 p-5 rounded-xl border border-emerald-200 animate-in fade-in slide-in-from-top-4">
+                  <h3 className="text-sm font-bold text-emerald-900 mb-4 flex items-center gap-2 border-b border-emerald-200 pb-2">
+                    <Key size={18}/> Acesso ao Portal do Proprietário
+                  </h3>
+                  <div className="md:w-1/2">
+                    <label className="block text-xs font-bold text-emerald-800 mb-1">
+                      Definir Senha de Acesso {editingId && '(Preencha apenas se quiser alterar)'}
+                    </label>
+                    <input 
+                      type="text" 
+                      value={formData.password} 
+                      onChange={(e) => setFormData({...formData, password: e.target.value})} 
+                      placeholder="Ex: minhaSenhaSegura" 
+                      className="w-full p-2.5 border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none bg-white text-sm" 
+                    />
+                    <p className="text-[11px] text-emerald-700 mt-2 font-medium">
+                      O proprietário fará login no Portal usando o CPF/CNPJ <b>{formData.cpfOrCnpj || 'cadastrado acima'}</b> e esta senha para acompanhar a gestão dos seus imóveis.
+                    </p>
+                  </div>
+                </section>
+
                 {/* DOCUMENTOS / VISTORIA / CONTRATO GESTÃO */}
                 <section className="bg-blue-50 p-5 rounded-xl border border-blue-200">
                   <h3 className="text-sm font-bold text-blue-900 mb-4 flex items-center gap-2">
@@ -310,7 +336,7 @@ export default function ProprietariosPage() {
                   </h3>
                   
                   <div className="grid grid-cols-1 gap-5">
-                    {/* NOVO CAMPO: VISTORIA / GOOGLE DRIVE */}
+                    {/* CAMPO: VISTORIA / GOOGLE DRIVE */}
                     <div>
                       <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">Link de Vistoria / Fotos dos Imóveis (Google Drive)</label>
                       <input type="url" value={formData.inspectionUrl} onChange={e => setFormData({...formData, inspectionUrl: e.target.value})} placeholder="https://drive.google.com/..." className="w-full px-4 py-2.5 border border-blue-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white" />

@@ -5,7 +5,7 @@ import { api } from '../../../../lib/api';
 import { 
   Users, Plus, Search, Edit, Power, User, Building, 
   MapPin, Phone, Mail, FileText, CheckSquare, X, Briefcase, Loader2,
-  ShieldCheck, Landmark, FolderOpen, FileDown
+  ShieldCheck, Landmark, FolderOpen, FileDown, Key // <-- Key adicionado
 } from 'lucide-react';
 import { maskCep, maskCnpj, maskCpf, maskPhone } from '@/src/utils/mask'; 
 
@@ -22,7 +22,10 @@ const initialForm = {
   // Financiamento
   educationLevel: '', financingDriveLink: '',
   
-  isTenant: false, isBuyer: false, documentUrl: '', brokerId: ''
+  isTenant: false, isBuyer: false, documentUrl: '', brokerId: '',
+  
+  // Acesso ao Portal (Nova Funcionalidade)
+  password: '' 
 };
 
 export default function ClientesPage() {
@@ -65,6 +68,7 @@ export default function ClientesPage() {
       setFormData({
         ...initialForm,
         ...client,
+        password: '', // Importante: não trazemos a senha por segurança
         document: client.clientType === 'PJ' ? maskCnpj(client.document) : maskCpf(client.document),
         phone: maskPhone(client.phone || ''),
         cep: maskCep(client.cep || ''),
@@ -399,6 +403,30 @@ export default function ClientesPage() {
                       <label className="block text-xs font-bold text-slate-600 mb-1">Estado (UF)</label>
                       <input type="text" value={formData.state} onChange={(e) => setFormData({...formData, state: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
                     </div>
+                  </div>
+                </section>
+
+                {/* ========================================================= */}
+                {/* NOVO MÓDULO: ACESSO AO PORTAL DO CLIENTE                  */}
+                {/* ========================================================= */}
+                <section className="bg-emerald-50 p-5 rounded-xl border border-emerald-200 animate-in fade-in slide-in-from-top-4">
+                  <h3 className="text-sm font-bold text-emerald-900 mb-4 flex items-center gap-2 border-b border-emerald-200 pb-2">
+                    <Key size={18}/> Acesso ao Portal do Cliente
+                  </h3>
+                  <div className="md:w-1/2">
+                    <label className="block text-xs font-bold text-emerald-800 mb-1">
+                      Definir Senha de Acesso {editingId && '(Preencha apenas se quiser alterar)'}
+                    </label>
+                    <input 
+                      type="text" 
+                      value={formData.password} 
+                      onChange={(e) => setFormData({...formData, password: e.target.value})} 
+                      placeholder="Ex: 123456" 
+                      className="w-full p-2.5 border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none bg-white text-sm" 
+                    />
+                    <p className="text-[11px] text-emerald-700 mt-2 font-medium">
+                      O cliente fará login no Portal usando o CPF/CNPJ <b>{formData.document || 'cadastrado acima'}</b> e esta senha. Através do portal, ele poderá ver boletos e manutenções.
+                    </p>
                   </div>
                 </section>
 
