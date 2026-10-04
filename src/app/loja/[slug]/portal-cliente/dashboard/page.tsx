@@ -5,8 +5,8 @@ import { useRouter, useParams } from 'next/navigation';
 
 import { 
   LogOut, Home, FileText, Wrench, DollarSign, AlertCircle, 
-  CheckCircle, Clock, Plus, Building, User, FileDown, Loader2, X,
-  MapPin
+  CheckCircle, Clock, Plus, Building, User, Loader2, X,
+  MapPin, MessageSquare, Send
 } from 'lucide-react';
 import { api } from '@/src/lib/api';
 
@@ -18,22 +18,23 @@ export default function PortalDashboardPage() {
   const [user, setUser] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   
-  // Dados do Inquilino
   const [contracts, setContracts] = useState<any[]>([]);
   const [tickets, setTickets] = useState<any[]>([]);
-  
-  // Dados do Proprietário
   const [properties, setProperties] = useState<any[]>([]);
 
-  // Controle de Abas
   const [activeTab, setActiveTab] = useState<'resumo' | 'boletos' | 'manutencao'>('resumo');
 
-  // Modal de Novo Chamado (Ticket)
+  // Modal Novo Chamado
   const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
   const [isSavingTicket, setIsSavingTicket] = useState(false);
   const [ticketForm, setTicketForm] = useState({
     title: '', description: '', priority: 'Média', propertyId: ''
   });
+
+  // Modal Interação (Ver/Responder Chamado)
+  const [selectedTicket, setSelectedTicket] = useState<any>(null);
+  const [newMessage, setNewMessage] = useState('');
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem('@ZenixPortal:token');
@@ -58,7 +59,6 @@ export default function PortalDashboardPage() {
       if (response.data.tickets) setTickets(response.data.tickets);
       if (response.data.properties) setProperties(response.data.properties);
 
-      // Pré-seleciona o imóvel no chamado se o usuário tiver apenas 1
       if (response.data.contracts && response.data.contracts.length === 1) {
         setTicketForm(prev => ({ ...prev, propertyId: response.data.contracts[0].propertyId }));
       }
@@ -78,13 +78,11 @@ export default function PortalDashboardPage() {
     router.push(`/loja/${slug}/portal-cliente/login`); 
   };
 
-  // Ajustado para evitar o erro "NaN". Tenta buscar value, ou amount, e caso não encontre, vira 0.
   const formatCurrency = (val: any) => {
     const num = Number(val) || 0;
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(num);
   };
 
-  // Função para abrir o link de pagamento
   const handlePayment = (invoice: any) => {
     const link = invoice.invoiceUrl || invoice.bankSlipUrl || invoice.url;
     if (link) {
@@ -98,9 +96,7 @@ export default function PortalDashboardPage() {
     e.preventDefault();
     setIsSavingTicket(true);
     try {
-      await api.post('/portal/tickets', {
-        ...ticketForm
-      });
+      await api.post('/portal/tickets', { ...ticketForm });
       setIsTicketModalOpen(false);
       setTicketForm({ title: '', description: '', priority: 'Média', propertyId: ticketForm.propertyId });
       fetchDashboardData();
@@ -108,6 +104,30 @@ export default function PortalDashboardPage() {
       alert('Erro ao abrir chamado de manutenção.');
     } finally {
       setIsSavingTicket(false);
+    }
+  };
+
+  // Enviar nova mensagem no chamado
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newMessage.trim() || !selectedTicket) return;
+    
+    setIsSendingMessage(true);
+    try {
+      const response = await api.post(`/portal/tickets/${selectedTicket.id}/messages`, {
+        message: newMessage
+      });
+      // Atualiza o ticket selecionado localmente para mostrar a mensagem na hora
+      setSelectedTicket({
+        ...selectedTicket,
+        messages: [...(selectedTicket.messages || []), response.data]
+      });
+      setNewMessage('');
+      fetchDashboardData(); // Atualiza em background
+    } catch (error) {
+      alert('Erro ao enviar mensagem.');
+    } finally {
+      setIsSendingMessage(false);
     }
   };
 
@@ -119,6 +139,34 @@ export default function PortalDashboardPage() {
       </div>
     );
   }
+
+  // Componente reutilizável da lista de chamados
+  const TicketCard = ({ ticket }: { ticket: any }) => (
+    <div 
+      onClick={() => setSelectedTicket(ticket)}
+      className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 cursor-pointer hover:shadow-md transition-shadow group"
+    >
+      <div className="flex justify-between items-start mb-2">
+        <h4 className="font-bold text-slate-800 group-hover:text-blue-600 transition-colors">{ticket.title}</h4>
+        <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider ${
+          ticket.status === 'Concluído' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+          ticket.status === 'Em Andamento' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
+          'bg-amber-50 text-amber-700 border border-amber-200'
+        }`}>
+          {ticket.status}
+        </span>
+      </div>
+      <p className="text-sm text-slate-600 mb-3 line-clamp-1">{ticket.description}</p>
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-slate-400 font-medium flex items-center gap-1.5">
+          <Clock size={12}/> {new Date(ticket.createdAt).toLocaleDateString('pt-BR')}
+        </p>
+        <div className="flex items-center gap-1 text-xs font-bold text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity">
+          Ver / Interagir <MessageSquare size={14}/>
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans pb-20">
@@ -145,13 +193,9 @@ export default function PortalDashboardPage() {
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 mt-8 animate-in fade-in duration-500">
         
-        {/* ========================================================================= */}
-        {/* VISÃO DO INQUILINO (CLIENT)                                               */}
-        {/* ========================================================================= */}
+        {/* ======================= VISÃO DO INQUILINO ======================= */}
         {user?.role === 'CLIENT' && (
           <div className="space-y-6">
-            
-            {/* ABAS MOBILE & DESKTOP */}
             <div className="flex bg-white rounded-xl shadow-sm border border-slate-200 p-1">
               <button onClick={() => setActiveTab('resumo')} className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-colors flex items-center justify-center gap-2 ${activeTab === 'resumo' ? 'bg-blue-50 text-blue-700' : 'text-slate-500 hover:text-slate-700'}`}>
                 <Home size={16}/> Meu Aluguel
@@ -164,41 +208,23 @@ export default function PortalDashboardPage() {
               </button>
             </div>
 
-            {/* ABA 1: RESUMO DO ALUGUEL */}
             {activeTab === 'resumo' && (
               <div className="space-y-4">
                 {contracts.length === 0 ? (
-                  <div className="bg-white p-8 rounded-2xl text-center border border-slate-200 shadow-sm">
-                    <AlertCircle size={40} className="mx-auto text-slate-300 mb-3" />
-                    <h3 className="font-bold text-slate-700">Nenhum contrato ativo</h3>
-                    <p className="text-sm text-slate-500">Você ainda não possui contratos de locação vinculados.</p>
-                  </div>
+                  <div className="bg-white p-8 rounded-2xl text-center border border-slate-200 shadow-sm"><AlertCircle size={40} className="mx-auto text-slate-300 mb-3" /><h3 className="font-bold text-slate-700">Nenhum contrato ativo</h3></div>
                 ) : (
                   contracts.map(contract => (
                     <div key={contract.id} className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                       <div className="h-32 bg-slate-200 relative">
-                        {contract.property.coverImage ? (
-                          <img src={contract.property.coverImage} alt="Imóvel" className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="w-full h-full bg-blue-100 flex items-center justify-center text-blue-300"><Building size={40}/></div>
-                        )}
-                        <div className="absolute top-4 left-4 bg-white/90 backdrop-blur px-3 py-1 rounded-full text-xs font-bold text-slate-700 shadow-sm">
-                          Contrato Ativo
-                        </div>
+                        {contract.property.coverImage ? ( <img src={contract.property.coverImage} alt="Imóvel" className="w-full h-full object-cover" /> ) : ( <div className="w-full h-full bg-blue-100 flex items-center justify-center text-blue-300"><Building size={40}/></div> )}
+                        <div className="absolute top-4 left-4 bg-white/90 backdrop-blur px-3 py-1 rounded-full text-xs font-bold text-slate-700 shadow-sm">Contrato Ativo</div>
                       </div>
                       <div className="p-6">
                         <h2 className="text-lg font-black text-slate-800">{contract.property.title}</h2>
                         <p className="text-sm text-slate-500 flex items-center gap-1.5 mt-1"><MapPin size={14}/> {contract.property.address}</p>
-                        
                         <div className="mt-6 grid grid-cols-2 gap-4 border-t border-slate-100 pt-6">
-                          <div>
-                            <p className="text-xs font-bold text-slate-400 uppercase">Valor do Aluguel</p>
-                            <p className="text-lg font-black text-blue-600">{formatCurrency(contract.rentValue)}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs font-bold text-slate-400 uppercase">Vencimento</p>
-                            <p className="text-lg font-black text-slate-700">Dia {contract.dueDate || '10'}</p>
-                          </div>
+                          <div><p className="text-xs font-bold text-slate-400 uppercase">Valor do Aluguel</p><p className="text-lg font-black text-blue-600">{formatCurrency(contract.rentValue)}</p></div>
+                          <div><p className="text-xs font-bold text-slate-400 uppercase">Vencimento</p><p className="text-lg font-black text-slate-700">Dia {contract.dueDate || '10'}</p></div>
                         </div>
                       </div>
                     </div>
@@ -207,7 +233,6 @@ export default function PortalDashboardPage() {
               </div>
             )}
 
-            {/* ABA 2: BOLETOS */}
             {activeTab === 'boletos' && (
               <div className="space-y-4">
                 <h3 className="font-bold text-slate-800">Meus Boletos</h3>
@@ -229,12 +254,9 @@ export default function PortalDashboardPage() {
                           </div>
                         </div>
                         <div className="flex items-center justify-between w-full sm:w-auto gap-4">
-                          {/* Ajustado para buscar 'value' ou 'amount' */}
                           <p className="font-black text-lg text-slate-800">{formatCurrency(invoice.value || invoice.amount)}</p>
                           {!isPaid && (
-                            <button onClick={() => handlePayment(invoice)} className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-4 py-2 rounded-lg shadow-sm transition-colors flex items-center gap-1.5">
-                              <DollarSign size={14}/> Pagar
-                            </button>
+                            <button onClick={() => handlePayment(invoice)} className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-4 py-2 rounded-lg shadow-sm transition-colors flex items-center gap-1.5"><DollarSign size={14}/> Pagar</button>
                           )}
                         </div>
                       </div>
@@ -244,7 +266,6 @@ export default function PortalDashboardPage() {
               </div>
             )}
 
-            {/* ABA 3: MANUTENÇÃO (TICKETS) INQUILINO */}
             {activeTab === 'manutencao' && (
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
@@ -253,44 +274,19 @@ export default function PortalDashboardPage() {
                     <Plus size={14}/> Novo Chamado
                   </button>
                 </div>
-                
                 {tickets.length === 0 ? (
-                  <div className="bg-white p-8 rounded-2xl text-center border border-slate-200 border-dashed">
-                    <Wrench size={32} className="mx-auto text-slate-300 mb-3" />
-                    <p className="text-sm font-medium text-slate-500">Você não possui chamados de manutenção abertos.</p>
-                  </div>
+                  <div className="bg-white p-8 rounded-2xl text-center border border-slate-200 border-dashed"><Wrench size={32} className="mx-auto text-slate-300 mb-3" /><p className="text-sm font-medium text-slate-500">Você não possui chamados de manutenção abertos.</p></div>
                 ) : (
-                  tickets.map(ticket => (
-                    <div key={ticket.id} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-                      <div className="flex justify-between items-start mb-2">
-                        <h4 className="font-bold text-slate-800">{ticket.title}</h4>
-                        <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider ${
-                          ticket.status === 'Concluído' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
-                          ticket.status === 'Em Andamento' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
-                          'bg-amber-50 text-amber-700 border border-amber-200'
-                        }`}>
-                          {ticket.status}
-                        </span>
-                      </div>
-                      <p className="text-sm text-slate-600 mb-3">{ticket.description}</p>
-                      <p className="text-xs text-slate-400 font-medium flex items-center gap-1.5">
-                        <Clock size={12}/> Aberto em {new Date(ticket.createdAt).toLocaleDateString('pt-BR')}
-                      </p>
-                    </div>
-                  ))
+                  tickets.map(ticket => <TicketCard key={ticket.id} ticket={ticket} />)
                 )}
               </div>
             )}
           </div>
         )}
 
-        {/* ========================================================================= */}
-        {/* VISÃO DO PROPRIETÁRIO (OWNER)                                             */}
-        {/* ========================================================================= */}
+        {/* ======================= VISÃO DO PROPRIETÁRIO ======================= */}
         {user?.role === 'OWNER' && (
           <div className="space-y-6">
-            
-            {/* ABAS DO PROPRIETÁRIO */}
             <div className="flex bg-white rounded-xl shadow-sm border border-slate-200 p-1 mb-6">
               <button onClick={() => setActiveTab('resumo')} className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-colors flex items-center justify-center gap-2 ${activeTab === 'resumo' ? 'bg-emerald-50 text-emerald-700' : 'text-slate-500 hover:text-slate-700'}`}>
                 <Home size={16}/> Meus Imóveis
@@ -300,17 +296,11 @@ export default function PortalDashboardPage() {
               </button>
             </div>
 
-            {/* ABA 1: IMÓVEIS E REPASSES */}
             {activeTab === 'resumo' && (
               <>
                 <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2"><Home size={24} className="text-emerald-600"/> Meus Imóveis</h2>
-                
                 {properties.length === 0 ? (
-                  <div className="bg-white p-8 rounded-2xl text-center border border-slate-200 shadow-sm">
-                    <AlertCircle size={40} className="mx-auto text-slate-300 mb-3" />
-                    <h3 className="font-bold text-slate-700">Nenhum imóvel vinculado</h3>
-                    <p className="text-sm text-slate-500">A sua imobiliária ainda não vinculou imóveis ao seu perfil.</p>
-                  </div>
+                  <div className="bg-white p-8 rounded-2xl text-center border border-slate-200 shadow-sm"><AlertCircle size={40} className="mx-auto text-slate-300 mb-3" /><h3 className="font-bold text-slate-700">Nenhum imóvel vinculado</h3></div>
                 ) : (
                   properties.map(property => {
                     const isRented = property.rentStatus === 'Alugado';
@@ -318,18 +308,9 @@ export default function PortalDashboardPage() {
                       <div key={property.id} className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                         <div className="p-6">
                           <div className="flex justify-between items-start">
-                            <div>
-                              <h3 className="text-lg font-black text-slate-800">{property.title}</h3>
-                              <p className="text-sm text-slate-500 mt-1">{property.address}</p>
-                            </div>
-                            <span className={`text-[10px] font-bold px-2.5 py-1 rounded border uppercase tracking-wider ${
-                              isRented ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-600 border-slate-200'
-                            }`}>
-                              {isRented ? 'Alugado' : 'Vago'}
-                            </span>
+                            <div><h3 className="text-lg font-black text-slate-800">{property.title}</h3><p className="text-sm text-slate-500 mt-1">{property.address}</p></div>
+                            <span className={`text-[10px] font-bold px-2.5 py-1 rounded border uppercase tracking-wider ${isRented ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>{isRented ? 'Alugado' : 'Vago'}</span>
                           </div>
-
-                          {/* Repasses */}
                           {isRented && property.contracts && property.contracts.length > 0 && (
                             <div className="mt-6 pt-5 border-t border-slate-100">
                               <h4 className="text-sm font-bold text-slate-700 mb-3 flex items-center gap-1.5"><FileText size={16}/> Extrato de Repasses</h4>
@@ -337,15 +318,9 @@ export default function PortalDashboardPage() {
                                 {property.contracts[0].invoices?.slice(0, 3).map((invoice: any) => (
                                   <div key={invoice.id} className="flex justify-between items-center bg-slate-50 p-3 rounded-xl border border-slate-100">
                                     <div className="flex items-center gap-3">
-                                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${invoice.status === 'Pago' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
-                                        {invoice.status === 'Pago' ? <CheckCircle size={16}/> : <Clock size={16}/>}
-                                      </div>
-                                      <div>
-                                        <p className="text-sm font-bold text-slate-700">Ref. {new Date(invoice.dueDate).toLocaleDateString('pt-BR', { month: 'short', year: 'numeric'})}</p>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase">{invoice.status === 'Pago' ? 'Repasse Realizado' : 'Aguardando Pagamento'}</p>
-                                      </div>
+                                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${invoice.status === 'Pago' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>{invoice.status === 'Pago' ? <CheckCircle size={16}/> : <Clock size={16}/>}</div>
+                                      <div><p className="text-sm font-bold text-slate-700">Ref. {new Date(invoice.dueDate).toLocaleDateString('pt-BR', { month: 'short', year: 'numeric'})}</p><p className="text-[10px] font-bold text-slate-400 uppercase">{invoice.status === 'Pago' ? 'Repasse Realizado' : 'Aguardando Pagamento'}</p></div>
                                     </div>
-                                    {/* Ajustado para buscar 'value' ou 'amount' também */}
                                     <p className="font-bold text-slate-800">{formatCurrency(invoice.value || invoice.amount)}</p>
                                   </div>
                                 ))}
@@ -360,7 +335,6 @@ export default function PortalDashboardPage() {
               </>
             )}
 
-            {/* ABA 2: MANUTENÇÃO (TICKETS) PROPRIETÁRIO */}
             {activeTab === 'manutencao' && (
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
@@ -369,90 +343,42 @@ export default function PortalDashboardPage() {
                     <Plus size={14}/> Novo Chamado
                   </button>
                 </div>
-                
                 {tickets.length === 0 ? (
-                  <div className="bg-white p-8 rounded-2xl text-center border border-slate-200 border-dashed">
-                    <Wrench size={32} className="mx-auto text-slate-300 mb-3" />
-                    <p className="text-sm font-medium text-slate-500">Você não possui chamados de manutenção abertos.</p>
-                  </div>
+                  <div className="bg-white p-8 rounded-2xl text-center border border-slate-200 border-dashed"><Wrench size={32} className="mx-auto text-slate-300 mb-3" /><p className="text-sm font-medium text-slate-500">Você não possui chamados de manutenção abertos.</p></div>
                 ) : (
-                  tickets.map(ticket => (
-                    <div key={ticket.id} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-                      <div className="flex justify-between items-start mb-2">
-                        <h4 className="font-bold text-slate-800">{ticket.title}</h4>
-                        <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider ${
-                          ticket.status === 'Concluído' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
-                          ticket.status === 'Em Andamento' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
-                          'bg-amber-50 text-amber-700 border border-amber-200'
-                        }`}>
-                          {ticket.status}
-                        </span>
-                      </div>
-                      <p className="text-sm text-slate-600 mb-3">{ticket.description}</p>
-                      <p className="text-xs text-slate-400 font-medium flex items-center gap-1.5">
-                        <Clock size={12}/> Aberto em {new Date(ticket.createdAt).toLocaleDateString('pt-BR')}
-                      </p>
-                    </div>
-                  ))
+                  tickets.map(ticket => <TicketCard key={ticket.id} ticket={ticket} />)
                 )}
               </div>
             )}
           </div>
         )}
-
       </main>
 
-      {/* MODAL: NOVO CHAMADO DE MANUTENÇÃO */}
+      {/* =================================================================================== */}
+      {/* MODAL 1: NOVO CHAMADO DE MANUTENÇÃO                                                 */}
+      {/* =================================================================================== */}
       {isTicketModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-4 sm:p-0">
           <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in slide-in-from-bottom-10 sm:zoom-in-95 duration-200">
             <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-              <h2 className="font-bold text-slate-800 flex items-center gap-2">
-                <Wrench size={20} className={user?.role === 'CLIENT' ? "text-blue-600" : "text-emerald-600"}/> 
-                Abrir Chamado
-              </h2>
+              <h2 className="font-bold text-slate-800 flex items-center gap-2"><Wrench size={20} className={user?.role === 'CLIENT' ? "text-blue-600" : "text-emerald-600"}/> Abrir Chamado</h2>
               <button onClick={() => setIsTicketModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-600 bg-slate-200/50 rounded-full"><X size={18} /></button>
             </div>
             <form onSubmit={handleCreateTicket} className="p-6 space-y-4">
               
-              {/* Seleção de Imóvel para INQUILINO */}
               {user?.role === 'CLIENT' && contracts.length > 1 && (
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 mb-1">Qual Imóvel?</label>
-                  <select required value={ticketForm.propertyId} onChange={e => setTicketForm({...ticketForm, propertyId: e.target.value})} className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
-                    <option value="">Selecione o imóvel...</option>
-                    {contracts.map(c => <option key={c.propertyId} value={c.propertyId}>{c.property.title}</option>)}
-                  </select>
-                </div>
+                <div><label className="block text-xs font-bold text-slate-600 mb-1">Qual Imóvel?</label><select required value={ticketForm.propertyId} onChange={e => setTicketForm({...ticketForm, propertyId: e.target.value})} className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white"><option value="">Selecione o imóvel...</option>{contracts.map(c => <option key={c.propertyId} value={c.propertyId}>{c.property.title}</option>)}</select></div>
               )}
-
-              {/* Seleção de Imóvel para PROPRIETÁRIO */}
               {user?.role === 'OWNER' && properties.length > 1 && (
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 mb-1">Qual Imóvel?</label>
-                  <select required value={ticketForm.propertyId} onChange={e => setTicketForm({...ticketForm, propertyId: e.target.value})} className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm bg-white">
-                    <option value="">Selecione o imóvel...</option>
-                    {properties.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
-                  </select>
-                </div>
+                <div><label className="block text-xs font-bold text-slate-600 mb-1">Qual Imóvel?</label><select required value={ticketForm.propertyId} onChange={e => setTicketForm({...ticketForm, propertyId: e.target.value})} className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm bg-white"><option value="">Selecione o imóvel...</option>{properties.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}</select></div>
               )}
 
-              <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1">Resumo do Problema (Título)</label>
-                <input required type="text" value={ticketForm.title} onChange={e => setTicketForm({...ticketForm, title: e.target.value})} placeholder="Ex: Infiltração no teto" className={`w-full p-3 border border-slate-300 rounded-xl focus:ring-2 outline-none text-sm ${user?.role === 'CLIENT' ? 'focus:ring-blue-500' : 'focus:ring-emerald-500'}`} />
-              </div>
-              
-              <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1">Descrição Detalhada</label>
-                <textarea required rows={4} value={ticketForm.description} onChange={e => setTicketForm({...ticketForm, description: e.target.value})} placeholder="Descreva o que está acontecendo..." className={`w-full p-3 border border-slate-300 rounded-xl focus:ring-2 outline-none text-sm resize-none ${user?.role === 'CLIENT' ? 'focus:ring-blue-500' : 'focus:ring-emerald-500'}`} />
-              </div>
-
+              <div><label className="block text-xs font-bold text-slate-600 mb-1">Resumo do Problema (Título)</label><input required type="text" value={ticketForm.title} onChange={e => setTicketForm({...ticketForm, title: e.target.value})} placeholder="Ex: Infiltração no teto" className={`w-full p-3 border border-slate-300 rounded-xl focus:ring-2 outline-none text-sm ${user?.role === 'CLIENT' ? 'focus:ring-blue-500' : 'focus:ring-emerald-500'}`} /></div>
+              <div><label className="block text-xs font-bold text-slate-600 mb-1">Descrição Detalhada</label><textarea required rows={4} value={ticketForm.description} onChange={e => setTicketForm({...ticketForm, description: e.target.value})} placeholder="Descreva o que está acontecendo..." className={`w-full p-3 border border-slate-300 rounded-xl focus:ring-2 outline-none text-sm resize-none ${user?.role === 'CLIENT' ? 'focus:ring-blue-500' : 'focus:ring-emerald-500'}`} /></div>
               <div>
                 <label className="block text-xs font-bold text-slate-600 mb-1">Urgência</label>
                 <select value={ticketForm.priority} onChange={e => setTicketForm({...ticketForm, priority: e.target.value})} className={`w-full p-3 border border-slate-300 rounded-xl focus:ring-2 outline-none text-sm bg-white ${user?.role === 'CLIENT' ? 'focus:ring-blue-500' : 'focus:ring-emerald-500'}`}>
-                  <option value="Baixa">Baixa (Pode esperar alguns dias)</option>
-                  <option value="Média">Média (Atrapalha o dia a dia)</option>
-                  <option value="Alta">Alta (Emergência / Vazamento grave)</option>
+                  <option value="Baixa">Baixa (Pode esperar alguns dias)</option><option value="Média">Média (Atrapalha o dia a dia)</option><option value="Alta">Alta (Emergência / Vazamento grave)</option>
                 </select>
               </div>
 
@@ -460,6 +386,83 @@ export default function PortalDashboardPage() {
                 {isSavingTicket ? <Loader2 size={18} className="animate-spin"/> : 'Enviar Chamado à Imobiliária'}
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* =================================================================================== */}
+      {/* MODAL 2: INTERAÇÃO (CHAT DO CHAMADO)                                                */}
+      {/* =================================================================================== */}
+      {selectedTicket && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+            
+            {/* Cabecalho Modal */}
+            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
+              <div>
+                <h2 className="font-bold text-slate-800 text-lg line-clamp-1">{selectedTicket.title}</h2>
+                <p className="text-xs text-slate-500 flex items-center gap-1.5"><Clock size={12}/> Aberto em {new Date(selectedTicket.createdAt).toLocaleDateString('pt-BR')}</p>
+              </div>
+              <button onClick={() => setSelectedTicket(null)} className="p-2 text-slate-400 hover:text-slate-600 bg-slate-200/50 rounded-full"><X size={18} /></button>
+            </div>
+
+            {/* Area de Mensagens (Scrollable) */}
+            <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50 flex flex-col gap-4">
+              
+              {/* Descrição Original (Primeira Mensagem) */}
+              <div className="flex flex-col items-end">
+                <span className="text-[10px] font-bold text-slate-400 mb-1 mr-1">Sua Solicitação (Original)</span>
+                <div className={`p-4 rounded-2xl rounded-tr-sm text-sm shadow-sm max-w-[85%] ${user?.role === 'CLIENT' ? 'bg-blue-600 text-white' : 'bg-emerald-600 text-white'}`}>
+                  {selectedTicket.description}
+                </div>
+              </div>
+
+              {/* Mensagens das interações */}
+              {selectedTicket.messages && selectedTicket.messages.map((msg: any) => {
+                const isAdmin = msg.sender === 'ADMIN';
+                return (
+                  <div key={msg.id} className={`flex flex-col ${isAdmin ? 'items-start' : 'items-end'}`}>
+                    <span className={`text-[10px] font-bold text-slate-400 mb-1 ${isAdmin ? 'ml-1' : 'mr-1'}`}>
+                      {isAdmin ? 'Imobiliária' : 'Você'} • {new Date(msg.createdAt).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'})}
+                    </span>
+                    <div className={`p-4 rounded-2xl text-sm shadow-sm max-w-[85%] whitespace-pre-wrap ${
+                      isAdmin 
+                        ? 'bg-white border border-slate-200 text-slate-700 rounded-tl-sm' 
+                        : (user?.role === 'CLIENT' ? 'bg-blue-600 text-white rounded-tr-sm' : 'bg-emerald-600 text-white rounded-tr-sm')
+                    }`}>
+                      {msg.message}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Input de Nova Mensagem */}
+            <div className="p-4 bg-white border-t border-slate-100 shrink-0">
+              {selectedTicket.status === 'Concluído' ? (
+                <div className="text-center p-3 bg-slate-50 rounded-xl border border-slate-200 text-sm font-medium text-slate-500">
+                  Este chamado já foi concluído.
+                </div>
+              ) : (
+                <form onSubmit={handleSendMessage} className="flex gap-2">
+                  <input 
+                    type="text" 
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    placeholder="Escreva uma nova informação ou dúvida..." 
+                    className="flex-1 p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                  />
+                  <button 
+                    type="submit" 
+                    disabled={isSendingMessage || !newMessage.trim()}
+                    className={`px-5 text-white rounded-xl font-bold flex items-center justify-center transition-all disabled:opacity-50 ${user?.role === 'CLIENT' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-emerald-600 hover:bg-emerald-700'}`}
+                  >
+                    {isSendingMessage ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                  </button>
+                </form>
+              )}
+            </div>
+
           </div>
         </div>
       )}
