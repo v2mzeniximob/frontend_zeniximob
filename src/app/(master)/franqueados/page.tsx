@@ -4,10 +4,9 @@ import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { api } from '../../../lib/api';
-import { Plus, Power, X, Loader2, Link as LinkIcon, Edit, Search, Filter } from 'lucide-react';
-// IMPORTANTE: Utilizando o mesmo caminho exato que funcionou na página de Imobiliárias
-import { maskCep, maskCnpj, maskCpf, maskPhone } from '@/src/utils/mask';
+import { api } from '@/src/lib/api'; // Ajuste o import conforme a sua pasta
+import { Plus, Power, X, Loader2, Link as LinkIcon, Edit, Search, Filter, CheckCircle2, Clock } from 'lucide-react';
+import { maskCep, maskCnpj, maskCpf, maskPhone } from '@/src/utils/mask'; // Ajuste o import
 
 const franchiseeSchema = z.object({
   cnpj: z.string().min(18, 'CNPJ incompleto'),
@@ -75,7 +74,6 @@ export default function FranqueadosPage() {
     return matchesSearch && matchesStatus;
   });
 
-  // CORREÇÃO: reset() idêntico ao da Imobiliária, blindado contra nulls que travam o preenchimento!
   function handleEdit(fran: any) {
     setEditingId(fran.id);
     reset({
@@ -228,9 +226,9 @@ export default function FranqueadosPage() {
               <tr>
                 <th className="px-6 py-4">Nome Fantasia</th>
                 <th className="px-6 py-4">CNPJ / CPF Resp.</th>
-                <th className="px-6 py-4">Contrato</th>
+                <th className="px-6 py-4">Status do Contrato SaaS</th>
                 <th className="px-6 py-4">Contato</th>
-                <th className="px-6 py-4 text-center">Status</th>
+                <th className="px-6 py-4 text-center">Acesso</th>
                 <th className="px-6 py-4 text-right">Ações</th>
               </tr>
             </thead>
@@ -246,51 +244,80 @@ export default function FranqueadosPage() {
                   <td colSpan={6} className="px-6 py-8 text-center text-slate-400">Nenhum franqueado encontrado.</td>
                 </tr>
               ) : (
-                filteredFranchisees.map((fran) => (
-                  <tr key={fran.id} className="hover:bg-slate-50/50 transition-colors">
-                    <td className="px-6 py-4 font-medium text-slate-800">{fran.tradeName}</td>
-                    <td className="px-6 py-4">
-                      <div className="flex flex-col">
-                        <span>{maskCnpj(fran.cnpj)}</span>
-                        <span className="text-xs text-slate-400 mt-1">CPF: {maskCpf(fran.respCpf || '')}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      {fran.contractUrl ? (
-                        <a href={fran.contractUrl} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline flex items-center gap-1 text-xs">
-                          <LinkIcon size={14} /> Ver Doc
-                        </a>
-                      ) : <span className="text-slate-400 text-xs">Nenhum</span>}
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex flex-col">
-                        <span>{fran.email}</span>
-                        <span className="text-xs text-slate-400 mt-1">{maskPhone(fran.phone)}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${ fran.isActive ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500' }`}>
-                        {fran.isActive ? 'Ativo' : 'Inativo'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex justify-end gap-1">
-                        <button onClick={() => handleEdit(fran)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Editar Cadastro">
-                          <Edit size={18} />
-                        </button>
-                        <button onClick={() => toggleStatus(fran.id)} className={`p-2 rounded-lg transition-colors ${ fran.isActive ? 'text-red-500 hover:bg-red-50' : 'text-green-500 hover:bg-green-50' }`} title={fran.isActive ? 'Desativar' : 'Ativar'}>
-                          <Power size={18} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                filteredFranchisees.map((fran) => {
+                  // LÓGICA DO STATUS DO CONTRATO
+                  const masterContract = fran.masterContracts?.[0]; // Pega o último contrato gerado
+                  let contractNode = <span className="text-slate-400 text-xs italic px-2">Sem contrato gerado</span>;
+
+                  if (masterContract) {
+                    if (masterContract.status === 'Assinado') {
+                      contractNode = (
+                        <div className="flex flex-col gap-1 items-start">
+                          <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded text-xs font-bold flex items-center gap-1 w-fit">
+                            <CheckCircle2 size={12}/> Assinado
+                          </span>
+                          {masterContract.documentUrl && (
+                            <a href={masterContract.documentUrl} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline flex items-center gap-1 text-[10px]">
+                              <LinkIcon size={10} /> Ver Documento
+                            </a>
+                          )}
+                        </div>
+                      );
+                    } else {
+                      contractNode = (
+                        <span className="bg-orange-100 text-orange-700 px-2 py-1 rounded text-xs font-bold flex items-center gap-1 w-fit">
+                          <Clock size={12}/> Aguardando Assinatura
+                        </span>
+                      );
+                    }
+                  }
+
+                  return (
+                    <tr key={fran.id} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="px-6 py-4 font-medium text-slate-800">{fran.tradeName}</td>
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col">
+                          <span>{maskCnpj(fran.cnpj)}</span>
+                          <span className="text-xs text-slate-400 mt-1">CPF: {maskCpf(fran.respCpf || '')}</span>
+                        </div>
+                      </td>
+                      
+                      {/* COLUNA DO CONTRATO */}
+                      <td className="px-6 py-4">
+                        {contractNode}
+                      </td>
+
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col">
+                          <span>{fran.email}</span>
+                          <span className="text-xs text-slate-400 mt-1">{maskPhone(fran.phone)}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${ fran.isActive ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500' }`}>
+                          {fran.isActive ? 'Ativo' : 'Bloqueado'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex justify-end gap-1">
+                          <button onClick={() => handleEdit(fran)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Editar Cadastro">
+                            <Edit size={18} />
+                          </button>
+                          <button onClick={() => toggleStatus(fran.id)} className={`p-2 rounded-lg transition-colors ${ fran.isActive ? 'text-red-500 hover:bg-red-50' : 'text-green-500 hover:bg-green-50' }`} title={fran.isActive ? 'Desativar Acesso' : 'Ativar Acesso'}>
+                            <Power size={18} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
         </div>
       </div>
 
+      {/* MODAL DE CADASTRO/EDIÇÃO */}
       <div className={`fixed inset-0 bg-black/40 backdrop-blur-sm items-center justify-center z-50 p-4 ${isModalOpen ? 'flex animate-in fade-in zoom-in duration-200' : 'hidden'}`}>
         <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
           <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 sticky top-0 z-10">
@@ -380,16 +407,6 @@ export default function FranqueadosPage() {
                 <label className="block text-sm font-medium text-slate-700 mb-1">Endereço Residencial do Responsável</label>
                 <input type="text" {...register('respAddress')} placeholder="Rua, Número, Bairro, Cidade - Estado" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
                 {errors.respAddress && <span className="text-red-500 text-xs">{errors.respAddress.message}</span>}
-              </div>
-            </div>
-
-            <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100">
-              <label className="block text-sm font-medium text-blue-800 mb-1">Link do Contrato Assinado (Opcional)</label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-blue-400">
-                  <LinkIcon size={18} />
-                </div>
-                <input type="url" {...register('contractUrl')} placeholder="Ex: https://drive.google.com/..." className="w-full pl-10 pr-4 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-slate-700" />
               </div>
             </div>
 

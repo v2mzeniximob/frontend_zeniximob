@@ -4,8 +4,7 @@ import { useState, useEffect } from 'react';
 import { api } from '@/src/lib/api';
 import { 
   FileSignature, Plus, Search, Loader2, FileDown, 
-  Trash2, Building2, Briefcase, Link as LinkIcon, CheckSquare,
-  X
+  Trash2, Building2, Briefcase, Link as LinkIcon, CheckSquare, Edit, X
 } from 'lucide-react';
 
 const initialForm = {
@@ -33,6 +32,11 @@ export default function MasterContratosPage() {
   
   const [formData, setFormData] = useState<any>(initialForm);
 
+  // Estados do Modal de Edição (Anexar Documento)
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingContract, setEditingContract] = useState<any>(null);
+  const [editDocUrl, setEditDocUrl] = useState('');
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -50,7 +54,7 @@ export default function MasterContratosPage() {
       setContracts(resContracts.data);
       setRealEstates(resRealEstates.data);
       setFranchisees(resFranchisees.data);
-      setPlans(resPlans.data.filter((p: any) => p.isActive)); // Apenas planos ativos
+      setPlans(resPlans.data.filter((p: any) => p.isActive)); 
       setConfig(resConfig.data);
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
@@ -64,21 +68,22 @@ export default function MasterContratosPage() {
     setIsModalOpen(true);
   };
 
-  // Alterar Plano
+  const handleOpenEditModal = (contract: any) => {
+    setEditingContract(contract);
+    setEditDocUrl(contract.documentUrl || '');
+    setIsEditModalOpen(true);
+  };
+
   const handlePlanChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const selectedPlanId = e.target.value;
     const plan = plans.find(p => p.id === selectedPlanId);
-    
     setFormData({
       ...formData,
       planId: selectedPlanId,
-      value: plan ? plan.price : '' // Puxa o valor do plano ou limpa se for avulso
+      value: plan ? plan.price : ''
     });
   };
 
-  // ==========================================
-  // GERADOR DE PDF INTELIGENTE
-  // ==========================================
   const handleGeneratePDF = (dataToPrint: any) => {
     let template = '';
     let titlePDF = 'Contrato SaaS';
@@ -107,7 +112,7 @@ export default function MasterContratosPage() {
       titlePDF = 'Contrato Franqueado x Imobiliária';
     }
 
-    if (!template) return; // Cancela se não tiver template
+    if (!template) return;
 
     const formatCurrency = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
     const dataAtual = new Date().toLocaleDateString('pt-BR');
@@ -142,15 +147,28 @@ export default function MasterContratosPage() {
     setIsSaving(true);
     try {
       await api.post('/master/contracts', formData);
-      
-      // GERA O PDF AUTOMATICAMENTE AO SALVAR (Passamos o formData para garantir os dados atuais)
       handleGeneratePDF(formData);
-
-      alert('Contrato gerado com sucesso! Faturas de cobrança criadas no sistema SaaS.');
+      alert('Contrato gerado com sucesso! Faturas criadas.');
       setIsModalOpen(false);
       fetchData();
     } catch (error: any) {
       alert(error.response?.data?.error || 'Erro ao emitir contrato.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // SALVAR EDIÇÃO (ANEXAR DOCUMENTO)
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSaving(true);
+    try {
+      await api.put(`/master/contracts/${editingContract.id}`, { documentUrl: editDocUrl });
+      alert('Contrato atualizado com sucesso!');
+      setIsEditModalOpen(false);
+      fetchData();
+    } catch (error: any) {
+      alert('Erro ao anexar documento.');
     } finally {
       setIsSaving(false);
     }
@@ -174,7 +192,6 @@ export default function MasterContratosPage() {
   return (
     <div className="p-8 max-w-[1600px] mx-auto font-sans animate-in fade-in duration-300 pb-20">
       
-      {/* HEADER MASTER */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mb-8">
         <div>
           <span className="bg-indigo-600 text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider mb-3 inline-block shadow-sm">Zenix Master</span>
@@ -200,7 +217,6 @@ export default function MasterContratosPage() {
         </div>
       </div>
 
-      {/* LISTAGEM DE CONTRATOS */}
       <div className="bg-white border border-slate-200 rounded-3xl shadow-sm overflow-hidden min-h-[500px]">
         <table className="w-full text-left border-collapse whitespace-nowrap">
           <thead>
@@ -231,15 +247,17 @@ export default function MasterContratosPage() {
                    <p className="text-xs text-slate-400">{c.invoices?.length || 0} faturas geradas</p>
                  </td>
                  <td className="p-4 text-center">
-                   <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold border bg-emerald-50 text-emerald-700 border-emerald-200">
+                   <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold border ${c.status === 'Assinado' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-orange-50 text-orange-700 border-orange-200'}`}>
                      {c.status}
                    </span>
                  </td>
                  <td className="p-4 pr-6 text-right">
-                   <div className="flex justify-end gap-3 items-center">
+                   <div className="flex justify-end gap-2 items-center">
                      {c.documentUrl ? (
                        <a href={c.documentUrl} target="_blank" rel="noreferrer" className="text-blue-600 hover:text-blue-800 font-bold text-xs flex items-center gap-1 bg-blue-50 px-3 py-1.5 rounded-lg transition-colors"><LinkIcon size={14}/> Ver Doc</a>
-                     ) : <span className="text-slate-400 text-xs italic">S/ Doc</span>}
+                     ) : <span className="text-slate-400 text-xs italic px-2">S/ Doc</span>}
+                     
+                     <button onClick={() => handleOpenEditModal(c)} className="p-1.5 text-slate-500 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg transition-colors" title="Editar / Anexar Contrato"><Edit size={16}/></button>
                      <button onClick={() => handleDelete(c.id)} className="p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 rounded-lg transition-colors" title="Excluir"><Trash2 size={16}/></button>
                    </div>
                  </td>
@@ -250,21 +268,37 @@ export default function MasterContratosPage() {
         </table>
       </div>
 
-      {/* MODAL DE EMISSÃO DE CONTRATO MASTER */}
+      {/* MODAL: EDITAR / ANEXAR CONTRATO ASSINADO */}
+      {isEditModalOpen && editingContract && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <h2 className="text-lg font-black text-slate-800 flex items-center gap-2"><LinkIcon className="text-indigo-600" size={20}/> Anexar Documento</h2>
+              <button onClick={() => setIsEditModalOpen(false)} className="text-slate-400 hover:bg-slate-200 p-2 rounded-xl transition-colors"><X size={20}/></button>
+            </div>
+            <form onSubmit={handleEditSubmit} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-bold text-indigo-900 mb-2">Link do Contrato Assinado (ZapSign/Drive)</label>
+                <input required type="url" value={editDocUrl} onChange={e => setEditDocUrl(e.target.value)} placeholder="https://..." className="w-full px-4 py-3 border border-indigo-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm bg-indigo-50" />
+                <p className="text-xs text-slate-500 mt-2">Ao salvar, o status do contrato mudará automaticamente para "Assinado".</p>
+              </div>
+              <button type="submit" disabled={isSaving} className="w-full py-3 mt-4 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-all flex items-center justify-center gap-2 shadow-md">
+                {isSaving ? <Loader2 size={18} className="animate-spin" /> : <CheckSquare size={18}/>} Salvar Anexo
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: NOVO CONTRATO (MANTER COMO ESTAVA ANTES) */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
-            
             <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
-              <h2 className="text-xl font-black text-slate-800 flex items-center gap-2">
-                <FileSignature className="text-indigo-600" size={24}/> Novo Contrato SaaS
-              </h2>
+              <h2 className="text-xl font-black text-slate-800 flex items-center gap-2"><FileSignature className="text-indigo-600" size={24}/> Novo Contrato SaaS</h2>
               <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:bg-slate-200 p-2 rounded-xl transition-colors"><X size={20}/></button>
             </div>
-            
             <form onSubmit={handleSubmit} className="p-6 space-y-6 overflow-y-auto flex-1">
-              
-              {/* TIPO DE CONTRATO E SELEÇÃO DE PLANO */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-bold text-slate-700 mb-2">Natureza do Contrato *</label>
@@ -278,17 +312,13 @@ export default function MasterContratosPage() {
                   <label className="block text-sm font-bold text-slate-700 mb-2">Vincular a um Plano SaaS</label>
                   <select value={formData.planId} onChange={handlePlanChange} className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 bg-slate-50 font-bold text-slate-700 text-sm outline-none">
                     <option value="">Plano Personalizado / Avulso</option>
-                    {plans.map(p => (
-                      <option key={p.id} value={p.id}>{p.name} - R$ {p.price.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</option>
-                    ))}
+                    {plans.map(p => <option key={p.id} value={p.id}>{p.name} - R$ {p.price.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</option>)}
                   </select>
                 </div>
               </div>
-
-              {/* SELEÇÃO DINÂMICA DE CLIENTES */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-200">
                 {(formData.type === 'MASTER_FRANQUEADO' || formData.type === 'FRANQUEADO_IMOBILIARIA') && (
-                  <div className="animate-in fade-in">
+                  <div>
                     <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Selecione o Franqueado</label>
                     <select required value={formData.franchiseeId} onChange={e => setFormData({...formData, franchiseeId: e.target.value})} className="w-full px-3 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-sm outline-none">
                       <option value="">Selecione...</option>
@@ -296,9 +326,8 @@ export default function MasterContratosPage() {
                     </select>
                   </div>
                 )}
-                
                 {(formData.type === 'MASTER_IMOBILIARIA' || formData.type === 'FRANQUEADO_IMOBILIARIA') && (
-                  <div className="animate-in fade-in">
+                  <div>
                     <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Selecione a Imobiliária</label>
                     <select required value={formData.realEstateId} onChange={e => setFormData({...formData, realEstateId: e.target.value})} className="w-full px-3 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-sm outline-none">
                       <option value="">Selecione...</option>
@@ -307,12 +336,10 @@ export default function MasterContratosPage() {
                   </div>
                 )}
               </div>
-
-              {/* DADOS FINANCEIROS */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">Mensalidade (R$) *</label>
-                  <input required type="number" step="0.01" value={formData.value} onChange={e => setFormData({...formData, value: e.target.value})} placeholder="0.00" className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm bg-white" />
+                  <input required type="number" step="0.01" value={formData.value} onChange={e => setFormData({...formData, value: e.target.value})} className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm bg-white" />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">Início da Cobrança *</label>
@@ -323,19 +350,10 @@ export default function MasterContratosPage() {
                   <input type="date" value={formData.endDate} onChange={e => setFormData({...formData, endDate: e.target.value})} className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm bg-white" />
                 </div>
               </div>
-
-              {/* ANEXOS */}
-              <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-100 flex flex-col gap-2">
-                <label className="block text-sm font-bold text-indigo-900">Anexar Contrato Assinado (Link ZapSign / Drive)</label>
-                <input type="url" value={formData.documentUrl} onChange={e => setFormData({...formData, documentUrl: e.target.value})} placeholder="https://..." className="w-full px-4 py-2.5 border border-indigo-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm bg-white" />
-                <p className="text-xs text-indigo-600 mt-1">O PDF será gerado automaticamente ao salvar para você enviar ao cliente.</p>
-              </div>
-
-              {/* BOTÕES FINAIS */}
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 shrink-0">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-5 py-3 text-sm font-bold text-slate-600 hover:bg-slate-200 rounded-xl transition-colors">Cancelar</button>
                 <button type="submit" disabled={isSaving} className="px-6 py-3 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-all flex items-center gap-2 shadow-md">
-                  {isSaving ? <Loader2 size={18} className="animate-spin" /> : <CheckSquare size={18}/>} Salvar Contrato e Gerar PDF
+                  {isSaving ? <Loader2 size={18} className="animate-spin" /> : <CheckSquare size={18}/>} Gerar Contrato & Faturas
                 </button>
               </div>
             </form>

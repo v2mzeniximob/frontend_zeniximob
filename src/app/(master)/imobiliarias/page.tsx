@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { api } from '@/src/lib/api';
 
-import { Plus, Power, X, Loader2, Building2, Link as LinkIcon, Edit, Search, Filter } from 'lucide-react';
+import { Plus, Power, X, Loader2, Building2, Link as LinkIcon, Edit, Search, Filter, CheckCircle2, Clock } from 'lucide-react';
 import { maskCep, maskCnpj, maskCpf, maskPhone } from '@/src/utils/mask';
 
 const realEstateSchema = z.object({
@@ -241,8 +241,8 @@ export default function ImobiliariasPage() {
                 <th className="px-6 py-4">Imobiliária</th>
                 <th className="px-6 py-4">CNPJ / Inscrições</th>
                 <th className="px-6 py-4">Responsável</th>
-                <th className="px-6 py-4">Contrato</th>
-                <th className="px-6 py-4 text-center">Status</th>
+                <th className="px-6 py-4">Status do Contrato SaaS</th>
+                <th className="px-6 py-4 text-center">Acesso</th>
                 <th className="px-6 py-4 text-right">Ações</th>
               </tr>
             </thead>
@@ -258,48 +258,76 @@ export default function ImobiliariasPage() {
                   <td colSpan={6} className="px-6 py-8 text-center text-slate-400">Nenhuma imobiliária encontrada.</td>
                 </tr>
               ) : (
-                filteredRealEstates.map((re) => (
-                  <tr key={re.id} className="hover:bg-slate-50/50 transition-colors">
-                    <td className="px-6 py-4">
-                        <p className="font-bold text-slate-800">{re.tradeName}</p>
-                        <p className="text-xs text-blue-600 font-medium mt-1">{re.plan?.name || 'Sem plano'}</p>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex flex-col">
-                        <span>{maskCnpj(re.cnpj)}</span>
-                        <span className="text-xs text-slate-400 mt-1">IE: {re.stateRegistration} | IM: {re.cityRegistration}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex flex-col">
-                        <span className="font-medium text-slate-700">{re.respName}</span>
-                        <span className="text-xs text-slate-400 mt-1">CPF: {maskCpf(re.respCpf || '')}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      {re.contractUrl ? (
-                        <a href={re.contractUrl} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline flex items-center gap-1 text-xs font-bold">
-                          <LinkIcon size={14} /> Ver PDF
-                        </a>
-                      ) : <span className="text-slate-400 text-xs">Nenhum</span>}
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium border ${ re.isActive ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-600 border-red-200' }`}>
-                        {re.isActive ? 'Ativa' : 'Inativa'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex justify-end gap-1">
-                        <button onClick={() => handleEdit(re)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Editar Cadastro">
-                          <Edit size={18} />
-                        </button>
-                        <button onClick={() => toggleStatus(re.id)} className={`p-2 rounded-lg transition-colors ${ re.isActive ? 'text-red-500 hover:bg-red-50' : 'text-green-500 hover:bg-green-50' }`} title={re.isActive ? 'Desativar' : 'Ativar'}>
-                          <Power size={18} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                filteredRealEstates.map((re) => {
+                  // LÓGICA DO STATUS DO CONTRATO
+                  const masterContract = re.masterContracts?.[0]; // Pega o último contrato gerado
+                  let contractNode = <span className="text-slate-400 text-xs italic px-2">Sem contrato gerado</span>;
+
+                  if (masterContract) {
+                    if (masterContract.status === 'Assinado') {
+                      contractNode = (
+                        <div className="flex flex-col gap-1 items-start">
+                          <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded text-xs font-bold flex items-center gap-1 w-fit">
+                            <CheckCircle2 size={12}/> Assinado
+                          </span>
+                          {masterContract.documentUrl && (
+                            <a href={masterContract.documentUrl} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline flex items-center gap-1 text-[10px]">
+                              <LinkIcon size={10} /> Ver Documento
+                            </a>
+                          )}
+                        </div>
+                      );
+                    } else {
+                      contractNode = (
+                        <span className="bg-orange-100 text-orange-700 px-2 py-1 rounded text-xs font-bold flex items-center gap-1 w-fit">
+                          <Clock size={12}/> Aguardando Assinatura
+                        </span>
+                      );
+                    }
+                  }
+
+                  return (
+                    <tr key={re.id} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="px-6 py-4">
+                          <p className="font-bold text-slate-800">{re.tradeName}</p>
+                          <p className="text-xs text-blue-600 font-medium mt-1">{re.plan?.name || 'Sem plano'}</p>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col">
+                          <span>{maskCnpj(re.cnpj)}</span>
+                          <span className="text-xs text-slate-400 mt-1">IE: {re.stateRegistration} | IM: {re.cityRegistration}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col">
+                          <span className="font-medium text-slate-700">{re.respName}</span>
+                          <span className="text-xs text-slate-400 mt-1">CPF: {maskCpf(re.respCpf || '')}</span>
+                        </div>
+                      </td>
+                      
+                      {/* COLUNA DO CONTRATO */}
+                      <td className="px-6 py-4">
+                        {contractNode}
+                      </td>
+
+                      <td className="px-6 py-4 text-center">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium border ${ re.isActive ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-600 border-red-200' }`}>
+                          {re.isActive ? 'Ativa' : 'Inativa'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex justify-end gap-1">
+                          <button onClick={() => handleEdit(re)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Editar Cadastro">
+                            <Edit size={18} />
+                          </button>
+                          <button onClick={() => toggleStatus(re.id)} className={`p-2 rounded-lg transition-colors ${ re.isActive ? 'text-red-500 hover:bg-red-50' : 'text-green-500 hover:bg-green-50' }`} title={re.isActive ? 'Desativar' : 'Ativar'}>
+                            <Power size={18} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -327,7 +355,7 @@ export default function ImobiliariasPage() {
                   <label className="block text-sm font-bold text-slate-700 mb-1">Plano Base *</label>
                   <select {...register('planId')} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white">
                     <option value="">Selecione um plano...</option>
-                    {plans.map(p => <option key={p.id} value={p.id}>{p.name} - R$ {p.price}</option>)}
+                    {plans.map(p => <option key={p.id} value={p.id}>{p.name} R$ {p.price}</option>)}
                   </select>
                 </div>
                 <div>
@@ -341,7 +369,7 @@ export default function ImobiliariasPage() {
             </div>
 
             <div>
-              <h3 className="text-sm font-bold text-slate-500 border-b border-slate-100 pb-2 mb-4 uppercase tracking-wider">1. Dados da Empresa</h3>
+               <h3 className="text-sm font-bold text-slate-500 border-b border-slate-100 pb-2 mb-4 uppercase tracking-wider">Dados da Empresa</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                 <div>
                   <label className="flex items-center gap-2 text-sm font-bold text-slate-700 mb-1">
@@ -414,8 +442,8 @@ export default function ImobiliariasPage() {
             </div>
 
             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-              <h3 className="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2"><LinkIcon size={16}/> Documentos</h3>
-              <label className="block text-sm font-medium text-slate-600 mb-1">URL do Contrato Assinado entre Master e Imobiliária (Opcional)</label>
+              <h3 className="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2"><LinkIcon size={16}/> Documentos (SaaS)</h3>
+              <label className="block text-sm font-medium text-slate-600 mb-1">URL do Contrato Assinado (Este link também é adicionado automaticamente na tela de Contratos do Master)</label>
               <input type="url" {...register('contractUrl')} placeholder="Ex: Link do Google Drive / PDF" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-slate-700" />
             </div>
 
