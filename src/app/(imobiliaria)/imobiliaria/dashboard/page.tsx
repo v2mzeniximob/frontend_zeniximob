@@ -3,8 +3,9 @@
 import { useState, useEffect } from 'react';
 import { api } from '../../../../lib/api';
 import { 
-  BarChart3, TrendingUp, Home, DollarSign, Users, Target, Loader2, Building2, 
-  AlertTriangle, ArrowRightLeft, Clock, CheckCircle2, Briefcase
+  BarChart3, TrendingUp, DollarSign, Target, Loader2, Building2, 
+  AlertTriangle, ArrowRightLeft, Clock, CheckCircle2, Briefcase,
+  CalendarDays, Download, FileSpreadsheet, FileText, Filter
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -12,6 +13,19 @@ export default function DashboardPage() {
   const [metrics, setMetrics] = useState<any>(null);
   const [invoices, setInvoices] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Estados dos Filtros de Data (Padrão: Mês Atual)
+  const [startDate, setStartDate] = useState(() => {
+    const d = new Date();
+    d.setDate(1);
+    return d.toISOString().split('T')[0];
+  });
+  const [endDate, setEndDate] = useState(() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() + 1);
+    d.setDate(0);
+    return d.toISOString().split('T')[0];
+  });
 
   useEffect(() => {
     fetchDashboardData();
@@ -26,13 +40,10 @@ export default function DashboardPage() {
 
       setMetrics(resMetrics.data);
 
-      // Processamento Financeiro para o Dashboard
-      // Extrair todas as faturas de todos os contratos para análise
       const allInvoices = resContracts.data.flatMap((c: any) => 
         (c.invoices || []).map((inv: any) => ({ ...inv, contract: c }))
       );
       setInvoices(allInvoices);
-
     } catch (error) {
       console.error('Erro ao buscar dados do dashboard:', error);
     } finally {
@@ -44,55 +55,94 @@ export default function DashboardPage() {
   if (!metrics) return null;
 
   // ==========================================
-  // CÁLCULOS FINANCEIROS AVANÇADOS (B.I.)
+  // CÁLCULOS FINANCEIROS BASEADOS NO FILTRO DE DATA
   // ==========================================
   const now = new Date();
-  
-  // 1. INADIMPLÊNCIA (Faturas vencidas e não pagas)
-  const overdueInvoices = invoices.filter(inv => 
-    new Date(inv.dueDate) < now && inv.status !== 'Pago'
-  );
-  const totalOverdueAmount = overdueInvoices.reduce((acc, inv) => acc + inv.totalAmount, 0);
+  const start = new Date(startDate + 'T00:00:00');
+  const end = new Date(endDate + 'T23:59:59');
 
-  // 2. RECEITA LÍQUIDA REALIZADA (Faturas pagas no mês atual)
-  const currentMonth = now.getMonth();
-  const currentYear = now.getFullYear();
-  
-  const paidThisMonth = invoices.filter(inv => {
+  // 1. INADIMPLÊNCIA (Faturas que venceram DENTRO do período e não foram pagas)
+  const overdueInPeriod = invoices.filter(inv => {
+    const dueDate = new Date(inv.dueDate);
+    return dueDate >= start && dueDate <= end && inv.status !== 'Pago' && dueDate < now;
+  });
+  const totalOverdueAmount = overdueInPeriod.reduce((acc, inv) => acc + inv.totalAmount, 0);
+
+  // 2. RECEITA LÍQUIDA REALIZADA (Faturas pagas DENTRO do período)
+  const paidInPeriod = invoices.filter(inv => {
     if (inv.status !== 'Pago' || !inv.paidDate) return false;
     const paidDate = new Date(inv.paidDate);
-    return paidDate.getMonth() === currentMonth && paidDate.getFullYear() === currentYear;
+    return paidDate >= start && paidDate <= end;
   });
+  const realizedRevenue = paidInPeriod.reduce((acc, inv) => acc + (inv.realEstateFee > 0 ? inv.realEstateFee : inv.totalAmount), 0);
 
-  // A Receita da imobiliária é apenas a "Taxa de Admin" + "Aluguéis da própria imobiliária"
-  const realizedRevenue = paidThisMonth.reduce((acc, inv) => acc + (inv.realEstateFee > 0 ? inv.realEstateFee : inv.totalAmount), 0);
-
-  // 3. REPASSES PENDENTES (Faturas pagas pelo inquilino, mas dinheiro retido na imobiliária)
+  // 3. REPASSES PENDENTES (Geral - Dinheiro retido independentemente da data)
   const pendingTransfers = invoices.filter(inv => 
-    inv.status === 'Pago' && 
-    inv.ownerAmount > 0 && 
-    inv.transferStatus !== 'Repassado'
+    inv.status === 'Pago' && inv.ownerAmount > 0 && inv.transferStatus !== 'Repassado'
   );
   const totalPendingTransferAmount = pendingTransfers.reduce((acc, inv) => acc + inv.ownerAmount, 0);
 
+  // 4. SAÚDE FINANCEIRA (% de Inadimplência do Período)
+  const totalExpectedInPeriod = invoices.filter(inv => {
+    const dueDate = new Date(inv.dueDate);
+    return dueDate >= start && dueDate <= end;
+  }).reduce((acc, inv) => acc + inv.totalAmount, 0);
+  const defaultRatePercent = totalExpectedInPeriod > 0 ? ((totalOverdueAmount / totalExpectedInPeriod) * 100).toFixed(1) : 0;
 
-  // Cálculos visuais (Barras)
+  // Cálculos de Imóveis (Fixos/Snapshot)
   const vacanciaPercent = metrics.properties.total > 0 ? Math.round((metrics.properties.vacant / metrics.properties.total) * 100) : 0;
   const alugadosPercent = metrics.properties.total > 0 ? Math.round((metrics.properties.rented / metrics.properties.total) * 100) : 0;
-  
-  // Saúde Financeira (Inadimplência vs Total Esperado)
-  const totalExpectedThisMonth = invoices.filter(inv => new Date(inv.dueDate).getMonth() === currentMonth).reduce((acc, inv) => acc + inv.totalAmount, 0);
-  const defaultRatePercent = totalExpectedThisMonth > 0 ? ((totalOverdueAmount / totalExpectedThisMonth) * 100).toFixed(1) : 0;
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
   };
 
+  // ==========================================
+  // FUNÇÕES DE EXPORTAÇÃO
+  // ==========================================
+  
+  // Exportar para PDF (Abre a janela de impressão do navegador formatada)
+  const handleExportPDF = () => {
+    window.print();
+  };
+
+  // Exportar para Excel (Gera e baixa um arquivo CSV)
+  const handleExportExcel = () => {
+    let csv = "Categoria;Referência / Imóvel;Data;Valor (R$);Status\n";
+    
+    // Adiciona Receitas
+    paidInPeriod.forEach(inv => {
+      const valor = inv.realEstateFee > 0 ? inv.realEstateFee : inv.totalAmount;
+      csv += `Receita Realizada;${inv.contract?.property?.title || 'Imóvel'} - ${inv.description || ''};${new Date(inv.paidDate).toLocaleDateString('pt-BR')};${valor};Recebido\n`;
+    });
+
+    // Adiciona Inadimplência
+    overdueInPeriod.forEach(inv => {
+      csv += `Inadimplência;${inv.contract?.property?.title || 'Imóvel'} - ${inv.description || ''};${new Date(inv.dueDate).toLocaleDateString('pt-BR')};${inv.totalAmount};Atrasado\n`;
+    });
+
+    // Adiciona Repasses
+    pendingTransfers.forEach(inv => {
+      csv += `Repasse Pendente;${inv.contract?.property?.title || 'Imóvel'};${new Date(inv.paidDate).toLocaleDateString('pt-BR')};${inv.ownerAmount};Aguardando Transferência\n`;
+    });
+
+    // Criar e baixar arquivo
+    const blob = new Blob(["\ufeff" + csv], { type: 'text/csv;charset=utf-8;' }); // \ufeff ajuda com acentuação no Excel
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Relatorio_ZenixImob_${startDate}_a_${endDate}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
-    <div className="p-8 max-w-[1600px] mx-auto font-sans animate-in fade-in duration-500 pb-20">
+    // Adicionamos a classe 'print:p-0' para limpar margens na hora da impressão do PDF
+    <div className="p-8 max-w-[1600px] mx-auto font-sans animate-in fade-in duration-500 pb-20 print:p-0 print:m-0">
       
       {/* CABEÇALHO */}
-      <div className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      <div className="mb-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold text-slate-800 flex items-center gap-3">
             <BarChart3 className="text-blue-600 bg-blue-50 p-1.5 rounded-lg" size={36} />
@@ -100,12 +150,41 @@ export default function DashboardPage() {
           </h1>
           <p className="text-slate-500 mt-2">Visão estratégica e saúde financeira da imobiliária em tempo real.</p>
         </div>
-        <div className="bg-white px-5 py-3 rounded-xl border border-slate-200 shadow-sm flex items-center gap-3">
-          <Clock className="text-slate-400" size={18}/>
-          <span className="text-sm font-bold text-slate-600">
-            {now.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).replace(/^\w/, (c) => c.toUpperCase())}
-          </span>
+      </div>
+
+      {/* BARRA DE FILTROS E EXPORTAÇÃO (Oculta na hora de imprimir PDF) */}
+      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm mb-8 flex flex-col xl:flex-row justify-between items-center gap-4 print:hidden">
+        
+        <div className="flex flex-col sm:flex-row items-center gap-4 w-full xl:w-auto">
+          <div className="flex items-center gap-2 text-sm font-bold text-slate-600 bg-slate-50 px-4 py-2 rounded-lg border border-slate-100">
+            <Filter size={16} className="text-slate-400"/> Filtrar Período:
+          </div>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <input 
+              type="date" 
+              value={startDate} 
+              onChange={e => setStartDate(e.target.value)}
+              className="px-4 py-2 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium w-full sm:w-auto"
+            />
+            <span className="text-slate-400 font-bold">até</span>
+            <input 
+              type="date" 
+              value={endDate} 
+              onChange={e => setEndDate(e.target.value)}
+              className="px-4 py-2 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium w-full sm:w-auto"
+            />
+          </div>
         </div>
+
+        <div className="flex items-center gap-3 w-full xl:w-auto">
+          <button onClick={handleExportExcel} className="flex-1 xl:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-sm font-bold transition-colors">
+            <FileSpreadsheet size={16}/> Exportar Excel
+          </button>
+          <button onClick={handleExportPDF} className="flex-1 xl:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-xl text-sm font-bold transition-colors">
+            <FileText size={16}/> Salvar em PDF
+          </button>
+        </div>
+
       </div>
 
       {/* ========================================== */}
@@ -117,7 +196,7 @@ export default function DashboardPage() {
         <div className="bg-gradient-to-br from-emerald-600 to-emerald-800 p-6 rounded-3xl shadow-lg text-white relative overflow-hidden">
           <TrendingUp size={100} className="absolute -right-6 -bottom-6 text-emerald-400/20" />
           <div className="relative z-10">
-            <p className="text-sm font-bold text-emerald-200 uppercase tracking-wider mb-1 flex items-center gap-2"><DollarSign size={16}/> Receita Realizada (Mês)</p>
+            <p className="text-sm font-bold text-emerald-200 uppercase tracking-wider mb-1 flex items-center gap-2"><DollarSign size={16}/> Receita do Período</p>
             <p className="text-4xl font-black mb-2">{formatCurrency(realizedRevenue)}</p>
             <p className="text-xs text-emerald-100 font-medium bg-emerald-700/50 inline-block px-3 py-1 rounded-lg">
               Comissões e Taxas Adm recebidas
@@ -131,13 +210,13 @@ export default function DashboardPage() {
             <AlertTriangle size={80} className="text-red-500"/>
           </div>
           <div className="relative z-10">
-            <p className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-1 flex items-center gap-2"><AlertTriangle className="text-red-500" size={16}/> Inadimplência Total</p>
+            <p className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-1 flex items-center gap-2"><AlertTriangle className="text-red-500" size={16}/> Inadimplência no Período</p>
             <p className="text-3xl font-black text-slate-800 mb-2">{formatCurrency(totalOverdueAmount)}</p>
             <div className="flex items-center gap-3">
               <span className={`text-xs font-bold px-2.5 py-1 rounded-lg ${Number(defaultRatePercent) > 10 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
                 {defaultRatePercent}% do Previsto
               </span>
-              <span className="text-xs text-slate-500 font-medium">{overdueInvoices.length} faturas atrasadas</span>
+              <span className="text-xs text-slate-500 font-medium">{overdueInPeriod.length} faturas atrasadas</span>
             </div>
           </div>
         </div>
@@ -148,7 +227,7 @@ export default function DashboardPage() {
             <ArrowRightLeft size={80} className="text-blue-500"/>
           </div>
           <div className="relative z-10">
-            <p className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-1 flex items-center gap-2"><ArrowRightLeft className="text-blue-600" size={16}/> Repasses Pendentes</p>
+            <p className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-1 flex items-center gap-2"><ArrowRightLeft className="text-blue-600" size={16}/> Repasses Pendentes (Geral)</p>
             <p className="text-3xl font-black text-slate-800 mb-2">{formatCurrency(totalPendingTransferAmount)}</p>
             <div className="flex items-center gap-3">
               <span className="text-xs font-bold px-2.5 py-1 rounded-lg bg-blue-100 text-blue-700">
@@ -238,7 +317,7 @@ export default function DashboardPage() {
             <h3 className="font-bold text-slate-800 flex items-center gap-2"><Briefcase size={18} className="text-blue-600"/> Ação Necessária: Repasses Pendentes</h3>
             <p className="text-xs text-slate-500 mt-1">Imóveis onde o inquilino já pagou, mas o proprietário ainda não recebeu.</p>
           </div>
-          <Link href="/imobiliaria/financeiro" className="text-sm font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-xl transition-colors">
+          <Link href="/imobiliaria/financeiro" className="text-sm font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-xl transition-colors print:hidden">
             Ir para o Financeiro
           </Link>
         </div>
@@ -250,7 +329,7 @@ export default function DashboardPage() {
                 <th className="p-4 pl-6 font-bold uppercase tracking-wider text-xs">Imóvel</th>
                 <th className="p-4 font-bold uppercase tracking-wider text-xs">Pagamento Inquilino</th>
                 <th className="p-4 font-bold uppercase tracking-wider text-xs">Valor a Repassar</th>
-                <th className="p-4 pr-6 font-bold uppercase tracking-wider text-xs text-right">Ação</th>
+                <th className="p-4 pr-6 font-bold uppercase tracking-wider text-xs text-right print:hidden">Ação</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -271,7 +350,7 @@ export default function DashboardPage() {
                     <td className="p-4">
                       <p className="font-black text-slate-800 text-base">{formatCurrency(inv.ownerAmount)}</p>
                     </td>
-                    <td className="p-4 pr-6 text-right">
+                    <td className="p-4 pr-6 text-right print:hidden">
                       <Link href="/imobiliaria/financeiro" className="inline-block px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors shadow-sm">
                         Efetuar Repasse
                       </Link>
@@ -288,6 +367,16 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
+
+      {/* ESTILO DE IMPRESSÃO INJETADO DIRETAMENTE */}
+      <style dangerouslySetInnerHTML={{__html: `
+        @media print {
+          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; background-color: white !important; }
+          .print\\:hidden { display: none !important; }
+          .print\\:p-0 { padding: 0 !important; }
+          .print\\:m-0 { margin: 0 !important; }
+        }
+      `}} />
 
     </div>
   );
