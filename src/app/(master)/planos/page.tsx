@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { api } from '@/src/lib/api';
 import { 
   Package, Plus, Search, CheckCircle2, X, Edit, Trash2, 
-  Layers, DollarSign, Users, ShieldCheck, Loader2
+  Layers, ShieldCheck, Loader2
 } from 'lucide-react';
 
 // Lista oficial de módulos que a sua plataforma possui
@@ -44,7 +44,6 @@ export default function GestaoPlanosPage() {
   const fetchPlans = async () => {
     setIsLoading(true);
     try {
-      // Ajuste a rota caso a sua API do master seja diferente (ex: /master/plans)
       const response = await api.get('/plans');
       setPlans(response.data);
     } catch (error) {
@@ -235,7 +234,7 @@ export default function GestaoPlanosPage() {
                 </div>
               </div>
 
-              {/* SELEÇÃO DE MÓDULOS (CHECKBOXES) */}
+              {/* SELEÇÃO DE MÓDULOS (CHECKBOXES CORRIGIDOS) */}
               <div>
                 <div className="mb-4">
                   <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2"><Layers size={18} className="text-indigo-600"/> Módulos Liberados</h3>
@@ -245,6 +244,13 @@ export default function GestaoPlanosPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {AVAILABLE_MODULES.map(module => (
                     <label key={module.id} className={`flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${formData.modules.includes(module.id) ? 'border-indigo-600 bg-indigo-50' : 'border-slate-200 hover:border-slate-300 bg-white'}`}>
+                      {/* O INPUT INVISÍVEL QUE RESOLVE O PROBLEMA */}
+                      <input 
+                        type="checkbox" 
+                        className="hidden" 
+                        checked={formData.modules.includes(module.id)} 
+                        onChange={() => handleToggleModule(module.id)} 
+                      />
                       <div className={`w-5 h-5 rounded flex items-center justify-center shrink-0 transition-colors ${formData.modules.includes(module.id) ? 'bg-indigo-600 border-indigo-600' : 'border-2 border-slate-300'}`}>
                         {formData.modules.includes(module.id) && <CheckCircle2 size={14} className="text-white"/>}
                       </div>
