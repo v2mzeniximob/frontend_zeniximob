@@ -77,7 +77,7 @@ export default function FinanceiroPage() {
     
     try {
       // Chama a rota markAsPaid que já existe no seu backend
-      const res = await api.put(`/invoices/${invoiceId}/pay`);
+      const res = await api.patch(`/invoices/${invoiceId}/pay`);
       const updatedInvoice = res.data;
 
       // Atualiza o modal instantaneamente
