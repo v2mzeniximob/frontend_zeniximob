@@ -32,6 +32,7 @@ export function RealEstateSidebar() {
     { name: 'Imóveis', icon: Home, path: '/imobiliaria/imoveis' },
     { name: 'Clientes (CRM)', icon: UserCircle, path: '/imobiliaria/clientes' },
     { name: 'Leads (CRM)', icon: Briefcase, path: '/imobiliaria/leads' },
+    { name: 'Controle de Chaves', icon: Key, path: '/imobiliaria/chaves' },
     { name: 'Propostas e Termos', icon: FileSignature, path: '/imobiliaria/propostas' },
     { name: 'Visitas', icon: Calendar, path: '/imobiliaria/visitas' },
     { name: 'Proprietários', icon: UserCircle, path: '/imobiliaria/proprietarios' },
