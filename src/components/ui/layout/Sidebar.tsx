@@ -11,7 +11,9 @@ import {
   Settings, 
   LogOut,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  FileSignature,
+  Wallet
 } from 'lucide-react';
 import { destroyCookie } from 'nookies';
 
@@ -20,10 +22,12 @@ export function Sidebar() {
   const pathname = usePathname();
 
   const links = [
-    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-    { name: 'Imobiliárias', href: '/imobiliarias', icon: Building2 },
+   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Franqueados', href: '/franqueados', icon: Users },
+    { name: 'Imobiliárias', href: '/imobiliarias', icon: Building2 },
     { name: 'Planos', href: '/planos', icon: CreditCard },
+    { name: 'Contratos', href: '/contratos', icon: FileSignature },
+    { name: 'Financeiro', href: '/financeiro', icon: Wallet },
   ];
 
   const handleLogout = () => {
