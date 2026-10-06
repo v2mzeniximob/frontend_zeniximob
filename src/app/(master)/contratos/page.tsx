@@ -12,6 +12,7 @@ const initialForm = {
   type: 'MASTER_IMOBILIARIA',
   franchiseeId: '',
   realEstateId: '',
+  planId: '',
   startDate: '',
   endDate: '',
   value: '',
@@ -22,6 +23,7 @@ export default function MasterContratosPage() {
   const [contracts, setContracts] = useState<any[]>([]);
   const [realEstates, setRealEstates] = useState<any[]>([]);
   const [franchisees, setFranchisees] = useState<any[]>([]);
+  const [plans, setPlans] = useState<any[]>([]);
   const [config, setConfig] = useState<any>(null);
   
   const [isLoading, setIsLoading] = useState(true);
@@ -38,15 +40,17 @@ export default function MasterContratosPage() {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const [resContracts, resRealEstates, resFranchisees, resConfig] = await Promise.all([
+      const [resContracts, resRealEstates, resFranchisees, resPlans, resConfig] = await Promise.all([
         api.get('/master/contracts'),
-        api.get('/real-estates').catch(() => ({ data: [] })), // Busca as imobiliárias cadastradas
-        api.get('/franchisees').catch(() => ({ data: [] })),   // Busca os franqueados cadastrados
+        api.get('/real-estates').catch(() => ({ data: [] })),
+        api.get('/franchisees').catch(() => ({ data: [] })),
+        api.get('/plans').catch(() => ({ data: [] })),
         api.get('/master/config').catch(() => ({ data: {} }))
       ]);
       setContracts(resContracts.data);
       setRealEstates(resRealEstates.data);
       setFranchisees(resFranchisees.data);
+      setPlans(resPlans.data.filter((p: any) => p.isActive)); // Apenas planos ativos
       setConfig(resConfig.data);
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
@@ -60,9 +64,77 @@ export default function MasterContratosPage() {
     setIsModalOpen(true);
   };
 
+  // Alterar Plano
+  const handlePlanChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const selectedPlanId = e.target.value;
+    const plan = plans.find(p => p.id === selectedPlanId);
+    
+    setFormData({
+      ...formData,
+      planId: selectedPlanId,
+      value: plan ? plan.price : '' // Puxa o valor do plano ou limpa se for avulso
+    });
+  };
+
+  // ==========================================
+  // GERADOR DE PDF INTELIGENTE
+  // ==========================================
+  const handleGeneratePDF = (dataToPrint: any) => {
+    let template = '';
+    let titlePDF = 'Contrato SaaS';
+    let nomeFranqueado = 'N/A';
+    let cnpjFranqueado = 'N/A';
+    let nomeImobiliaria = 'N/A';
+    let cnpjImobiliaria = 'N/A';
+
+    if (dataToPrint.franchiseeId) {
+      const f = franchisees.find(x => x.id === dataToPrint.franchiseeId);
+      if (f) { nomeFranqueado = f.tradeName || f.corporateName; cnpjFranqueado = f.cnpj; }
+    }
+    if (dataToPrint.realEstateId) {
+      const r = realEstates.find(x => x.id === dataToPrint.realEstateId);
+      if (r) { nomeImobiliaria = r.tradeName || r.corporateName; cnpjImobiliaria = r.cnpj; }
+    }
+
+    if (dataToPrint.type === 'MASTER_FRANQUEADO') {
+      template = config?.templateMasterFranchisee;
+      titlePDF = 'Contrato de Franquia';
+    } else if (dataToPrint.type === 'MASTER_IMOBILIARIA') {
+      template = config?.templateMasterRealEstate;
+      titlePDF = 'Contrato Zenix x Imobiliária';
+    } else {
+      template = config?.templateFranchiseeRealEstate;
+      titlePDF = 'Contrato Franqueado x Imobiliária';
+    }
+
+    if (!template) return; // Cancela se não tiver template
+
+    const formatCurrency = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+    const dataAtual = new Date().toLocaleDateString('pt-BR');
+
+    const html = template
+      .replace(/{{NOME_FRANQUEADO}}/g, nomeFranqueado)
+      .replace(/{{CNPJ_FRANQUEADO}}/g, cnpjFranqueado)
+      .replace(/{{NOME_IMOBILIARIA}}/g, nomeImobiliaria)
+      .replace(/{{CNPJ_IMOBILIARIA}}/g, cnpjImobiliaria)
+      .replace(/{{CNPJ}}/g, dataToPrint.type === 'MASTER_FRANQUEADO' ? cnpjFranqueado : cnpjImobiliaria)
+      .replace(/{{VALOR}}/g, formatCurrency(Number(dataToPrint.value)))
+      .replace(/{{DATA}}/g, dataAtual);
+
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(`
+        <html>
+          <head><title>${titlePDF}</title><style>body { font-family: Arial, sans-serif; padding: 40px; color: #333; line-height: 1.6; max-width: 900px; margin: auto; }</style></head>
+          <body>${html}<script>window.onload = function() { window.print(); }</script></body>
+        </html>
+      `);
+      printWindow.document.close();
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
     if (formData.type === 'MASTER_FRANQUEADO' && !formData.franchiseeId) return alert('Selecione o Franqueado.');
     if (formData.type === 'MASTER_IMOBILIARIA' && !formData.realEstateId) return alert('Selecione a Imobiliária.');
     if (formData.type === 'FRANQUEADO_IMOBILIARIA' && (!formData.realEstateId || !formData.franchiseeId)) return alert('Selecione o Franqueado e a Imobiliária.');
@@ -70,6 +142,10 @@ export default function MasterContratosPage() {
     setIsSaving(true);
     try {
       await api.post('/master/contracts', formData);
+      
+      // GERA O PDF AUTOMATICAMENTE AO SALVAR (Passamos o formData para garantir os dados atuais)
+      handleGeneratePDF(formData);
+
       alert('Contrato gerado com sucesso! Faturas de cobrança criadas no sistema SaaS.');
       setIsModalOpen(false);
       fetchData();
@@ -87,75 +163,6 @@ export default function MasterContratosPage() {
       fetchData();
     } catch (error) {
       alert('Erro ao excluir contrato.');
-    }
-  };
-
-  // ==========================================
-  // GERADOR DE PDF INTELIGENTE
-  // ==========================================
-  const handleGeneratePDF = () => {
-    let template = '';
-    let titlePDF = 'Contrato SaaS';
-    let nomeFranqueado = 'N/A';
-    let cnpjFranqueado = 'N/A';
-    let nomeImobiliaria = 'N/A';
-    let cnpjImobiliaria = 'N/A';
-
-    // Captura os dados com base na escolha
-    if (formData.franchiseeId) {
-      const f = franchisees.find(x => x.id === formData.franchiseeId);
-      if (f) { nomeFranqueado = f.tradeName || f.corporateName; cnpjFranqueado = f.cnpj; }
-    }
-    if (formData.realEstateId) {
-      const r = realEstates.find(x => x.id === formData.realEstateId);
-      if (r) { nomeImobiliaria = r.tradeName || r.corporateName; cnpjImobiliaria = r.cnpj; }
-    }
-
-    // Seleciona o Template correto configurado no banco de dados do Master
-    if (formData.type === 'MASTER_FRANQUEADO') {
-      template = config?.templateMasterFranchisee;
-      titlePDF = 'Contrato de Franquia';
-    } else if (formData.type === 'MASTER_IMOBILIARIA') {
-      template = config?.templateMasterRealEstate;
-      titlePDF = 'Contrato Zenix x Imobiliária';
-    } else {
-      template = config?.templateFranchiseeRealEstate;
-      titlePDF = 'Contrato Franqueado x Imobiliária';
-    }
-
-    if (!template) {
-      alert('O modelo HTML para este tipo de contrato não foi salvo. Vá a Configurações > Modelos de Contrato para configurá-lo.');
-      return;
-    }
-
-    const formatCurrency = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
-    const dataAtual = new Date().toLocaleDateString('pt-BR');
-
-    // Troca as tags HTML pelas variáveis reais
-    const html = template
-      .replace(/{{NOME_FRANQUEADO}}/g, nomeFranqueado)
-      .replace(/{{CNPJ_FRANQUEADO}}/g, cnpjFranqueado)
-      .replace(/{{NOME_IMOBILIARIA}}/g, nomeImobiliaria)
-      .replace(/{{CNPJ_IMOBILIARIA}}/g, cnpjImobiliaria)
-      .replace(/{{CNPJ}}/g, formData.type === 'MASTER_FRANQUEADO' ? cnpjFranqueado : cnpjImobiliaria)
-      .replace(/{{VALOR}}/g, formatCurrency(Number(formData.value)))
-      .replace(/{{DATA}}/g, dataAtual);
-
-    const printWindow = window.open('', '_blank');
-    if (printWindow) {
-      printWindow.document.write(`
-        <html>
-          <head>
-            <title>${titlePDF}</title>
-            <style>body { font-family: Arial, sans-serif; padding: 40px; color: #333; line-height: 1.6; max-width: 900px; margin: auto; }</style>
-          </head>
-          <body>
-            ${html}
-            <script>window.onload = function() { window.print(); }</script>
-          </body>
-        </html>
-      `);
-      printWindow.document.close();
     }
   };
 
@@ -257,14 +264,25 @@ export default function MasterContratosPage() {
             
             <form onSubmit={handleSubmit} className="p-6 space-y-6 overflow-y-auto flex-1">
               
-              {/* TIPO DE CONTRATO */}
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">Natureza do Contrato *</label>
-                <select value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})} className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 bg-slate-50 font-bold text-slate-700 text-sm outline-none">
-                  <option value="MASTER_IMOBILIARIA">1. Zenix Master ➔ Imobiliária (Direta)</option>
-                  <option value="MASTER_FRANQUEADO">2. Zenix Master ➔ Franqueado (Sócio)</option>
-                  <option value="FRANQUEADO_IMOBILIARIA">3. Franqueado ➔ Imobiliária (Intermediação)</option>
-                </select>
+              {/* TIPO DE CONTRATO E SELEÇÃO DE PLANO */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">Natureza do Contrato *</label>
+                  <select value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})} className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 bg-slate-50 font-bold text-slate-700 text-sm outline-none">
+                    <option value="MASTER_IMOBILIARIA">1. Zenix Master ➔ Imobiliária</option>
+                    <option value="MASTER_FRANQUEADO">2. Zenix Master ➔ Franqueado</option>
+                    <option value="FRANQUEADO_IMOBILIARIA">3. Franqueado ➔ Imobiliária</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">Vincular a um Plano SaaS</label>
+                  <select value={formData.planId} onChange={handlePlanChange} className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 bg-slate-50 font-bold text-slate-700 text-sm outline-none">
+                    <option value="">Plano Personalizado / Avulso</option>
+                    {plans.map(p => (
+                      <option key={p.id} value={p.id}>{p.name} - R$ {p.price.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               {/* SELEÇÃO DINÂMICA DE CLIENTES */}
@@ -306,24 +324,18 @@ export default function MasterContratosPage() {
                 </div>
               </div>
 
-              {/* PDF E LINKS */}
-              <div className="bg-indigo-50 p-5 rounded-2xl border border-indigo-100 flex flex-col sm:flex-row justify-between items-center gap-4">
-                <div className="w-full">
-                  <label className="block text-sm font-bold text-indigo-900 mb-1">Anexar Contrato (ZapSign / Drive)</label>
-                  <input type="url" value={formData.documentUrl} onChange={e => setFormData({...formData, documentUrl: e.target.value})} placeholder="https://..." className="w-full px-4 py-2.5 border border-indigo-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm bg-white" />
-                </div>
-                <div className="shrink-0 pt-5">
-                  <button type="button" onClick={handleGeneratePDF} className="w-full px-4 py-2.5 text-xs font-bold text-indigo-700 bg-white hover:bg-indigo-100 border border-indigo-300 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-sm">
-                    <FileDown size={16}/> Imprimir PDF
-                  </button>
-                </div>
+              {/* ANEXOS */}
+              <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-100 flex flex-col gap-2">
+                <label className="block text-sm font-bold text-indigo-900">Anexar Contrato Assinado (Link ZapSign / Drive)</label>
+                <input type="url" value={formData.documentUrl} onChange={e => setFormData({...formData, documentUrl: e.target.value})} placeholder="https://..." className="w-full px-4 py-2.5 border border-indigo-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 text-sm bg-white" />
+                <p className="text-xs text-indigo-600 mt-1">O PDF será gerado automaticamente ao salvar para você enviar ao cliente.</p>
               </div>
 
               {/* BOTÕES FINAIS */}
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 shrink-0">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-5 py-3 text-sm font-bold text-slate-600 hover:bg-slate-200 rounded-xl transition-colors">Cancelar</button>
                 <button type="submit" disabled={isSaving} className="px-6 py-3 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-all flex items-center gap-2 shadow-md">
-                  {isSaving ? <Loader2 size={18} className="animate-spin" /> : <CheckSquare size={18}/>} Gerar Contrato & Faturas
+                  {isSaving ? <Loader2 size={18} className="animate-spin" /> : <CheckSquare size={18}/>} Salvar Contrato e Gerar PDF
                 </button>
               </div>
             </form>
