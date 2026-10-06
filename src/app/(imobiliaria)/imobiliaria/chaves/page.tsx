@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { api } from '@/src/lib/api';
 import { 
   KeyRound, FileText, CheckCircle2, Clock, Search, User, 
-  ArrowRightLeft, Plus, X, Building2, FileSignature
+  ArrowRightLeft, Plus, X, Building2, FileSignature, FileDown, Link as LinkIcon
 } from 'lucide-react';
 
 export default function ChavesPage() {
@@ -24,8 +24,13 @@ export default function ChavesPage() {
   const [isTermModalOpen, setIsTermModalOpen] = useState(false);
   const [termForm, setTermForm] = useState({ type: 'Entrega - Locação', propertyId: '', clientId: '', documentUrl: '' });
   
+  // Estados: Anexar Link
+  const [isAttachModalOpen, setIsAttachModalOpen] = useState(false);
+  const [attachForm, setAttachForm] = useState({ id: '', documentUrl: '', type: '', propertyId: '', clientId: '' });
+
   // Dados de Apoio
   const [clients, setClients] = useState<any[]>([]);
+  const [storeData, setStoreData] = useState<any>(null);
 
   useEffect(() => {
     fetchData();
@@ -37,22 +42,25 @@ export default function ChavesPage() {
       if (activeTab === 'quadro') {
         const [resProps, resBrokers] = await Promise.all([
           api.get('/keys'),
-          api.get('/brokers').catch(() => ({ data: [] })) // Busca os corretores para o select
+          api.get('/brokers').catch(() => ({ data: [] }))
         ]);
         setProperties(resProps.data);
         setBrokers(resBrokers.data);
       } else {
-        const [resTerms, resClients, resProps] = await Promise.all([
+        // Busca os dados da imobiliária (store) para termos acesso ao keyTermTemplate
+        const [resTerms, resClients, resProps, resStore] = await Promise.all([
           api.get('/key-terms'),
           api.get('/clients'),
-          api.get('/properties')
+          api.get('/properties'),
+          api.get('/my-store').catch(() => ({ data: {} }))
         ]);
         setTerms(resTerms.data);
         setClients(resClients.data);
         setProperties(resProps.data);
+        setStoreData(resStore.data);
       }
     } catch (error) {
-      console.error('Erro ao carregar dados do quadro de chaves:', error);
+      console.error('Erro ao carregar dados:', error);
     } finally {
       setIsLoading(false);
     }
@@ -73,7 +81,6 @@ export default function ChavesPage() {
   const handleWithdrawKey = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      // Envia o form completo, incluindo o brokerId
       await api.post('/keys/withdraw', { propertyId: selectedProperty.id, ...withdrawForm });
       setIsWithdrawModalOpen(false);
       setWithdrawForm({ clientName: '', reason: 'Visita', notes: '', brokerId: '' });
@@ -116,6 +123,70 @@ export default function ChavesPage() {
       alert('Termo assinado! O quadro de chaves foi atualizado.');
     } catch (error) {
       alert('Erro ao atualizar termo.');
+    }
+  };
+
+  // NOVO: GERAR PDF DO TERMO
+  const handleGenerateTermPDF = (term: any) => {
+    const template = storeData?.keyTermTemplate;
+    
+    if (!template) {
+      alert('O modelo "Termo de Chaves" não está configurado. Vá a Configurações > Modelos e Termos para configurá-lo com as variáveis.');
+      return;
+    }
+
+    const clienteNome = term.client?.clientType === 'PJ' ? term.client?.corporateName : term.client?.name;
+    const documento = term.client?.document || '_________________________';
+    const endereco = term.property?.neighborhood ? `${term.property?.address}, ${term.property?.neighborhood}` : term.property?.address;
+    const dataCriacao = new Date(term.createdAt).toLocaleDateString('pt-BR');
+
+    const html = template
+      .replace(/{{NOME_CLIENTE}}/g, clienteNome || '_________________________')
+      .replace(/{{CPF_CNPJ}}/g, documento)
+      .replace(/{{ENDERECO_IMOVEL}}/g, endereco || '_________________________')
+      .replace(/{{TIPO_TERMO}}/g, term.type)
+      .replace(/{{DATA_CRIACAO}}/g, dataCriacao)
+      .replace(/{{NOME_IMOBILIARIA}}/g, storeData?.tradeName || 'Imobiliária');
+
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>Termo de Chaves - ${clienteNome}</title>
+            <style>body { font-family: Arial, sans-serif; padding: 40px; color: #333; line-height: 1.6; }</style>
+          </head>
+          <body>
+            ${html}
+            <script>window.onload = function() { window.print(); }</script>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+    }
+  };
+
+  // NOVO: ANEXAR LINK DO DOCUMENTO EXISTENTE
+  const openAttachModal = (term: any) => {
+    setAttachForm({
+      id: term.id,
+      documentUrl: term.documentUrl || '',
+      type: term.type,
+      propertyId: term.propertyId,
+      clientId: term.clientId
+    });
+    setIsAttachModalOpen(true);
+  };
+
+  const handleAttachSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await api.put(`/key-terms/${attachForm.id}`, attachForm);
+      setIsAttachModalOpen(false);
+      fetchData();
+      alert('Link do documento anexado com sucesso!');
+    } catch (error) {
+      alert('Erro ao anexar link.');
     }
   };
 
@@ -302,12 +373,25 @@ export default function ChavesPage() {
                       <td className="p-4 text-slate-500 text-xs">
                         {new Date(term.createdAt).toLocaleDateString('pt-BR')}
                       </td>
-                      <td className="p-4 pr-6 flex justify-end gap-2">
-                        {term.documentUrl && (
-                          <a href={term.documentUrl} target="_blank" rel="noreferrer" className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5">
-                            <FileText size={14}/> PDF
+                      <td className="p-4 pr-6 flex justify-end items-center gap-2">
+                        
+                        {/* BOTÃO 1: GERAR PDF FÍSICO */}
+                        <button onClick={() => handleGenerateTermPDF(term)} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5" title="Gerar e Imprimir Documento">
+                          <FileDown size={14}/> Gerar PDF
+                        </button>
+
+                        {/* BOTÃO 2: VER DOC OU ANEXAR LINK */}
+                        {term.documentUrl ? (
+                          <a href={term.documentUrl} target="_blank" rel="noreferrer" className="px-3 py-1.5 bg-blue-100 hover:bg-blue-200 text-blue-700 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5">
+                            <FileText size={14}/> Ver Doc
                           </a>
+                        ) : (
+                          <button onClick={() => openAttachModal(term)} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5">
+                            <LinkIcon size={14}/> Anexar Link
+                          </button>
                         )}
+
+                        {/* BOTÃO 3: MARCAR ASSINADO E MOVER CHAVE */}
                         {term.status === 'Pendente' && (
                           <button onClick={() => handleMarkTermAsSigned(term.id)} className="px-3 py-1.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5">
                             <CheckCircle2 size={14}/> Marcar Assinado
@@ -347,7 +431,6 @@ export default function ChavesPage() {
                 </select>
               </div>
               
-              {/* SELECT DE CORRETORES (NOVO) */}
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-1">Corretor Responsável</label>
                 <select 
@@ -362,7 +445,6 @@ export default function ChavesPage() {
                 </select>
               </div>
 
-              {/* CAMPO MANUAL - SÓ APARECE SE NÃO TIVER CORRETOR SELECIONADO */}
               {!withdrawForm.brokerId && (
                 <div className="animate-in fade-in duration-300">
                   <label className="block text-sm font-bold text-slate-700 mb-1">Ou entregue para (Cliente/Prestador)</label>
@@ -416,16 +498,44 @@ export default function ChavesPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-1">Link do Documento (PDF Gerado / ZapSign)</label>
+                <label className="block text-sm font-bold text-slate-700 mb-1">Link do Documento (Opcional - ZapSign/Drive)</label>
                 <input type="url" placeholder="https://..." value={termForm.documentUrl} onChange={e => setTermForm({...termForm, documentUrl: e.target.value})} className="w-full p-3 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm" />
               </div>
               
               <div className="bg-blue-50 text-blue-800 p-4 rounded-xl text-xs font-medium border border-blue-100 mt-4">
-                <strong>Nota:</strong> Ao criar o termo, ele ficará como "Pendente". Quando você marcar como "Assinado", o sistema moverá a chave automaticamente no quadro físico.
+                <strong>Nota:</strong> Ao criar o termo, ele ficará "Pendente". Você poderá gerar o PDF para assinar fisicamente na hora, ou adicionar um link externo depois.
               </div>
 
               <button type="submit" className="w-full py-3.5 mt-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-colors">
-                Gerar Termo
+                Criar Termo
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ANEXAR LINK DO DOCUMENTO */}
+      {isAttachModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <h3 className="font-bold text-slate-800 flex items-center gap-2"><LinkIcon size={18} className="text-blue-600"/> Anexar Documento</h3>
+              <button onClick={() => setIsAttachModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X size={20}/></button>
+            </div>
+            <form onSubmit={handleAttachSubmit} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-1">Link do Termo Assinado (PDF/ZapSign)</label>
+                <input 
+                  required
+                  type="url" 
+                  placeholder="https://..." 
+                  value={attachForm.documentUrl} 
+                  onChange={e => setAttachForm({...attachForm, documentUrl: e.target.value})} 
+                  className="w-full p-3 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm" 
+                />
+              </div>
+              <button type="submit" className="w-full py-3.5 mt-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-colors">
+                Salvar Anexo
               </button>
             </form>
           </div>
