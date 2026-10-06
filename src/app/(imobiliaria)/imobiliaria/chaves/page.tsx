@@ -14,9 +14,10 @@ export default function ChavesPage() {
 
   // Estados: Quadro de Chaves
   const [properties, setProperties] = useState<any[]>([]);
+  const [brokers, setBrokers] = useState<any[]>([]);
   const [selectedProperty, setSelectedProperty] = useState<any>(null);
   const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
-  const [withdrawForm, setWithdrawForm] = useState({ clientName: '', reason: 'Visita', notes: '' });
+  const [withdrawForm, setWithdrawForm] = useState({ clientName: '', reason: 'Visita', notes: '', brokerId: '' });
   
   // Estados: Termos de Chaves
   const [terms, setTerms] = useState<any[]>([]);
@@ -34,8 +35,12 @@ export default function ChavesPage() {
     setIsLoading(true);
     try {
       if (activeTab === 'quadro') {
-        const resProps = await api.get('/keys');
+        const [resProps, resBrokers] = await Promise.all([
+          api.get('/keys'),
+          api.get('/brokers').catch(() => ({ data: [] })) // Busca os corretores para o select
+        ]);
         setProperties(resProps.data);
+        setBrokers(resBrokers.data);
       } else {
         const [resTerms, resClients, resProps] = await Promise.all([
           api.get('/key-terms'),
@@ -68,9 +73,10 @@ export default function ChavesPage() {
   const handleWithdrawKey = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      // Envia o form completo, incluindo o brokerId
       await api.post('/keys/withdraw', { propertyId: selectedProperty.id, ...withdrawForm });
       setIsWithdrawModalOpen(false);
-      setWithdrawForm({ clientName: '', reason: 'Visita', notes: '' });
+      setWithdrawForm({ clientName: '', reason: 'Visita', notes: '', brokerId: '' });
       fetchData();
     } catch (error: any) {
       alert(error.response?.data?.error || 'Erro ao retirar chave.');
@@ -222,7 +228,7 @@ export default function ChavesPage() {
                           {isWithdrawn && activeMovement ? (
                             <div>
                               <p className="font-bold text-slate-700 text-xs">
-                                {activeMovement.broker?.name || activeMovement.realEstate?.tradeName || activeMovement.realEstate?.name || 'Sistema'}
+                                {activeMovement.broker?.name || activeMovement.clientName || activeMovement.realEstate?.tradeName || 'Sistema'}
                               </p>
                               <p className="text-[10px] text-slate-500">{activeMovement.reason} ({new Date(activeMovement.withdrawnAt).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'})})</p>
                             </div>
@@ -340,10 +346,36 @@ export default function ChavesPage() {
                   <option value="Outros">Outros</option>
                 </select>
               </div>
+              
+              {/* SELECT DE CORRETORES (NOVO) */}
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-1">Entregue para (Opcional)</label>
-                <input type="text" placeholder="Nome do prestador ou cliente..." value={withdrawForm.clientName} onChange={e => setWithdrawForm({...withdrawForm, clientName: e.target.value})} className="w-full p-3 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-amber-500" />
+                <label className="block text-sm font-bold text-slate-700 mb-1">Corretor Responsável</label>
+                <select 
+                  value={withdrawForm.brokerId} 
+                  onChange={e => setWithdrawForm({...withdrawForm, brokerId: e.target.value, clientName: ''})} 
+                  className="w-full p-3 bg-white border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-amber-500"
+                >
+                  <option value="">Nenhum (Entregue a terceiros)</option>
+                  {brokers.map((b: any) => (
+                    <option key={b.id} value={b.id}>{b.name}</option>
+                  ))}
+                </select>
               </div>
+
+              {/* CAMPO MANUAL - SÓ APARECE SE NÃO TIVER CORRETOR SELECIONADO */}
+              {!withdrawForm.brokerId && (
+                <div className="animate-in fade-in duration-300">
+                  <label className="block text-sm font-bold text-slate-700 mb-1">Ou entregue para (Cliente/Prestador)</label>
+                  <input 
+                    type="text" 
+                    placeholder="Ex: João (Encanador)..." 
+                    value={withdrawForm.clientName} 
+                    onChange={e => setWithdrawForm({...withdrawForm, clientName: e.target.value})} 
+                    className="w-full p-3 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-amber-500" 
+                  />
+                </div>
+              )}
+
               <button type="submit" className="w-full py-3.5 mt-2 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl transition-colors">
                 Registrar Saída da Chave
               </button>
