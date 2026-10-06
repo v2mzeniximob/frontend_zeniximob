@@ -33,7 +33,6 @@ export default function FinanceiroPage() {
   const fetchFinancialData = async () => {
     setIsLoading(true);
     try {
-      // Busca contratos com as faturas e detalhes do cliente/imóvel
       const response = await api.get('/contracts?include=invoices,tenant');
       setContractsWithInvoices(response.data);
     } catch (error) {
@@ -72,6 +71,32 @@ export default function FinanceiroPage() {
     }
   };
 
+  // NOVA FUNÇÃO: DAR BAIXA MANUAL PARA TESTAR OS REPASSES
+  const handleMarkAsPaid = async (invoiceId: string) => {
+    if(!confirm('Deseja confirmar o recebimento desta fatura manualmente? Ela irá para a tela de Repasses.')) return;
+    
+    try {
+      // Chama a rota markAsPaid que já existe no seu backend
+      const res = await api.put(`/invoices/${invoiceId}/pay`);
+      const updatedInvoice = res.data;
+
+      // Atualiza o modal instantaneamente
+      setSelectedContract((prev: any) => {
+        if (!prev) return prev;
+        const newInvoices = prev.invoices.map((inv: any) => 
+          inv.id === invoiceId ? { ...inv, status: 'Pago', paidDate: new Date().toISOString() } : inv
+        );
+        return { ...prev, invoices: newInvoices };
+      });
+      
+      alert('Pagamento confirmado! A fatura agora está disponível na aba de Repasses.');
+      fetchFinancialData(); // Atualiza as listas no fundo
+    } catch (error) {
+      console.error(error);
+      alert('Erro ao confirmar pagamento. Verifique se a rota PUT /invoices/:id/pay está no seu backend (routes.ts).');
+    }
+  };
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     alert('Código PIX Copiado e pronto a colar!');
@@ -80,7 +105,6 @@ export default function FinanceiroPage() {
   // ==========================================
   // FUNÇÕES DA ABA: REPASSES
   // ==========================================
-  // Pega todas as faturas de todos os contratos que já estão PAGAS
   const repasses = contractsWithInvoices
     .flatMap(c => (c.invoices || []).map((inv: any) => ({ ...inv, contract: c })))
     .filter((inv: any) => inv.status === 'Pago');
@@ -115,7 +139,7 @@ export default function FinanceiroPage() {
       await api.put(`/invoices/${selectedRepasse.id}/repasse`, repasseForm);
       alert('Repasse salvo com sucesso!');
       setSelectedRepasse(null);
-      fetchFinancialData(); // Atualiza a lista
+      fetchFinancialData(); 
     } catch (error) {
       alert('Erro ao salvar repasse.');
     } finally {
@@ -215,7 +239,7 @@ export default function FinanceiroPage() {
       </div>
 
       {/* ========================================================================= */}
-      {/* ABA: COBRANÇAS (LISTAGEM DE CONTRATOS - LAYOUT ORIGINAL MANTIDO) */}
+      {/* ABA: COBRANÇAS (LISTAGEM DE CONTRATOS) */}
       {/* ========================================================================= */}
       {activeTab === 'cobrancas' && (
         <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
@@ -234,11 +258,7 @@ export default function FinanceiroPage() {
               const isSale = contract.type === 'Venda';
 
               return (
-                <div 
-                  key={contract.id} 
-                  onClick={() => setSelectedContract(contract)}
-                  className="grid grid-cols-12 gap-4 p-5 items-center hover:bg-blue-50/50 transition-colors cursor-pointer group"
-                >
+                <div key={contract.id} onClick={() => setSelectedContract(contract)} className="grid grid-cols-12 gap-4 p-5 items-center hover:bg-blue-50/50 transition-colors cursor-pointer group">
                   <div className="col-span-4 flex items-center gap-4">
                     <div className="w-10 h-10 bg-gradient-to-br from-blue-100 to-blue-200 text-blue-700 rounded-full flex items-center justify-center font-bold shadow-sm shrink-0">
                       {contract.tenant?.name?.charAt(0) || 'C'}
@@ -267,7 +287,7 @@ export default function FinanceiroPage() {
                   </div>
 
                   <div className="col-span-3 flex flex-col justify-center">
-                    <p className="font-bold text-slate-800 text-base">R$ {Number(contract.rentValue).toFixed(2)}</p>
+                    <p className="font-bold text-slate-800 text-base">{formatCurrency(contract.rentValue)}</p>
                     <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider mt-0.5">
                       {isSale ? 'Por Parcela' : 'Por Mês'}
                     </p>
@@ -406,27 +426,44 @@ export default function FinanceiroPage() {
                         </div>
                       </div>
 
-                      {/* GERAR PIX / BOLETO */}
+                      {/* GERAR PIX / BOLETO / BAIXAR MANUAL */}
                       {invoice.status !== 'Pago' && (
-                        <div className="mt-4 pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50 -mx-5 -mb-5 p-5 rounded-b-2xl">
+                        <div className="mt-4 pt-4 border-t border-slate-100 flex flex-col items-center justify-between gap-4 bg-slate-50 -mx-5 -mb-5 p-5 rounded-b-2xl">
+                          
+                          {/* BLOCO PIX */}
                           {invoice.pixQrCodeBase64 ? (
                             <div className="flex flex-col sm:flex-row items-center gap-4 w-full">
                               <img src={`data:image/jpeg;base64,${invoice.pixQrCodeBase64}`} alt="QR Code PIX" className="w-24 h-24 rounded-xl shadow-sm bg-white p-1 border border-slate-200" />
                               <div className="flex-1 text-center sm:text-left">
                                 <p className="text-sm font-bold text-slate-700 mb-2">QR Code Gerado!</p>
-                                <button onClick={() => copyToClipboard(invoice.pixQrCode)} className="text-xs font-bold flex items-center justify-center sm:justify-start gap-2 bg-slate-800 hover:bg-slate-700 text-white px-4 py-2.5 rounded-xl transition-colors shadow-sm w-full sm:w-auto"><Copy size={14} /> Copiar (Pix Copia e Cola)</button>
+                                <div className="flex flex-col sm:flex-row gap-2 justify-center sm:justify-start">
+                                  <button onClick={() => copyToClipboard(invoice.pixQrCode)} className="text-xs font-bold flex items-center justify-center sm:justify-start gap-2 bg-slate-800 hover:bg-slate-700 text-white px-4 py-2.5 rounded-xl transition-colors shadow-sm w-full sm:w-auto"><Copy size={14} /> Copiar (Pix)</button>
+                                  <button onClick={() => handleMarkAsPaid(invoice.id)} className="text-xs font-bold flex items-center justify-center sm:justify-start gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl transition-colors shadow-sm w-full sm:w-auto"><CheckCircle2 size={14} /> Confirmar Recebimento</button>
+                                </div>
                               </div>
                             </div>
-                          ) : invoice.ticketUrl ? (
+                          ) 
+                          
+                          /* BLOCO BOLETO */
+                          : invoice.ticketUrl ? (
                             <div className="flex flex-col sm:flex-row items-center gap-4 w-full">
                               <div className="w-16 h-16 bg-white border border-blue-100 rounded-xl flex items-center justify-center shadow-sm shrink-0"><Receipt size={32} className="text-blue-500" /></div>
                               <div className="flex-1 text-center sm:text-left">
                                 <p className="text-sm font-bold text-blue-900 mb-2">Boleto Gerado com Sucesso!</p>
-                                <a href={invoice.ticketUrl} target="_blank" rel="noreferrer" className="text-xs font-bold flex items-center justify-center sm:justify-start gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl transition-colors shadow-sm w-full sm:w-auto"><ExternalLink size={14} /> Visualizar e Imprimir</a>
+                                <div className="flex flex-col sm:flex-row gap-2 justify-center sm:justify-start">
+                                  <a href={invoice.ticketUrl} target="_blank" rel="noreferrer" className="text-xs font-bold flex items-center justify-center sm:justify-start gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl transition-colors shadow-sm w-full sm:w-auto"><ExternalLink size={14} /> Visualizar e Imprimir</a>
+                                  <button onClick={() => handleMarkAsPaid(invoice.id)} className="text-xs font-bold flex items-center justify-center sm:justify-start gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl transition-colors shadow-sm w-full sm:w-auto"><CheckCircle2 size={14} /> Confirmar Recebimento</button>
+                                </div>
                               </div>
                             </div>
-                          ) : (
-                            <div className="w-full flex justify-end gap-3">
+                          ) 
+                          
+                          /* BOTÕES DEFAULT */
+                          : (
+                            <div className="w-full flex justify-end gap-3 flex-wrap">
+                              <button onClick={() => handleMarkAsPaid(invoice.id)} className="text-sm font-bold flex items-center justify-center gap-2 bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2.5 rounded-xl transition-all shadow-sm w-full sm:w-auto" title="Marcar como Pago para testar os Repasses">
+                                <CheckCircle2 size={16} /> Dar Baixa Manual
+                              </button>
                               <button onClick={() => handleGenerateCharge(invoice.id, 'boleto')} disabled={isGeneratingId === invoice.id} className="text-sm font-bold flex items-center justify-center gap-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 disabled:opacity-50 px-4 py-2.5 rounded-xl transition-all shadow-sm w-full sm:w-auto">
                                 {isGeneratingId === invoice.id ? <Loader2 size={16} className="animate-spin" /> : <Receipt size={16} />} Gerar Boleto
                               </button>
