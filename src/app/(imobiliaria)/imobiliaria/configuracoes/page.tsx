@@ -4,11 +4,11 @@ import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { api } from '../../../../lib/api';
+import { api } from '@/src/lib/api'; // Ajuste o caminho conforme o seu projeto
 import { 
   Loader2, Save, Store, MapPin, Lock, Globe,
   Image as ImageIcon, Link as LinkIcon, FileText, Building2, FileSignature, DollarSign, Key,
-  ShieldCheck, Plus, Trash2, Power, X
+  ShieldCheck, Plus, Trash2, Power, X, CreditCard, CheckCircle2, Clock
 } from 'lucide-react';
 import { maskCep, maskPhone } from '@/src/utils/mask';
 
@@ -18,8 +18,7 @@ const maskCnpj = (value: string) => {
     .replace(/(\d{2})(\d)/, '$1.$2')
     .replace(/(\d{3})(\d)/, '$1.$2')
     .replace(/(\d{3})(\d)/, '$1/$2')
-    .replace(/(\d{4})(\d{1,2})/, '$1-$2')                
-    .replace(/(-\d{2})\d+?$/, '$1');
+    .replace(/(\d{4})(\d{1,2})/, '$1-$2')                     .replace(/(-\d{2})\d+?$/, '$1');
 };
 
 const settingsSchema = z.object({
@@ -45,10 +44,9 @@ const settingsSchema = z.object({
   facebookUrl: z.string().optional(),
   whatsappDisplay: z.string().optional(),
 
-  // Modelos de Contrato e Termos
   ownerContractTemplate: z.string().optional(),
   tenantContractTemplate: z.string().optional(),
-  saleContractTemplate: z.string().optional(), // NOVO CAMPO: Compra e Venda
+  saleContractTemplate: z.string().optional(),
   saleProposalTemplate: z.string().optional(),
   rentProposalTemplate: z.string().optional(),
   keyTermTemplate: z.string().optional(),
@@ -67,6 +65,7 @@ export default function ConfiguracoesLojaPage() {
   
   const [activeTab, setActiveTab] = useState<'dados' | 'aparencia' | 'contratos' | 'financeiro' | 'seguradoras'>('dados');
 
+  const [storeData, setStoreData] = useState<any>(null); // Armazena os dados completos da loja, incluindo Plano e Status
   const [insuranceCompanies, setInsuranceCompanies] = useState<any[]>([]);
   const [isInsuranceModalOpen, setIsInsuranceModalOpen] = useState(false);
   const [insuranceForm, setInsuranceForm] = useState({ name: '', cnpj: '', contactInfo: '' });
@@ -89,6 +88,8 @@ export default function ConfiguracoesLojaPage() {
       ]);
       
       const data = resStore.data;
+      setStoreData(data); // Guarda para mostrar o card do Plano SaaS
+
       reset({
         tradeName: data.tradeName || '',
         corporateName: data.corporateName || '',
@@ -110,7 +111,7 @@ export default function ConfiguracoesLojaPage() {
         whatsappDisplay: data.whatsappDisplay || '',
         ownerContractTemplate: data.ownerContractTemplate || '',
         tenantContractTemplate: data.tenantContractTemplate || '',
-        saleContractTemplate: data.saleContractTemplate || '', // NOVO CAMPO: Compra e Venda
+        saleContractTemplate: data.saleContractTemplate || '',
         saleProposalTemplate: data.saleProposalTemplate || '',
         rentProposalTemplate: data.rentProposalTemplate || '',
         keyTermTemplate: data.keyTermTemplate || '',
@@ -216,6 +217,47 @@ export default function ConfiguracoesLojaPage() {
         
         {/* ABA 1: DADOS CADASTRAIS */}
         <div className={activeTab === 'dados' ? 'space-y-6 animate-in fade-in slide-in-from-left-2' : 'hidden'}>
+          
+          {/* ========================================== */}
+          {/* CARD DO PLANO SAAS (NOVO)                  */}
+          {/* ========================================== */}
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-2xl shadow-sm border border-blue-100 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div className="flex gap-4 items-start">
+              <div className="bg-white p-3 rounded-xl border border-blue-200 shadow-sm text-blue-600">
+                <CreditCard size={28} />
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                  Plano Ativo: <span className="text-blue-700">{storeData?.plan?.name || 'Sem Plano Vinculado'}</span>
+                </h3>
+                <div className="flex items-center gap-2 mt-1">
+                  {storeData?.contractStatus === 'Assinado' ? (
+                    <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 uppercase tracking-wider">
+                      <CheckCircle2 size={12}/> Contrato Master Assinado
+                    </span>
+                  ) : storeData?.contractStatus ? (
+                    <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 uppercase tracking-wider">
+                      <Clock size={12}/> Aguardando Assinatura Master
+                    </span>
+                  ) : (
+                    <span className="text-slate-400 text-xs italic">Nenhum contrato gerado pela plataforma.</span>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-1 mt-3">
+                  {storeData?.modules?.map((mod: string) => (
+                    <span key={mod} className="bg-white border border-blue-100 text-blue-600 text-[10px] px-2 py-0.5 rounded uppercase font-bold tracking-wider">{mod}</span>
+                  ))}
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex flex-col items-end text-sm text-slate-500 font-medium bg-white p-3 rounded-xl border border-blue-100">
+              <p>Limites do Plano:</p>
+              <p className="text-slate-800 font-bold"><span className="text-blue-600">{storeData?.plan?.maxUsers || 'Ilimitado'}</span> Corretores</p>
+              <p className="text-slate-800 font-bold"><span className="text-blue-600">{storeData?.plan?.maxProperties || 'Ilimitado'}</span> Imóveis na Vitrine</p>
+            </div>
+          </div>
+
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
             <div className="flex items-center gap-2 text-blue-600 mb-6 border-b border-slate-100 pb-2">
               <Building2 size={20} />
@@ -316,9 +358,8 @@ export default function ConfiguracoesLojaPage() {
           </div>
         </div>
 
-        {/* ABA 3: MODELOS DE CONTRATOS, PROPOSTAS E TERMOS */}
+        {/* ABA 3: MODELOS DE CONTRATOS E TERMOS */}
         <div className={activeTab === 'contratos' ? 'space-y-6 animate-in fade-in slide-in-from-right-2' : 'hidden'}>
-          
           <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 text-blue-800 text-sm">
             <p className="font-semibold">Variáveis Universais (Tags Mágicas)</p>
             <p>Use estas tags no meio dos textos. O sistema substitui automaticamente na hora de gerar PDF.</p>
@@ -335,8 +376,6 @@ export default function ConfiguracoesLojaPage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            
-            {/* Checklist de Financiamento */}
             <div className="bg-emerald-50 p-6 rounded-2xl shadow-sm border border-emerald-200 md:col-span-2">
               <div className="flex items-center gap-2 text-emerald-700 mb-4 border-b border-emerald-200 pb-2">
                 <FileText size={20} /><h2 className="font-semibold">Modelo do Checklist de Financiamento</h2>
@@ -345,7 +384,6 @@ export default function ConfiguracoesLojaPage() {
               <textarea {...register('financingTemplate')} rows={6} placeholder="Ex: <h1>Checklist do Cliente {{NOME_CLIENTE}}</h1>..." className="w-full px-4 py-3 border border-emerald-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 font-mono text-xs resize-y bg-white"></textarea>
             </div>
 
-            {/* Contrato Locação */}
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
               <div className="flex items-center gap-2 text-blue-600 mb-4 border-b border-slate-100 pb-2">
                 <FileText size={20} /><h2 className="font-semibold">Contrato de Locação</h2>
@@ -353,7 +391,6 @@ export default function ConfiguracoesLojaPage() {
               <textarea {...register('tenantContractTemplate')} rows={8} placeholder="Pelo presente instrumento..." className="w-full px-4 py-3 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 font-mono text-xs resize-y"></textarea>
             </div>
 
-            {/* Contrato Compra e Venda (NOVO) */}
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
               <div className="flex items-center gap-2 text-indigo-600 mb-4 border-b border-slate-100 pb-2">
                 <FileSignature size={20} /><h2 className="font-semibold">Contrato de Compra e Venda</h2>
@@ -361,7 +398,6 @@ export default function ConfiguracoesLojaPage() {
               <textarea {...register('saleContractTemplate')} rows={8} placeholder="Instrumento particular de promessa de compra e venda..." className="w-full px-4 py-3 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 font-mono text-xs resize-y"></textarea>
             </div>
 
-            {/* Contrato Gestão (Proprietário) */}
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
               <div className="flex items-center gap-2 text-slate-700 mb-4 border-b border-slate-100 pb-2">
                 <FileSignature size={20} /><h2 className="font-semibold">Contrato de Gestão (Dono)</h2>
@@ -369,7 +405,6 @@ export default function ConfiguracoesLojaPage() {
               <textarea {...register('ownerContractTemplate')} rows={8} placeholder="Autorizo a imobiliária..." className="w-full px-4 py-3 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-slate-500 font-mono text-xs resize-y"></textarea>
             </div>
 
-            {/* Proposta Venda */}
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
               <div className="flex items-center gap-2 text-indigo-500 mb-4 border-b border-slate-100 pb-2">
                 <DollarSign size={20} /><h2 className="font-semibold">Proposta de Venda</h2>
@@ -377,7 +412,6 @@ export default function ConfiguracoesLojaPage() {
               <textarea {...register('saleProposalTemplate')} rows={8} placeholder="Proponho a compra do imóvel..." className="w-full px-4 py-3 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 font-mono text-xs resize-y"></textarea>
             </div>
 
-            {/* Proposta Aluguel */}
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
               <div className="flex items-center gap-2 text-orange-500 mb-4 border-b border-slate-100 pb-2">
                 <FileText size={20} /><h2 className="font-semibold">Proposta de Locação</h2>
@@ -385,7 +419,6 @@ export default function ConfiguracoesLojaPage() {
               <textarea {...register('rentProposalTemplate')} rows={8} placeholder="Proponho a locação do imóvel..." className="w-full px-4 py-3 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-orange-500 font-mono text-xs resize-y"></textarea>
             </div>
 
-            {/* Termo de Chaves */}
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 md:col-span-2">
               <div className="flex items-center gap-2 text-amber-500 mb-4 border-b border-slate-100 pb-2">
                 <Key size={20} /><h2 className="font-semibold">Termo de Entrega de Chaves</h2>
@@ -395,7 +428,7 @@ export default function ConfiguracoesLojaPage() {
           </div>
         </div>
 
-        {/* ABA 4: FINANCEIRO / GATEWAY (MERCADO PAGO) */}
+        {/* ABA 4: FINANCEIRO (MERCADO PAGO) */}
         <div className={activeTab === 'financeiro' ? 'space-y-6 animate-in fade-in slide-in-from-right-2' : 'hidden'}>
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
             <div className="flex items-center gap-2 text-blue-600 mb-4 border-b border-slate-100 pb-2">
@@ -413,7 +446,6 @@ export default function ConfiguracoesLojaPage() {
                 <label className="block text-sm font-bold text-slate-700 mb-1">Access Token (Token de Acesso)</label>
                 <input type="password" {...register('mpAccessToken')} placeholder="APP_USR-123456789..." className="w-full px-4 py-3 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm" />
               </div>
-
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-1">Public Key (Chave Pública)</label>
                 <input type="text" {...register('mpPublicKey')} placeholder="APP_USR-..." className="w-full md:w-1/2 px-4 py-3 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm" />
@@ -430,9 +462,7 @@ export default function ConfiguracoesLojaPage() {
         </div>
       </form>
 
-      {/* ======================================================== */}
-      {/* ABA 5: SEGURADORAS (SEPARADA DO FORMULÁRIO PRINCIPAL)    */}
-      {/* ======================================================== */}
+      {/* ABA 5: SEGURADORAS */}
       <div className={activeTab === 'seguradoras' ? 'space-y-6 animate-in fade-in slide-in-from-right-2' : 'hidden'}>
         <div className="flex justify-between items-center bg-purple-50 border border-purple-200 p-6 rounded-2xl">
           <div>
@@ -480,7 +510,6 @@ export default function ConfiguracoesLojaPage() {
         </div>
       </div>
 
-      {/* MODAL CADASTRAR SEGURADORA */}
       {isInsuranceModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95">
@@ -511,7 +540,6 @@ export default function ConfiguracoesLojaPage() {
           </div>
         </div>
       )}
-
     </div>
   );
 }
