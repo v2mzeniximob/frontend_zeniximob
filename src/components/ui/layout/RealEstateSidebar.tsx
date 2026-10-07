@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { api } from '@/src/lib/api'; // Ajuste o caminho se necessário
+import { api } from '@/src/lib/api'; 
 import { 
   LayoutDashboard, 
   Home, 
@@ -30,13 +30,15 @@ export function RealEstateSidebar() {
   const [allowedModules, setAllowedModules] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Busca os módulos permitidos para a imobiliária logada
+  // Busca os módulos permitidos e normaliza para minúsculas
   useEffect(() => {
     async function loadStoreData() {
       try {
         const res = await api.get('/my-store');
-        // A API deve retornar algo como: modules: ["properties", "crm", "financial", ...]
-        setAllowedModules(res.data.modules || []);
+        const mods = res.data.modules || [];
+        // Converte tudo para minúsculas para não haver erro de "FINANCEIRO" vs "financeiro"
+        const normalizedMods = mods.map((m: string) => m.toLowerCase());
+        setAllowedModules(normalizedMods);
       } catch (error) {
         console.error('Erro ao buscar permissões do plano:', error);
       } finally {
@@ -46,29 +48,31 @@ export function RealEstateSidebar() {
     loadStoreData();
   }, []);
 
-  // Mapeamento dos itens do menu associados ao módulo correspondente do SaaS
+  // Mapeamento tolerante: aceita tanto os nomes em PT quanto em EN cadastrados no banco
   const menuItems = [
-    { name: 'Dashboard', icon: LayoutDashboard, path: '/imobiliaria/dashboard', module: 'always' },
-    { name: 'Imóveis', icon: Home, path: '/imobiliaria/imoveis', module: 'properties' },
-    { name: 'Clientes (CRM)', icon: UserCircle, path: '/imobiliaria/clientes', module: 'crm' },
-    { name: 'Leads (CRM)', icon: Briefcase, path: '/imobiliaria/leads', module: 'crm' },
-    { name: 'Controle de Chaves', icon: Key, path: '/imobiliaria/chaves', module: 'keys' },
-    { name: 'Propostas e Termos', icon: FileSignature, path: '/imobiliaria/propostas', module: 'contracts' },
-    { name: 'Visitas', icon: Calendar, path: '/imobiliaria/visitas', module: 'crm' },
-    { name: 'Proprietários', icon: UserCircle, path: '/imobiliaria/proprietarios', module: 'properties' },
-    { name: 'Inquilinos', icon: Users, path: '/imobiliaria/inquilinos', module: 'contracts' },
-    { name: 'Contratos', icon: Key, path: '/imobiliaria/contratos', module: 'contracts' },
-    { name: 'Financeiro', icon: DollarSign, path: '/imobiliaria/financeiro', module: 'financial' },
-    { name: 'Vistorias', icon: Camera, path: '/imobiliaria/vistorias', module: 'contracts' },
-    { name: 'Chamados de Manutenção', icon: Wrench, path: '/imobiliaria/manutencao', module: 'tickets' },
-    { name: 'Corretores', icon: Users, path: '/imobiliaria/corretores', module: 'brokers' },
-    { name: 'Configurações', icon: Settings, path: '/imobiliaria/configuracoes', module: 'always' },
+    { name: 'Dashboard', icon: LayoutDashboard, path: '/imobiliaria/dashboard', modules: ['always'] },
+    { name: 'Imóveis', icon: Home, path: '/imobiliaria/imoveis', modules: ['imoveis', 'properties', 'portais'] },
+    { name: 'Clientes (CRM)', icon: UserCircle, path: '/imobiliaria/clientes', modules: ['crm'] },
+    { name: 'Leads (CRM)', icon: Briefcase, path: '/imobiliaria/leads', modules: ['crm'] },
+    { name: 'Controle de Chaves', icon: Key, path: '/imobiliaria/chaves', modules: ['chaves', 'keys'] },
+    { name: 'Propostas e Termos', icon: FileSignature, path: '/imobiliaria/propostas', modules: ['contratos', 'contracts'] },
+    { name: 'Visitas', icon: Calendar, path: '/imobiliaria/visitas', modules: ['crm'] },
+    { name: 'Proprietários', icon: UserCircle, path: '/imobiliaria/proprietarios', modules: ['imoveis', 'properties', 'portais'] },
+    { name: 'Inquilinos', icon: Users, path: '/imobiliaria/inquilinos', modules: ['contratos', 'contracts'] },
+    { name: 'Contratos', icon: Key, path: '/imobiliaria/contratos', modules: ['contratos', 'contracts'] },
+    { name: 'Financeiro', icon: DollarSign, path: '/imobiliaria/financeiro', modules: ['financeiro', 'financial'] },
+    { name: 'Vistorias', icon: Camera, path: '/imobiliaria/vistorias', modules: ['vistorias', 'contratos', 'contracts'] },
+    { name: 'Chamados de Manutenção', icon: Wrench, path: '/imobiliaria/manutencao', modules: ['manutencao', 'tickets'] },
+    { name: 'Corretores', icon: Users, path: '/imobiliaria/corretores', modules: ['corretores', 'brokers'] },
+    { name: 'Configurações', icon: Settings, path: '/imobiliaria/configuracoes', modules: ['always'] },
   ];
 
-  // Filtra o menu com base no que a imobiliária tem contratado no Plano
-  const visibleMenuItems = menuItems.filter(item => 
-    item.module === 'always' || allowedModules.includes(item.module)
-  );
+  // Verifica se a imobiliária tem permissão para ver este item de menu
+  const visibleMenuItems = menuItems.filter(item => {
+    if (item.modules.includes('always')) return true;
+    // O menu aparece se ALGUM dos módulos exigidos bater com a lista da imobiliária
+    return item.modules.some(reqModule => allowedModules.includes(reqModule));
+  });
 
   function handleLogout() {
     destroyCookie(null, 'zeniximob.token', { path: '/' });
@@ -104,7 +108,6 @@ export function RealEstateSidebar() {
       <nav className="flex-1 space-y-1.5 overflow-y-auto overflow-x-hidden mb-4 pr-1 
         scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent hover:scrollbar-thumb-slate-300">
         
-        {/* Mostra um skeleton de carregamento rápido se ainda estiver a validar o plano */}
         {isLoading ? (
            <div className="flex flex-col gap-2 mt-4 px-3">
              <div className="h-8 bg-slate-100 rounded-lg animate-pulse w-full"></div>
