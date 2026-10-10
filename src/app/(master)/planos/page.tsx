@@ -16,6 +16,7 @@ const AVAILABLE_MODULES = [
   { id: 'VISTORIAS', label: 'Vistorias Digitais' },
   { id: 'CHAVES', label: 'Portaria e Controle de Chaves' },
   { id: 'TICKETS', label: 'Manutenção e Chamados' },
+  { id: 'dimob', label: 'Arquivo DIMOB (Fisco)' }, 
 ];
 
 const initialForm = {
