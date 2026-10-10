@@ -5,7 +5,7 @@ import { api } from '../../../../../lib/api';
 import { 
   MapPin, Phone, Mail, Home, Loader2, BedDouble, Bath, Car, 
   CheckCircle2, Ruler, Calendar, Send, ChevronLeft, ChevronRight, 
-  X, Building2, Image as ImageIcon 
+  X, Building2, Image as ImageIcon, Video, View
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -28,7 +28,7 @@ export default function DetalheImovelPage(props: PageProps) {
   const [error, setError] = useState('');
 
   // Estados do formulário de Lead
-  const [leadForm, setLeadForm] = useState({ name: '', phone: '', email: '', message: '' });
+  const [leadForm, setLeadForm] = useState({ name: '', phone: '', email: '', message: 'Olá! Tenho interesse neste imóvel e gostaria de mais informações.' });
   const [isSendingLead, setIsSendingLead] = useState(false);
   const [leadSuccess, setLeadSuccess] = useState(false);
 
@@ -40,18 +40,15 @@ export default function DetalheImovelPage(props: PageProps) {
 
     const fetchPropertyDetails = async () => {
       try {
-        // 1. Busca os detalhes do imóvel atual
         const response = await api.get(`/public/stores/${slug}/properties/${propertyId}`);
         setStoreData(response.data.realEstate);
         setProperty(response.data.property);
 
-        // 2. Busca todos os imóveis da loja para as sugestões (Imóveis Semelhantes)
         const storeResponse = await api.get(`/public/stores/${slug}`);
         const allProperties = storeResponse.data.properties || [];
         
-        // Filtra para remover o imóvel atual e priorizar o mesmo tipo/transação
         const filtered = allProperties.filter((p: any) => p.id !== propertyId);
-        setSimilarProperties(filtered.slice(0, 3)); // Pega até 3 sugestões
+        setSimilarProperties(filtered.slice(0, 3)); 
 
       } catch (err: any) {
         console.error('Erro ao buscar detalhes:', err);
@@ -74,12 +71,13 @@ export default function DetalheImovelPage(props: PageProps) {
         email: leadForm.email,
         notes: leadForm.message,
         propertyId: property.id,
-        brokerId: property.broker?.id || null,
+        brokerId: property.brokerId || property.broker?.id || null, // Garante que pega o ID correto
         realEstateId: storeData.id,
-        interest: 'Tenho interesse neste imóvel'
+        interest: `Interesse no imóvel: ${property.title}`
       });
       setLeadSuccess(true);
       setLeadForm({ name: '', phone: '', email: '', message: '' });
+      setTimeout(() => setLeadSuccess(false), 5000);
     } catch (err) {
       alert('Erro ao enviar mensagem. Tente novamente.');
     } finally {
@@ -91,7 +89,13 @@ export default function DetalheImovelPage(props: PageProps) {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
   };
 
-  // Funções da Galeria Lightbox
+  const getEmbedVideoUrl = (url: string) => {
+    if (!url) return '';
+    if (url.includes('youtube.com/watch?v=')) return url.replace('watch?v=', 'embed/');
+    if (url.includes('youtu.be/')) return url.replace('youtu.be/', 'youtube.com/embed/');
+    return url;
+  };
+
   const images: string[] = property?.imageUrls && Array.isArray(property.imageUrls) ? property.imageUrls : [];
   const mainImage = images[0] || null;
   const secondaryImages = images.slice(1, 5);
@@ -101,16 +105,12 @@ export default function DetalheImovelPage(props: PageProps) {
   
   const nextImage = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (lightboxIndex !== null) {
-      setLightboxIndex((lightboxIndex + 1) % images.length);
-    }
+    if (lightboxIndex !== null) setLightboxIndex((lightboxIndex + 1) % images.length);
   };
 
   const prevImage = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (lightboxIndex !== null) {
-      setLightboxIndex((lightboxIndex - 1 + images.length) % images.length);
-    }
+    if (lightboxIndex !== null) setLightboxIndex((lightboxIndex - 1 + images.length) % images.length);
   };
 
   if (isLoading) {
@@ -234,6 +234,31 @@ export default function DetalheImovelPage(props: PageProps) {
               </p>
             </div>
 
+            {/* VÍDEO E TOUR 360° */}
+            {(property.videoUrl || property.tour360Url) && (
+              <div>
+                <h3 className="text-2xl font-bold text-slate-800 mb-6">Multimídia</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {property.videoUrl && (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-slate-700 font-bold"><Video size={18} className="text-red-500"/> Vídeo do Imóvel</div>
+                      <div className="rounded-2xl overflow-hidden shadow-sm border border-slate-200 aspect-video bg-slate-100">
+                        <iframe src={getEmbedVideoUrl(property.videoUrl)} width="100%" height="100%" frameBorder="0" allowFullScreen></iframe>
+                      </div>
+                    </div>
+                  )}
+                  {property.tour360Url && (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-slate-700 font-bold"><View size={18} className="text-blue-500"/> Tour 360° Virtual</div>
+                      <div className="rounded-2xl overflow-hidden shadow-sm border border-slate-200 aspect-video bg-slate-100">
+                        <iframe src={property.tour360Url} width="100%" height="100%" frameBorder="0" allowFullScreen></iframe>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {property.amenities && property.amenities.length > 0 && (
               <div>
                 <h3 className="text-2xl font-bold text-slate-800 mb-6">Comodidades</h3>
@@ -259,7 +284,7 @@ export default function DetalheImovelPage(props: PageProps) {
                   scrolling="no" 
                   marginHeight={0} 
                   marginWidth={0} 
-                  src={`https://www.openstreetmap.org/export/embed.html?bbox=-46.8%2C-23.7%2C-46.4%2C-23.4&layer=mapnik&marker=${property.latitude || '-23.5505'},${property.longitude || '-46.6333'}`}
+                  src={`https://www.openstreetmap.org/export/embed.html?bbox=${(property.longitude || -46.6333)-0.01}%2C${(property.latitude || -23.5505)-0.01}%2C${(property.longitude || -46.6333)+0.01}%2C${(property.latitude || -23.5505)+0.01}&layer=mapnik&marker=${property.latitude || '-23.5505'},${property.longitude || '-46.6333'}`}
                 ></iframe>
               </div>
             </div>
@@ -281,11 +306,47 @@ export default function DetalheImovelPage(props: PageProps) {
                 </div>
               </div>
 
-              <form onSubmit={handleSendLead} className="space-y-4">
-                <button type="submit" disabled={isSendingLead} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-xl font-bold flex justify-center items-center gap-2 transition-all text-lg">
-                  <Send size={24} /> Falar com Corretor
-                </button>
-              </form>
+              {/* FORMULÁRIO DE CONTATO CORRIGIDO */}
+              <div className="mb-4">
+                <h3 className="font-bold text-slate-800 text-lg mb-1">Falar com o Corretor</h3>
+                <p className="text-xs text-slate-500 mb-4">Deixe seus dados e entraremos em contato rapidamente.</p>
+              </div>
+
+              {leadSuccess ? (
+                <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 p-6 rounded-2xl text-center space-y-2">
+                  <CheckCircle2 size={32} className="mx-auto" />
+                  <h4 className="font-bold text-lg">Mensagem Enviada!</h4>
+                  <p className="text-sm">O nosso corretor entrará em contato em breve.</p>
+                </div>
+              ) : (
+                <form onSubmit={handleSendLead} className="space-y-4">
+                  <input 
+                    required type="text" placeholder="Seu Nome Completo" 
+                    value={leadForm.name} onChange={e => setLeadForm({...leadForm, name: e.target.value})}
+                    className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium"
+                  />
+                  <input 
+                    required type="tel" placeholder="Telefone / WhatsApp" 
+                    value={leadForm.phone} onChange={e => setLeadForm({...leadForm, phone: e.target.value})}
+                    className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium"
+                  />
+                  <input 
+                    required type="email" placeholder="Seu E-mail" 
+                    value={leadForm.email} onChange={e => setLeadForm({...leadForm, email: e.target.value})}
+                    className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium"
+                  />
+                  <textarea 
+                    required rows={3} placeholder="Sua Mensagem..." 
+                    value={leadForm.message} onChange={e => setLeadForm({...leadForm, message: e.target.value})}
+                    className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium resize-none"
+                  />
+                  
+                  <button type="submit" disabled={isSendingLead} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-xl font-bold flex justify-center items-center gap-2 transition-all shadow-md mt-2">
+                    {isSendingLead ? <Loader2 size={24} className="animate-spin"/> : <Send size={20} />} 
+                    Enviar Mensagem
+                  </button>
+                </form>
+              )}
             </div>
           </div>
         </div>
@@ -331,49 +392,17 @@ export default function DetalheImovelPage(props: PageProps) {
 
       {/* MODAL / LIGHTBOX DE IMAGENS EM ECRÃ INTEIRO */}
       {lightboxIndex !== null && (
-        <div 
-          className="fixed inset-0 z-[100] bg-black/95 flex flex-col items-center justify-center"
-          onClick={closeLightbox} // Clicar fora fecha a imagem
-        >
-          {/* Botão Fechar */}
-          <button 
-            onClick={closeLightbox} 
-            className="absolute top-6 right-6 text-white/50 hover:text-white transition-colors z-[110] p-2 bg-black/50 rounded-full"
-          >
-            <X size={32} />
-          </button>
-
-          {/* Botões de Navegação (Só mostra se houver mais de 1 foto) */}
+        <div className="fixed inset-0 z-[100] bg-black/95 flex flex-col items-center justify-center" onClick={closeLightbox}>
+          <button onClick={closeLightbox} className="absolute top-6 right-6 text-white/50 hover:text-white transition-colors z-[110] p-2 bg-black/50 rounded-full"><X size={32} /></button>
           {images.length > 1 && (
             <>
-              <button 
-                onClick={prevImage} 
-                className="absolute left-4 md:left-8 text-white/50 hover:text-white transition-colors z-[110] p-3 bg-black/50 hover:bg-black/80 rounded-full"
-              >
-                <ChevronLeft size={40} />
-              </button>
-              <button 
-                onClick={nextImage} 
-                className="absolute right-4 md:right-8 text-white/50 hover:text-white transition-colors z-[110] p-3 bg-black/50 hover:bg-black/80 rounded-full"
-              >
-                <ChevronRight size={40} />
-              </button>
+              <button onClick={prevImage} className="absolute left-4 md:left-8 text-white/50 hover:text-white transition-colors z-[110] p-3 bg-black/50 hover:bg-black/80 rounded-full"><ChevronLeft size={40} /></button>
+              <button onClick={nextImage} className="absolute right-4 md:right-8 text-white/50 hover:text-white transition-colors z-[110] p-3 bg-black/50 hover:bg-black/80 rounded-full"><ChevronRight size={40} /></button>
             </>
           )}
-
-          {/* Imagem Principal */}
-          <div 
-            className="relative w-full max-w-6xl h-full flex items-center justify-center p-4 md:p-12"
-            onClick={(e) => e.stopPropagation()} // Previne fechar ao clicar na foto
-          >
-            <img
-              src={images[lightboxIndex]}
-              alt={`Foto Ampliada ${lightboxIndex + 1}`}
-              className="max-w-full max-h-full object-contain select-none shadow-2xl rounded-lg"
-            />
+          <div className="relative w-full max-w-6xl h-full flex items-center justify-center p-4 md:p-12" onClick={(e) => e.stopPropagation()}>
+            <img src={images[lightboxIndex]} alt={`Foto Ampliada ${lightboxIndex + 1}`} className="max-w-full max-h-full object-contain select-none shadow-2xl rounded-lg" />
           </div>
-
-          {/* Contador de Imagens */}
           <div className="absolute bottom-6 text-white/70 font-medium tracking-widest bg-black/50 px-4 py-2 rounded-full text-sm">
              {lightboxIndex + 1} / {images.length}
           </div>
