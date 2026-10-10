@@ -62,7 +62,7 @@ export function RealEstateSidebar() {
     { name: 'Contratos', icon: Key, path: '/imobiliaria/contratos', modules: ['contratos', 'contracts'] },
     { name: 'Financeiro', icon: DollarSign, path: '/imobiliaria/financeiro', modules: ['financeiro', 'financial'] },
     { name: 'Arquivo DIMOB (Fisco)', icon: FileSignature, path: '/imobiliaria/dimob', modules: ['dimob'] },
-    { name: 'Vistorias', icon: Camera, path: '/imobiliaria/vistorias', modules: ['vistorias', 'contratos', 'contracts'] },
+    { name: 'Vistorias Mobile-First', icon: Camera, path: '/imobiliaria/vistorias', modules: ['vistorias', 'contratos', 'contracts'] },
     { name: 'Chamados de Manutenção', icon: Wrench, path: '/imobiliaria/manutencao', modules: ['manutencao', 'tickets'] },
     { name: 'Corretores', icon: Users, path: '/imobiliaria/corretores', modules: ['corretores', 'brokers'] },
     { name: 'Configurações', icon: Settings, path: '/imobiliaria/configuracoes', modules: ['always'] },
