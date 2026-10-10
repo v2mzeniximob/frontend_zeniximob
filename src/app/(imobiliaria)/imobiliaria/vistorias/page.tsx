@@ -5,7 +5,7 @@ import { api } from '../../../../lib/api';
 import { 
   Camera, Plus, X, Loader2, Home, FileText, Calendar, 
   Link as LinkIcon, Smartphone, FileUp, ChevronLeft, 
-  ImagePlus, Trash2, CheckCircle2 
+  ImagePlus, Trash2, CheckCircle2, Download
 } from 'lucide-react';
 
 export default function VistoriasAppPage() {
@@ -16,22 +16,17 @@ export default function VistoriasAppPage() {
   const [viewMode, setViewMode] = useState<'list' | 'choose_type' | 'modal_manual' | 'app_digital'>('list');
   const [isSaving, setIsSaving] = useState(false);
 
-  // ==========================================
-  // ESTADOS: MODO MANUAL (Anexar Link)
-  // ==========================================
+  // Estados: MODO MANUAL
   const [manualForm, setManualForm] = useState({
     contractId: '', type: 'Entrada', date: new Date().toISOString().split('T')[0], reportUrl: ''
   });
 
-  // ==========================================
-  // ESTADOS: MODO DIGITAL (App Vistoriador)
-  // ==========================================
+  // Estados: MODO DIGITAL (App Vistoriador)
   const [digitalForm, setDigitalForm] = useState({
     contractId: '', type: 'Entrada', date: new Date().toISOString().split('T')[0],
     rooms: [] as { id: string, name: string, items: { id: string, note: string, photo: string }[] }[]
   });
   
-  // Modal Interno do App para adicionar Foto/Nota num Cômodo
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
   const [obsForm, setObsForm] = useState({ photo: '', note: '' });
 
@@ -51,9 +46,6 @@ export default function VistoriasAppPage() {
     }
   };
 
-  // ==========================================
-  // SALVAR MANUALMENTE
-  // ==========================================
   const handleSaveManual = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
@@ -70,9 +62,7 @@ export default function VistoriasAppPage() {
     }
   };
 
-  // ==========================================
-  // LÓGICA DO APP DIGITAL (Mobile-First)
-  // ==========================================
+  // Lógica do App Digital
   const handleAddRoom = () => {
     const name = window.prompt('Qual o nome do cômodo? (Ex: Sala de Estar, Quarto Principal)');
     if (name && name.trim() !== '') {
@@ -145,7 +135,6 @@ export default function VistoriasAppPage() {
     try {
       const contract = contracts.find(c => c.id === digitalForm.contractId);
       
-      // 1. Gera o HTML do Laudo para impressão/PDF
       const html = `
         <!DOCTYPE html>
         <html>
@@ -157,21 +146,27 @@ export default function VistoriasAppPage() {
               .header { text-align: center; border-bottom: 2px solid #2563eb; padding-bottom: 20px; margin-bottom: 30px; }
               h1 { color: #2563eb; margin: 0 0 10px 0; }
               .info-grid { display: grid; grid-template-columns: 1fr 1fr; text-align: left; gap: 10px; background: #f8fafc; padding: 15px; border-radius: 8px; }
-              .room { margin-top: 30px; page-break-inside: avoid; }
+              .room { margin-top: 30px; page-break-inside: auto; }
               .room-title { background: #1e293b; color: white; padding: 12px 15px; font-size: 18px; font-weight: bold; border-radius: 6px 6px 0 0; }
               .items-grid { border: 1px solid #e2e8f0; border-top: none; padding: 15px; border-radius: 0 0 6px 6px; }
               .item { display: flex; gap: 20px; margin-bottom: 20px; border-bottom: 1px dashed #cbd5e1; padding-bottom: 20px; page-break-inside: avoid; }
               .item:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
               .item img { width: 250px; height: 180px; object-fit: cover; border-radius: 8px; border: 1px solid #cbd5e1; }
-              .no-photo { width: 250px; height: 180px; background: #f1f5f9; display: flex; align-items: center; justify-content: center; color: #94a3b8; font-size: 12px; border-radius: 8px; border: 1px solid #cbd5e1; }
+              .no-photo { width: 250px; height: 180px; background: #f1f5f9; display: flex; align-items: center; justify-content: center; color: #94a3b8; font-size: 12px; border-radius: 8px; border: 1px solid #cbd5e1; text-align: center; }
               .item-content { flex: 1; }
               .item-note { background: #f8fafc; padding: 15px; border-radius: 8px; font-size: 14px; min-height: 100px; border-left: 4px solid #3b82f6; }
               .footer { margin-top: 50px; text-align: center; font-size: 12px; color: #64748b; border-top: 1px solid #e2e8f0; padding-top: 20px; }
               .signatures { display: flex; justify-content: space-around; margin-top: 80px; page-break-inside: avoid; }
               .sig-line { border-top: 1px solid #333; width: 300px; text-align: center; padding-top: 10px; font-size: 14px; font-weight: bold; }
+              
+              /* Botão de impressão (não sai no PDF) */
+              @media print { .print-btn { display: none !important; } }
+              .print-btn { background: #2563eb; color: white; padding: 15px 30px; text-align: center; font-size: 18px; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; display: block; margin: 0 auto 30px auto; width: 100%; max-width: 400px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+              .print-btn:hover { background: #1d4ed8; }
             </style>
           </head>
           <body>
+            <button class="print-btn" onclick="window.print()">🖨️ Imprimir / Salvar PDF</button>
             <div class="header">
               <h1>Laudo Oficial de Vistoria - ${digitalForm.type}</h1>
               <div class="info-grid">
@@ -188,7 +183,7 @@ export default function VistoriasAppPage() {
                 <div class="items-grid">
                   ${r.items.map(i => `
                     <div class="item">
-                      ${i.photo ? `<img src="${i.photo}" />` : `<div class="no-photo">Sem Registo Fotográfico</div>`}
+                      ${i.photo ? `<img src="${i.photo}" />` : `<div class="no-photo">Sem Registo<br/>Fotográfico</div>`}
                       <div class="item-content">
                         <div class="item-note"><strong>Anotações do Vistoriador:</strong><br/><br/>${i.note || 'Nenhuma observação reportada.'}</div>
                       </div>
@@ -207,27 +202,29 @@ export default function VistoriasAppPage() {
             <div class="footer">
               Laudo fotográfico gerado automaticamente por ZenixImob em ${new Date().toLocaleString('pt-BR')}.
             </div>
-            
-            <script>window.onload = function() { window.print(); }</script>
           </body>
         </html>
       `;
 
-      // 2. Abre a janela de impressão
+      // Salva no banco de dados que a vistoria foi feita
+      const response = await api.post(`/contracts/${digitalForm.contractId}/inspections`, {
+        type: digitalForm.type,
+        date: digitalForm.date,
+        reportUrl: 'Gerado no App ZenixImob'
+      });
+
+      // NOVIDADE: Guarda o HTML completo na Cache do navegador para poder reabrir depois!
+      const inspectionId = response.data?.id || `temp_${Date.now()}`;
+      localStorage.setItem(`laudo_zenix_${inspectionId}`, html);
+
+      // Abre a janela de impressão automaticamente
       const printWindow = window.open('', '_blank');
       if (printWindow) {
         printWindow.document.write(html);
         printWindow.document.close();
       }
 
-      // 3. Salva no banco de dados que a vistoria foi feita
-      await api.post(`/contracts/${digitalForm.contractId}/inspections`, {
-        type: digitalForm.type,
-        date: digitalForm.date,
-        reportUrl: 'Gerado via App Digital (PDF Local)'
-      });
-
-      alert('Laudo gerado e salvo com sucesso! O PDF foi aberto noutra aba para impressão/gravação.');
+      alert('Laudo gerado e salvo com sucesso! Já pode ver na lista.');
       setViewMode('list');
       setDigitalForm({ contractId: '', type: 'Entrada', date: new Date().toISOString().split('T')[0], rooms: [] });
       fetchData();
@@ -236,6 +233,20 @@ export default function VistoriasAppPage() {
       alert(error.response?.data?.error || 'Erro ao salvar a vistoria digital.');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  // NOVIDADE: Função que recupera o PDF da memória cache e abre
+  const handleOpenLocalPDF = (inspectionId: string) => {
+    const html = localStorage.getItem(`laudo_zenix_${inspectionId}`);
+    if (html) {
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(html);
+        printWindow.document.close();
+      }
+    } else {
+      alert('⚠️ Este laudo foi gerado noutro dispositivo (ou a cache foi limpa). Como as fotos não são enviadas para a nuvem para economizar espaço, o PDF só pode ser reaberto no telemóvel/computador que fez a vistoria.');
     }
   };
 
@@ -289,10 +300,16 @@ export default function VistoriasAppPage() {
                           <span className="text-sm font-bold text-slate-700">Vistoria de {insp.type}</span>
                           <span className="text-[10px] bg-white px-2 py-0.5 rounded border border-slate-200 text-slate-500 flex items-center gap-1"><Calendar size={10}/> {new Date(insp.date).toLocaleDateString('pt-BR')}</span>
                         </div>
+                        
+                        {/* NOVIDADE: Botões Inteligentes (Abrir URL Externa ou Abrir PDF Gerado Local) */}
                         {insp.reportUrl?.includes('http') ? (
-                          <a href={insp.reportUrl} target="_blank" rel="noreferrer" className="text-xs font-bold text-blue-600 hover:underline">Ver Laudo Original</a>
+                          <a href={insp.reportUrl} target="_blank" rel="noreferrer" className="text-xs font-bold text-blue-600 hover:underline flex items-center gap-1">
+                            <LinkIcon size={12}/> Ver Laudo
+                          </a>
                         ) : (
-                          <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded">{insp.reportUrl}</span>
+                          <button onClick={() => handleOpenLocalPDF(insp.id)} className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors">
+                            <Download size={14}/> Abrir PDF
+                          </button>
                         )}
                       </div>
                     ))
@@ -396,16 +413,14 @@ export default function VistoriasAppPage() {
       {viewMode === 'app_digital' && (
         <div className="fixed inset-0 bg-slate-50 z-50 flex flex-col overflow-hidden animate-in slide-in-from-right duration-300">
           
-          {/* Header Mobile App */}
           <div className="bg-blue-600 text-white p-4 flex items-center justify-between shadow-md shrink-0 pt-safe-top">
             <button onClick={() => setViewMode('list')} className="p-2 hover:bg-blue-700 rounded-full transition-colors"><ChevronLeft size={24}/></button>
             <h2 className="font-bold text-lg">App Vistoriador</h2>
-            <div className="w-10"></div> {/* Espaçador */}
+            <div className="w-10"></div>
           </div>
 
           <div className="flex-1 overflow-y-auto p-4 pb-32">
             
-            {/* Step 1: Configuração Básica */}
             <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 mb-6 space-y-4">
               <h3 className="font-bold text-slate-800 border-b border-slate-100 pb-2 mb-2">1. Detalhes da Vistoria</h3>
               <div>
@@ -431,7 +446,6 @@ export default function VistoriasAppPage() {
               </div>
             </div>
 
-            {/* Step 2: Cômodos e Fotos */}
             <div>
               <div className="flex justify-between items-center mb-4">
                 <h3 className="font-bold text-slate-800">2. Cômodos & Fotos</h3>
@@ -482,7 +496,6 @@ export default function VistoriasAppPage() {
 
           </div>
 
-          {/* Action Bar Fixa no Rodapé */}
           <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-slate-200 shadow-[0_-10px_40px_rgba(0,0,0,0.05)] pb-safe-bottom">
             <button onClick={handleGenerateDigitalReport} disabled={isSaving || digitalForm.rooms.length === 0} className="w-full bg-emerald-600 active:bg-emerald-700 text-white font-black text-lg py-4 rounded-2xl flex items-center justify-center gap-2 shadow-lg transition-transform active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100">
               {isSaving ? <Loader2 size={24} className="animate-spin" /> : <CheckCircle2 size={24}/>} 
@@ -490,9 +503,6 @@ export default function VistoriasAppPage() {
             </button>
           </div>
           
-          {/* ========================================== */}
-          {/* SUB-MODAL: CAPTURAR FOTO / ESCREVER NOTA   */}
-          {/* ========================================== */}
           {activeRoomId && (
             <div className="absolute inset-0 bg-black/80 z-[60] flex flex-col">
               <div className="bg-white rounded-t-3xl mt-auto p-5 animate-in slide-in-from-bottom-full duration-200 max-h-[90vh] overflow-y-auto">
@@ -502,7 +512,6 @@ export default function VistoriasAppPage() {
                 </div>
                 
                 <div className="space-y-4">
-                  {/* Tirar Foto pela Câmera NATIVA do Celular */}
                   <div className="relative">
                     {obsForm.photo ? (
                       <div className="relative rounded-2xl overflow-hidden shadow-sm border border-slate-200 aspect-video bg-black flex items-center justify-center">
@@ -518,7 +527,6 @@ export default function VistoriasAppPage() {
                     )}
                   </div>
 
-                  {/* Anotação de Texto */}
                   <div>
                     <label className="block text-sm font-bold text-slate-700 mb-1">Anotação (Opcional se houver foto)</label>
                     <textarea 
