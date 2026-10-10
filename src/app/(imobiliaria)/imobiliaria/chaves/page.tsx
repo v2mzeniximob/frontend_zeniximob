@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { api } from '@/src/lib/api';
 import { 
   KeyRound, FileText, CheckCircle2, Clock, Search, User, 
-  ArrowRightLeft, Plus, X, Building2, FileSignature, FileDown, Link as LinkIcon
+  ArrowRightLeft, Plus, X, Building2, FileSignature, FileDown, Link as LinkIcon, QrCode, PenTool
 } from 'lucide-react';
 
 export default function ChavesPage() {
@@ -17,7 +17,20 @@ export default function ChavesPage() {
   const [brokers, setBrokers] = useState<any[]>([]);
   const [selectedProperty, setSelectedProperty] = useState<any>(null);
   const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
-  const [withdrawForm, setWithdrawForm] = useState({ clientName: '', reason: 'Visita', notes: '', brokerId: '' });
+  
+  // Novo estado de retirada com SLA e Assinatura
+  const [withdrawForm, setWithdrawForm] = useState({ 
+    clientName: '', 
+    reason: 'Visita', 
+    notes: '', 
+    brokerId: '',
+    expectedReturnAt: '' 
+  });
+
+  // Referência para o Canvas de Assinatura Digital
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [hasSignature, setHasSignature] = useState(false);
   
   // Estados: Termos de Chaves
   const [terms, setTerms] = useState<any[]>([]);
@@ -47,7 +60,6 @@ export default function ChavesPage() {
         setProperties(resProps.data);
         setBrokers(resBrokers.data);
       } else {
-        // Busca os dados da imobiliária (store) para termos acesso ao keyTermTemplate
         const [resTerms, resClients, resProps, resStore] = await Promise.all([
           api.get('/key-terms'),
           api.get('/clients'),
@@ -78,12 +90,69 @@ export default function ChavesPage() {
     }
   };
 
+  // Canvas Drawing Handlers
+  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    setIsDrawing(true);
+    const rect = canvas.getBoundingClientRect();
+    const x = 'touches' in e ? e.touches[0].clientX - rect.left : e.clientX - rect.left;
+    const y = 'touches' in e ? e.touches[0].clientY - rect.top : e.clientY - rect.top;
+
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+  };
+
+  const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    if (!isDrawing) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const x = 'touches' in e ? e.touches[0].clientX - rect.left : e.clientX - rect.left;
+    const y = 'touches' in e ? e.touches[0].clientY - rect.top : e.clientY - rect.top;
+
+    ctx.lineTo(x, y);
+    ctx.strokeStyle = '#0f172a';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    setHasSignature(true);
+  };
+
+  const stopDrawing = () => {
+    setIsDrawing(false);
+  };
+
+  const clearSignature = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    setHasSignature(false);
+  };
+
   const handleWithdrawKey = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await api.post('/keys/withdraw', { propertyId: selectedProperty.id, ...withdrawForm });
+      let digitalSignatureUrl = null;
+      if (canvasRef.current && hasSignature) {
+        digitalSignatureUrl = canvasRef.current.toDataURL('image/png');
+      }
+
+      await api.post('/keys/withdraw', { 
+        propertyId: selectedProperty.id, 
+        ...withdrawForm,
+        digitalSignatureUrl 
+      });
+
       setIsWithdrawModalOpen(false);
-      setWithdrawForm({ clientName: '', reason: 'Visita', notes: '', brokerId: '' });
+      setWithdrawForm({ clientName: '', reason: 'Visita', notes: '', brokerId: '', expectedReturnAt: '' });
       fetchData();
     } catch (error: any) {
       alert(error.response?.data?.error || 'Erro ao retirar chave.');
@@ -97,6 +166,40 @@ export default function ChavesPage() {
       fetchData();
     } catch (error) {
       alert('Erro ao devolver chave.');
+    }
+  };
+
+  // IMPRESSÃO DE ETIQUETA QR CODE
+  const handlePrintQrLabel = (prop: any) => {
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>Etiqueta QR Code - ${prop.title}</title>
+            <style>
+              body { font-family: Arial, sans-serif; text-align: center; padding: 20px; }
+              .label-box { border: 2px dashed #333; width: 300px; margin: 0 auto; padding: 20px; border-radius: 12px; }
+              h2 { margin: 5px 0; font-size: 18px; }
+              p { margin: 5px 0; font-size: 14px; color: #555; }
+              .tag { font-size: 24px; font-weight: bold; background: #eee; display: inline-block; padding: 5px 15px; border-radius: 6px; margin: 10px 0; }
+              .hash { font-size: 10px; color: #888; font-family: monospace; }
+            </style>
+          </head>
+          <body>
+            <div class="label-box">
+              <p><strong>${storeData?.tradeName || 'ZenixImob'}</strong></p>
+              <h2>${prop.title}</h2>
+              <p>${prop.address || ''}</p>
+              <div class="tag">TAG: ${prop.keyCode || 'S/TAG'}</div>
+              <p><strong>QR Code ID:</strong></p>
+              <p class="hash">${prop.qrCodeHash || 'N/A'}</p>
+            </div>
+            <script>window.onload = function() { window.print(); }</script>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
     }
   };
 
@@ -126,7 +229,6 @@ export default function ChavesPage() {
     }
   };
 
-  // NOVO: GERAR PDF DO TERMO
   const handleGenerateTermPDF = (term: any) => {
     const template = storeData?.keyTermTemplate;
     
@@ -166,7 +268,6 @@ export default function ChavesPage() {
     }
   };
 
-  // NOVO: ANEXAR LINK DO DOCUMENTO EXISTENTE
   const openAttachModal = (term: any) => {
     setAttachForm({
       id: term.id,
@@ -190,7 +291,6 @@ export default function ChavesPage() {
     }
   };
 
-  // Filtros
   const filteredProperties = properties.filter(p => p.title?.toLowerCase().includes(searchTerm.toLowerCase()) || p.keyCode?.toLowerCase().includes(searchTerm.toLowerCase()));
   const filteredTerms = terms.filter(t => t.property?.title?.toLowerCase().includes(searchTerm.toLowerCase()) || t.client?.name?.toLowerCase().includes(searchTerm.toLowerCase()));
 
@@ -204,7 +304,7 @@ export default function ChavesPage() {
             <KeyRound className="text-amber-600 bg-amber-50 p-1.5 rounded-lg" size={36} />
             Portaria & Chaves
           </h1>
-          <p className="text-slate-500 mt-2">Controle o quadro físico de chaves e gere os Termos de Entrega Oficiais.</p>
+          <p className="text-slate-500 mt-2">Controle o quadro físico de chaves, etiquetas QR Code e os Termos de Entrega Oficiais.</p>
         </div>
         
         <div className="flex bg-white rounded-xl shadow-sm border border-slate-200 p-1 w-full md:w-auto">
@@ -277,13 +377,19 @@ export default function ChavesPage() {
                           </div>
                         </td>
                         <td className="p-4">
-                          <input 
-                            type="text" 
-                            defaultValue={prop.keyCode || ''}
-                            onBlur={(e) => { if(e.target.value !== prop.keyCode) handleUpdateKeyCode(prop.id, e.target.value) }}
-                            placeholder="Ex: A-15"
-                            className="w-24 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold text-slate-700 outline-none focus:border-amber-400 focus:bg-white transition-all"
-                          />
+                          <div className="flex items-center gap-2">
+                            <input 
+                              type="text" 
+                              defaultValue={prop.keyCode || ''}
+                              onBlur={(e) => { if(e.target.value !== prop.keyCode) handleUpdateKeyCode(prop.id, e.target.value) }}
+                              placeholder="Ex: A-15"
+                              className="w-24 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold text-slate-700 outline-none focus:border-amber-400 focus:bg-white transition-all"
+                            />
+                            {/* BOTÃO PARA IMPRIMIR ETIQUETA QR CODE */}
+                            <button onClick={() => handlePrintQrLabel(prop)} className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors" title="Imprimir Etiqueta com QR Code">
+                              <QrCode size={16}/>
+                            </button>
+                          </div>
                         </td>
                         <td className="p-4">
                           <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${
@@ -299,9 +405,9 @@ export default function ChavesPage() {
                           {isWithdrawn && activeMovement ? (
                             <div>
                               <p className="font-bold text-slate-700 text-xs">
-                                {activeMovement.broker?.name || activeMovement.clientName || activeMovement.realEstate?.tradeName || 'Sistema'}
+                                {activeMovement.broker?.name || activeMovement.clientName || 'Sistema'}
                               </p>
-                              <p className="text-[10px] text-slate-500">{activeMovement.reason} ({new Date(activeMovement.withdrawnAt).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'})})</p>
+                              <p className="text-[10px] text-slate-500">{activeMovement.reason} {activeMovement.expectedReturnAt ? `• Devolver até: ${new Date(activeMovement.expectedReturnAt).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'})}` : ''}</p>
                             </div>
                           ) : isDelivered ? (
                             <span className="text-xs text-slate-400 font-medium">Com Inquilino/Dono</span>
@@ -374,13 +480,9 @@ export default function ChavesPage() {
                         {new Date(term.createdAt).toLocaleDateString('pt-BR')}
                       </td>
                       <td className="p-4 pr-6 flex justify-end items-center gap-2">
-                        
-                        {/* BOTÃO 1: GERAR PDF FÍSICO */}
                         <button onClick={() => handleGenerateTermPDF(term)} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5" title="Gerar e Imprimir Documento">
                           <FileDown size={14}/> Gerar PDF
                         </button>
-
-                        {/* BOTÃO 2: VER DOC OU ANEXAR LINK */}
                         {term.documentUrl ? (
                           <a href={term.documentUrl} target="_blank" rel="noreferrer" className="px-3 py-1.5 bg-blue-100 hover:bg-blue-200 text-blue-700 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5">
                             <FileText size={14}/> Ver Doc
@@ -390,8 +492,6 @@ export default function ChavesPage() {
                             <LinkIcon size={14}/> Anexar Link
                           </button>
                         )}
-
-                        {/* BOTÃO 3: MARCAR ASSINADO E MOVER CHAVE */}
                         {term.status === 'Pendente' && (
                           <button onClick={() => handleMarkTermAsSigned(term.id)} className="px-3 py-1.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5">
                             <CheckCircle2 size={14}/> Marcar Assinado
@@ -407,12 +507,12 @@ export default function ChavesPage() {
         )}
       </div>
 
-      {/* MODAL: RETIRAR CHAVE (VISITA/MANUTENÇÃO) */}
+      {/* MODAL: RETIRAR CHAVE (COM SLA E ASSINATURA DIGITAL) */}
       {isWithdrawModalOpen && selectedProperty && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200 my-8">
             <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-              <h3 className="font-bold text-slate-800 flex items-center gap-2"><KeyRound size={18} className="text-amber-600"/> Retirar Chave</h3>
+              <h3 className="font-bold text-slate-800 flex items-center gap-2"><KeyRound size={18} className="text-amber-600"/> Retirar Chave (Check-out)</h3>
               <button onClick={() => setIsWithdrawModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X size={20}/></button>
             </div>
             <form onSubmit={handleWithdrawKey} className="p-6 space-y-4">
@@ -421,22 +521,29 @@ export default function ChavesPage() {
                 <p className="font-bold text-slate-800">{selectedProperty.title}</p>
                 <p className="text-xs text-slate-500 mt-1">Tag: <span className="font-bold bg-slate-100 px-2 py-0.5 rounded">{selectedProperty.keyCode || 'Sem tag'}</span></p>
               </div>
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-1">Motivo da Retirada</label>
-                <select value={withdrawForm.reason} onChange={e => setWithdrawForm({...withdrawForm, reason: e.target.value})} className="w-full p-3 bg-white border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-amber-500">
-                  <option value="Visita">Visita com Cliente</option>
-                  <option value="Vistoria">Vistoria</option>
-                  <option value="Manutenção">Manutenção / Reparos</option>
-                  <option value="Outros">Outros</option>
-                </select>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1 uppercase">Motivo da Retirada</label>
+                  <select value={withdrawForm.reason} onChange={e => setWithdrawForm({...withdrawForm, reason: e.target.value})} className="w-full p-2.5 bg-white border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-amber-500 text-sm">
+                    <option value="Visita">Visita com Cliente</option>
+                    <option value="Vistoria">Vistoria</option>
+                    <option value="Manutenção">Manutenção / Reparos</option>
+                    <option value="Outros">Outros</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1 uppercase">Prazo Limite (SLA Devolução)</label>
+                  <input type="datetime-local" value={withdrawForm.expectedReturnAt} onChange={e => setWithdrawForm({...withdrawForm, expectedReturnAt: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-amber-500 text-sm" />
+                </div>
               </div>
               
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-1">Corretor Responsável</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1 uppercase">Corretor Responsável</label>
                 <select 
                   value={withdrawForm.brokerId} 
                   onChange={e => setWithdrawForm({...withdrawForm, brokerId: e.target.value, clientName: ''})} 
-                  className="w-full p-3 bg-white border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-amber-500"
+                  className="w-full p-2.5 bg-white border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-amber-500 text-sm"
                 >
                   <option value="">Nenhum (Entregue a terceiros)</option>
                   {brokers.map((b: any) => (
@@ -446,19 +553,45 @@ export default function ChavesPage() {
               </div>
 
               {!withdrawForm.brokerId && (
-                <div className="animate-in fade-in duration-300">
-                  <label className="block text-sm font-bold text-slate-700 mb-1">Ou entregue para (Cliente/Prestador)</label>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1 uppercase">Entregue para (Nome do Prestador/Cliente)</label>
                   <input 
                     type="text" 
                     placeholder="Ex: João (Encanador)..." 
                     value={withdrawForm.clientName} 
                     onChange={e => setWithdrawForm({...withdrawForm, clientName: e.target.value})} 
-                    className="w-full p-3 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-amber-500" 
+                    className="w-full p-2.5 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-amber-500 text-sm" 
                   />
                 </div>
               )}
 
-              <button type="submit" className="w-full py-3.5 mt-2 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl transition-colors">
+              {/* BLOCO DE ASSINATURA DIGITAL (CANVAS) */}
+              <div className="pt-2">
+                <div className="flex justify-between items-center mb-1">
+                  <label className="block text-xs font-bold text-slate-700 uppercase flex items-center gap-1">
+                    <PenTool size={14}/> Assinatura Digital do Responsável
+                  </label>
+                  <button type="button" onClick={clearSignature} className="text-xs text-red-500 hover:underline">Limpar</button>
+                </div>
+                <div className="border border-slate-300 rounded-xl bg-slate-50 overflow-hidden touch-none">
+                  <canvas 
+                    ref={canvasRef}
+                    width={440}
+                    height={140}
+                    onMouseDown={startDrawing}
+                    onMouseMove={draw}
+                    onMouseUp={stopDrawing}
+                    onMouseLeave={stopDrawing}
+                    onTouchStart={startDrawing}
+                    onTouchMove={draw}
+                    onTouchEnd={stopDrawing}
+                    className="w-full cursor-crosshair bg-white"
+                  />
+                </div>
+                <p className="text-[10px] text-slate-400 mt-1">Assine no espaço acima com o dedo ou o rato para confirmar a retirada.</p>
+              </div>
+
+              <button type="submit" className="w-full py-3.5 mt-2 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl transition-colors shadow-sm">
                 Registrar Saída da Chave
               </button>
             </form>
@@ -503,7 +636,7 @@ export default function ChavesPage() {
               </div>
               
               <div className="bg-blue-50 text-blue-800 p-4 rounded-xl text-xs font-medium border border-blue-100 mt-4">
-                <strong>Nota:</strong> Ao criar o termo, ele ficará "Pendente". Você poderá gerar o PDF para assinar fisicamente na hora, ou adicionar um link externo depois.
+                <strong>Nota:</strong> Ao criar o termo, ele ficará "Pendente". Poderá gerar o PDF para assinar fisicamente na hora, ou adicionar um link externo depois.
               </div>
 
               <button type="submit" className="w-full py-3.5 mt-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-colors">

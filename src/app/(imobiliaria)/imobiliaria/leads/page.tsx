@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { api } from '../../../../lib/api';
-import { Plus, X, Loader2, User, Phone, MessageCircle, Mail, Calendar, Clock, Briefcase } from 'lucide-react';
+import { Plus, X, Loader2, User, Phone, MessageCircle, Mail, Calendar, Clock, Briefcase, Search, Sparkles, MapPin, DollarSign, Home } from 'lucide-react';
 import { maskPhone } from '@/src/utils/mask';
 
 const STAGES = ['Novo', 'Atendimento', 'Visita', 'Proposta', 'Negociação', 'Fechado', 'Perdido'];
@@ -12,14 +12,23 @@ export default function CRMPage() {
   const [brokers, setBrokers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
-  // Modais
+  // Modais e Abas
   const [isNewLeadModalOpen, setIsNewLeadModalOpen] = useState(false);
   const [selectedLead, setSelectedLead] = useState<any>(null);
+  const [leadTab, setLeadTab] = useState<'historico' | 'perfil' | 'radar'>('historico');
 
   // Formulários
-  const [form, setForm] = useState({ name: '', phone: '', email: '', interest: 'Compra', notes: '', brokerId: '' });
+  const [form, setForm] = useState({ 
+    name: '', phone: '', email: '', interest: 'Compra', notes: '', brokerId: '',
+    searchType: '', searchTransaction: '', searchMinPrice: '', searchMaxPrice: '', 
+    searchNeighborhoods: '', searchMinBedrooms: '', searchMinGarage: ''
+  });
   const [historyForm, setHistoryForm] = useState({ actionType: 'WhatsApp', description: '' });
+  
+  // Estados de Carregamento
   const [isSaving, setIsSaving] = useState(false);
+  const [isFetchingMatches, setIsFetchingMatches] = useState(false);
+  const [matches, setMatches] = useState<any[]>([]);
 
   useEffect(() => {
     fetchData();
@@ -41,19 +50,86 @@ export default function CRMPage() {
     }
   };
 
+  const fetchMatches = async (leadId: string) => {
+    setIsFetchingMatches(true);
+    try {
+      const response = await api.get(`/leads/${leadId}/matches`);
+      setMatches(response.data);
+    } catch (error) {
+      console.error("Erro ao buscar matches:", error);
+      setMatches([]);
+    } finally {
+      setIsFetchingMatches(false);
+    }
+  };
+
+  const handleOpenLeadDetails = (lead: any) => {
+    setSelectedLead(lead);
+    setLeadTab('historico');
+    
+    // Pré-preenche o formulário do Perfil de Busca
+    setForm({
+      name: lead.name, phone: lead.phone, email: lead.email || '', interest: lead.interest, notes: lead.notes || '', brokerId: lead.brokerId || '',
+      searchType: lead.searchType || '', searchTransaction: lead.searchTransaction || '', 
+      searchMinPrice: lead.searchMinPrice || '', searchMaxPrice: lead.searchMaxPrice || '', 
+      searchNeighborhoods: lead.searchNeighborhoods?.join(', ') || '', 
+      searchMinBedrooms: lead.searchMinBedrooms || '', searchMinGarage: lead.searchMinGarage || ''
+    });
+
+    // Se ele já tiver algo de perfil preenchido, podemos pré-carregar os matches
+    if (lead.searchMaxPrice || lead.searchTransaction || lead.searchType) {
+      fetchMatches(lead.id);
+    } else {
+      setMatches([]);
+    }
+  };
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedLead) return;
+    setIsSaving(true);
+    
+    try {
+      const payload = {
+        ...form,
+        searchNeighborhoods: form.searchNeighborhoods ? form.searchNeighborhoods.split(',').map(n => n.trim()) : [],
+        brokerId: form.brokerId === '' ? null : form.brokerId
+      };
+      
+      const response = await api.put(`/leads/${selectedLead.id}`, payload);
+      
+      alert('Perfil de busca atualizado! O Radar de Imóveis foi recalculado.');
+      
+      // Atualiza o Lead selecionado
+      setSelectedLead(response.data);
+      
+      // Atualiza a lista geral e recalcula matches
+      fetchData();
+      fetchMatches(selectedLead.id);
+      
+    } catch (error) {
+      alert('Erro ao atualizar perfil do cliente.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleCreateLead = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
     try {
       const payload = {
         ...form,
-        phone: form.phone.replace(/\D/g, ''), // Limpa a máscara para o DB
+        phone: form.phone.replace(/\D/g, ''), // Limpa a máscara
         brokerId: form.brokerId === '' ? null : form.brokerId
       };
       
       await api.post('/leads', payload);
       setIsNewLeadModalOpen(false);
-      setForm({ name: '', phone: '', email: '', interest: 'Compra', notes: '', brokerId: '' });
+      setForm({ 
+        name: '', phone: '', email: '', interest: 'Comprador', notes: '', brokerId: '',
+        searchType: '', searchTransaction: '', searchMinPrice: '', searchMaxPrice: '', searchNeighborhoods: '', searchMinBedrooms: '', searchMinGarage: ''
+      });
       fetchData();
     } catch (error) {
       alert('Erro ao criar lead.');
@@ -97,16 +173,20 @@ export default function CRMPage() {
 
   return (
     <div className="p-8 max-w-[1600px] mx-auto font-sans h-[calc(100vh-4rem)] flex flex-col animate-in fade-in duration-300">
+      
       <div className="flex justify-between items-center mb-6 shrink-0">
         <div>
           <h1 className="text-3xl font-bold text-slate-800 flex items-center gap-3">
             <MessageCircle className="text-blue-600 bg-blue-50 p-1.5 rounded-lg" size={36} />
             CRM & Funil de Vendas
           </h1>
-          <p className="text-slate-500 mt-2 text-sm">Gira os seus clientes, acompanhe negociações e registe o histórico de contactos.</p>
+          <p className="text-slate-500 mt-2 text-sm">Gira os seus clientes, perfil de busca e matches com a base de imóveis.</p>
         </div>
-        <button onClick={() => setIsNewLeadModalOpen(true)} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-semibold flex items-center gap-2 transition-all shadow-sm">
-          <Plus size={18} /> Novo Lead Manual
+        <button onClick={() => {
+            setForm({ name: '', phone: '', email: '', interest: 'Comprador', notes: '', brokerId: '', searchType: '', searchTransaction: '', searchMinPrice: '', searchMaxPrice: '', searchNeighborhoods: '', searchMinBedrooms: '', searchMinGarage: '' });
+            setIsNewLeadModalOpen(true);
+          }} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-semibold flex items-center gap-2 transition-all shadow-sm">
+          <Plus size={18} /> Novo Lead
         </button>
       </div>
 
@@ -126,7 +206,15 @@ export default function CRMPage() {
                 {/* Lista de Cards */}
                 <div className="p-3 flex-1 overflow-y-auto space-y-3 scrollbar-thin scrollbar-thumb-slate-300">
                   {stageLeads.map(lead => (
-                    <div key={lead.id} className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 hover:shadow-md hover:border-blue-300 transition-all cursor-pointer flex flex-col gap-3 group" onClick={() => setSelectedLead(lead)}>
+                    <div key={lead.id} className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 hover:shadow-md hover:border-blue-300 transition-all cursor-pointer flex flex-col gap-3 group relative" onClick={() => handleOpenLeadDetails(lead)}>
+                      
+                      {/* Indicador de Match Discreto no Canto */}
+                      {(lead.searchMaxPrice || lead.searchNeighborhoods?.length > 0) && (
+                        <div className="absolute -top-2 -right-2 bg-gradient-to-r from-amber-400 to-orange-500 text-white rounded-full p-1.5 shadow-md" title="Perfil de Busca Preenchido / Radar Ativo">
+                          <Sparkles size={14} className="animate-pulse" />
+                        </div>
+                      )}
+
                       <div className="flex gap-3">
                         <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-lg shrink-0">
                           {lead.name.charAt(0).toUpperCase()}
@@ -170,117 +258,269 @@ export default function CRMPage() {
         </div>
       </div>
 
-      {/* MODAL: DETALHES E HISTÓRICO DO LEAD */}
+      {/* ========================================================= */}
+      {/* MODAL: DETALHES, HISTÓRICO E RADAR DO LEAD                  */}
+      {/* ========================================================= */}
       {selectedLead && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-5xl h-[85vh] flex flex-col md:flex-row overflow-hidden animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-6xl h-[90vh] flex flex-col md:flex-row overflow-hidden animate-in zoom-in-95 duration-200">
             
-            {/* Esquerda: Dados do Cliente */}
-            <div className="w-full md:w-1/3 bg-slate-50 border-r border-slate-200 p-6 flex flex-col overflow-y-auto">
+            {/* Esquerda: Menu Lateral do Modal */}
+            <div className="w-full md:w-1/4 bg-slate-50 border-r border-slate-200 p-6 flex flex-col">
               <div className="flex justify-between items-start mb-6">
-                <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mb-4 shrink-0 shadow-sm border border-blue-200">
+                <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mb-2 shrink-0 shadow-sm border border-blue-200">
                   <User size={32} />
                 </div>
                 <button onClick={() => setSelectedLead(null)} className="md:hidden text-slate-400 p-2 hover:bg-slate-200 rounded-lg"><X size={20}/></button>
               </div>
               
-              <h2 className="text-2xl font-bold text-slate-800">{selectedLead.name}</h2>
-              <div className="mt-4 text-sm text-slate-600 space-y-4">
-                <p className="flex items-center gap-3 font-medium bg-white p-3 rounded-xl border border-slate-200 shadow-sm"><Phone size={18} className="text-blue-500"/> {maskPhone(selectedLead.phone)}</p>
-                {selectedLead.email && <p className="flex items-center gap-3 font-medium bg-white p-3 rounded-xl border border-slate-200 shadow-sm"><Mail size={18} className="text-blue-500"/> {selectedLead.email}</p>}
-                
-                <div className="mt-6 pt-6 border-t border-slate-200">
-                  <p className="font-bold text-slate-700 mb-3 uppercase tracking-wider text-xs">Perfil do Lead</p>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
-                      <span className="text-xs text-slate-500 font-bold">Interesse</span>
-                      <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-bold">{selectedLead.interest}</span>
-                    </div>
-                    <div className="flex items-center justify-between bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
-                      <span className="text-xs text-slate-500 font-bold flex items-center gap-2"><Briefcase size={14}/> Corretor</span>
-                      <span className="text-sm font-bold text-slate-800">{selectedLead.broker?.name || 'Não Atribuído'}</span>
-                    </div>
-                  </div>
-                </div>
+              <h2 className="text-xl font-bold text-slate-800 leading-tight">{selectedLead.name}</h2>
+              <span className="inline-block mt-2 bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-xs font-bold w-fit">{selectedLead.interest}</span>
 
-                {selectedLead.notes && (
-                  <div className="mt-6 pt-6 border-t border-slate-200">
-                    <p className="font-bold text-slate-700 mb-2 uppercase tracking-wider text-xs">Anotações Iniciais</p>
-                    <div className="bg-yellow-50 p-4 rounded-xl border border-yellow-200 text-slate-700 italic">
-                      {selectedLead.notes}
-                    </div>
-                  </div>
-                )}
+              {/* Botões de Navegação do Lead */}
+              <div className="mt-8 flex flex-col gap-2">
+                <button 
+                  onClick={() => setLeadTab('historico')} 
+                  className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-colors ${leadTab === 'historico' ? 'bg-white text-blue-600 shadow-sm border border-blue-100' : 'text-slate-600 hover:bg-slate-100 border border-transparent'}`}
+                >
+                  <Clock size={18} /> Linha do Tempo
+                </button>
+                <button 
+                  onClick={() => setLeadTab('perfil')} 
+                  className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-colors ${leadTab === 'perfil' ? 'bg-white text-blue-600 shadow-sm border border-blue-100' : 'text-slate-600 hover:bg-slate-100 border border-transparent'}`}
+                >
+                  <Search size={18} /> Perfil de Busca
+                </button>
+                <button 
+                  onClick={() => setLeadTab('radar')} 
+                  className={`flex items-center justify-between px-4 py-3 rounded-xl text-sm font-bold transition-colors ${leadTab === 'radar' ? 'bg-gradient-to-r from-orange-50 to-amber-50 text-orange-700 shadow-sm border border-orange-200' : 'text-slate-600 hover:bg-slate-100 border border-transparent'}`}
+                >
+                  <div className="flex items-center gap-3"><Sparkles size={18} className={leadTab === 'radar' ? "text-orange-500" : ""} /> Radar Imóveis</div>
+                  {matches.length > 0 && <span className="bg-orange-500 text-white text-[10px] px-2 py-0.5 rounded-full">{matches.length}</span>}
+                </button>
+              </div>
+
+              <div className="mt-auto pt-6 border-t border-slate-200 space-y-3">
+                <p className="flex items-center gap-2 text-xs font-bold text-slate-600 bg-white p-2.5 rounded-lg border border-slate-200"><Phone size={14} className="text-blue-500"/> {maskPhone(selectedLead.phone)}</p>
+                {selectedLead.email && <p className="flex items-center gap-2 text-xs font-bold text-slate-600 bg-white p-2.5 rounded-lg border border-slate-200"><Mail size={14} className="text-blue-500"/> <span className="truncate">{selectedLead.email}</span></p>}
+                <p className="flex items-center gap-2 text-xs font-bold text-slate-600 bg-white p-2.5 rounded-lg border border-slate-200"><Briefcase size={14} className="text-blue-500"/> {selectedLead.broker?.name || 'Sem Corretor'}</p>
               </div>
             </div>
 
-            {/* Direita: Linha do Tempo (Timeline) */}
-            <div className="w-full md:w-2/3 flex flex-col h-full relative">
+            {/* Direita: Área de Conteúdo */}
+            <div className="w-full md:w-3/4 flex flex-col h-full relative bg-slate-50/30">
               <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-white z-10 shadow-sm">
-                <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2"><Clock className="text-blue-500"/> Histórico de Atendimento</h3>
+                <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">
+                  {leadTab === 'historico' ? <><Clock className="text-blue-500"/> Histórico de Atendimento</> : 
+                   leadTab === 'perfil' ? <><Search className="text-blue-500"/> O que o cliente procura?</> : 
+                   <><Sparkles className="text-orange-500"/> Radar de Matchmaking</>}
+                </h3>
                 <button onClick={() => setSelectedLead(null)} className="hidden md:flex p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"><X size={20}/></button>
               </div>
 
-              {/* TIMELINE */}
-              <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50">
-                <div className="space-y-6">
-                  {selectedLead.history?.map((event: any, index: number) => (
-                    <div key={event.id} className="flex gap-4">
-                      <div className="flex flex-col items-center">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white shrink-0 shadow-md border-2 border-white
-                          ${event.actionType === 'WhatsApp' ? 'bg-green-500' : 
-                            event.actionType === 'Ligação' ? 'bg-blue-500' : 
-                            event.actionType === 'Visita' ? 'bg-purple-500' : 
-                            event.actionType === 'Sistema' ? 'bg-slate-400' : 'bg-amber-500'}`}>
-                          {event.actionType === 'WhatsApp' ? <MessageCircle size={18}/> : 
-                           event.actionType === 'Ligação' ? <Phone size={18}/> : 
-                           event.actionType === 'Visita' ? <Calendar size={18}/> : <Clock size={18}/>}
+              {/* CONTEÚDO 1: HISTÓRICO */}
+              {leadTab === 'historico' && (
+                <>
+                  <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50">
+                    <div className="space-y-6">
+                      {selectedLead.history?.map((event: any, index: number) => (
+                        <div key={event.id} className="flex gap-4">
+                          <div className="flex flex-col items-center">
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white shrink-0 shadow-md border-2 border-white
+                              ${event.actionType === 'WhatsApp' ? 'bg-green-500' : 
+                                event.actionType === 'Ligação' ? 'bg-blue-500' : 
+                                event.actionType === 'Visita' ? 'bg-purple-500' : 
+                                event.actionType === 'Sistema' ? 'bg-slate-400' : 
+                                event.actionType === 'Mudança de Estágio' ? 'bg-indigo-500' : 'bg-amber-500'}`}>
+                              {event.actionType === 'WhatsApp' ? <MessageCircle size={18}/> : 
+                               event.actionType === 'Ligação' ? <Phone size={18}/> : 
+                               event.actionType === 'Visita' ? <Calendar size={18}/> : 
+                               event.actionType === 'Mudança de Estágio' ? <Briefcase size={18}/> : <Clock size={18}/>}
+                            </div>
+                            {index !== selectedLead.history.length - 1 && <div className="w-0.5 h-full bg-slate-200 my-2"></div>}
+                          </div>
+                          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex-1 pb-5 mb-2 hover:shadow-md transition-shadow">
+                            <div className="flex justify-between items-center mb-2">
+                              <span className="font-bold text-slate-800">{event.actionType}</span>
+                              <span className="text-xs font-medium text-slate-400 bg-slate-100 px-2 py-1 rounded-lg">{new Date(event.date).toLocaleString()}</span>
+                            </div>
+                            <p className="text-slate-600 text-sm whitespace-pre-wrap leading-relaxed">{event.description}</p>
+                          </div>
                         </div>
-                        {index !== selectedLead.history.length - 1 && <div className="w-0.5 h-full bg-slate-200 my-2"></div>}
-                      </div>
-                      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex-1 pb-5 mb-2 hover:shadow-md transition-shadow">
-                        <div className="flex justify-between items-center mb-2">
-                          <span className="font-bold text-slate-800">{event.actionType}</span>
-                          <span className="text-xs font-medium text-slate-400 bg-slate-100 px-2 py-1 rounded-lg">{new Date(event.date).toLocaleString()}</span>
-                        </div>
-                        <p className="text-slate-600 text-sm whitespace-pre-wrap leading-relaxed">{event.description}</p>
-                      </div>
+                      ))}
                     </div>
-                  ))}
-                  {(!selectedLead.history || selectedLead.history.length === 0) && (
-                    <div className="flex flex-col items-center justify-center h-full text-slate-400 opacity-60">
-                      <MessageCircle size={48} className="mb-4"/>
-                      <p className="font-medium text-lg">Nenhum histórico registado.</p>
-                      <p className="text-sm">Seja o primeiro a contactar este cliente!</p>
+                  </div>
+                  <div className="p-5 bg-white border-t border-slate-200 shrink-0">
+                    <form onSubmit={handleAddHistory} className="flex gap-3">
+                      <select 
+                        value={historyForm.actionType} 
+                        onChange={e => setHistoryForm({...historyForm, actionType: e.target.value})}
+                        className="px-4 py-3 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm font-semibold bg-slate-50 cursor-pointer"
+                      >
+                        <option value="WhatsApp">WhatsApp</option>
+                        <option value="Ligação">Ligação</option>
+                        <option value="E-mail">E-mail</option>
+                        <option value="Visita">Visita</option>
+                        <option value="Anotação">Anotação Interna</option>
+                      </select>
+                      <input 
+                        required type="text" placeholder="Descreva o que foi falado..."
+                        value={historyForm.description} onChange={e => setHistoryForm({...historyForm, description: e.target.value})}
+                        className="flex-1 px-4 py-3 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                      />
+                      <button type="submit" disabled={isSaving} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold transition-all shadow-sm flex items-center gap-2 disabled:opacity-70">
+                        {isSaving ? <Loader2 size={18} className="animate-spin" /> : 'Registar Ação'}
+                      </button>
+                    </form>
+                  </div>
+                </>
+              )}
+
+              {/* CONTEÚDO 2: PERFIL DE BUSCA */}
+              {leadTab === 'perfil' && (
+                <div className="flex-1 overflow-y-auto p-8 bg-slate-50/50">
+                  <div className="max-w-3xl">
+                    <div className="bg-blue-50 p-4 rounded-xl border border-blue-200 mb-6 text-sm text-blue-800">
+                      <p className="font-bold flex items-center gap-2"><Search size={18}/> Radar Inteligente</p>
+                      <p className="mt-1">Preencha o perfil abaixo. O sistema cruzará estas informações automaticamente com todos os imóveis da base e exibirá os resultados na aba <strong>"Radar Imóveis"</strong>.</p>
+                    </div>
+
+                    <form id="profile-form" onSubmit={handleSaveProfile} className="space-y-6">
+                      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-5">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                          <div>
+                            <label className="block text-xs font-bold text-slate-700 mb-1">Qual é a transação?</label>
+                            <select value={form.searchTransaction} onChange={e => setForm({...form, searchTransaction: e.target.value})} className="w-full px-4 py-3 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500 outline-none text-sm">
+                              <option value="">Qualquer (Indefinido)</option>
+                              <option value="Locação">Apenas Locação / Aluguel</option>
+                              <option value="Venda">Apenas Compra / Venda</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-slate-700 mb-1">Tipo de Imóvel</label>
+                            <select value={form.searchType} onChange={e => setForm({...form, searchType: e.target.value})} className="w-full px-4 py-3 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500 outline-none text-sm">
+                              <option value="">Qualquer (Indefinido)</option>
+                              <option value="Casa">Casa</option>
+                              <option value="Apartamento">Apartamento</option>
+                              <option value="Comercial">Sala Comercial</option>
+                              <option value="Terreno">Terreno</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                          <div>
+                            <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1"><DollarSign size={14}/> Orçamento Máximo (R$)</label>
+                            <input type="number" value={form.searchMaxPrice} onChange={e => setForm({...form, searchMaxPrice: e.target.value})} className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm" placeholder="Ex: 500000" />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1"><MapPin size={14}/> Bairros de Interesse (Separados por vírgula)</label>
+                            <input type="text" value={form.searchNeighborhoods} onChange={e => setForm({...form, searchNeighborhoods: e.target.value})} className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm" placeholder="Ex: Centro, Tatuapé, Moema..." />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                          <div>
+                            <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1"><Home size={14}/> Quartos (Mínimo)</label>
+                            <input type="number" value={form.searchMinBedrooms} onChange={e => setForm({...form, searchMinBedrooms: e.target.value})} className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm" placeholder="Ex: 2" />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-slate-700 mb-1">Vagas de Garagem (Mínimo)</label>
+                            <input type="number" value={form.searchMinGarage} onChange={e => setForm({...form, searchMinGarage: e.target.value})} className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm" placeholder="Ex: 1" />
+                          </div>
+                        </div>
+
+                        <div className="border-t border-slate-100 pt-5 mt-5">
+                          <label className="block text-xs font-bold text-slate-700 mb-1">Deseja alterar o Corretor deste Lead?</label>
+                          <select value={form.brokerId} onChange={e => setForm({...form, brokerId: e.target.value})} className="w-full md:w-1/2 px-4 py-3 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500 outline-none text-sm">
+                            <option value="">Sem corretor</option>
+                            {brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                          </select>
+                        </div>
+                      </div>
+                      
+                      <div className="flex justify-end">
+                        <button type="submit" disabled={isSaving} className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-xl font-bold transition-all shadow-sm flex items-center gap-2 disabled:opacity-70">
+                          {isSaving ? <Loader2 size={18} className="animate-spin" /> : 'Salvar Perfil e Atualizar Radar'}
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              )}
+
+              {/* CONTEÚDO 3: RADAR DE OPORTUNIDADES (MATCH) */}
+              {leadTab === 'radar' && (
+                <div className="flex-1 overflow-y-auto p-8 bg-slate-50/50">
+                  
+                  {isFetchingMatches ? (
+                    <div className="flex flex-col items-center justify-center h-64 text-orange-500">
+                      <Sparkles size={48} className="animate-pulse mb-4" />
+                      <p className="font-bold text-lg">A calcular compatibilidade...</p>
+                      <p className="text-sm text-slate-500">Cruzando o perfil de busca com todos os imóveis da base.</p>
+                    </div>
+                  ) : matches.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-64 text-slate-400 opacity-80 bg-white rounded-2xl border border-slate-200 shadow-sm p-8 max-w-lg mx-auto text-center">
+                      <Search size={48} className="mb-4 text-slate-300"/>
+                      <p className="font-bold text-xl text-slate-700 mb-2">Nenhum Match Encontrado</p>
+                      <p className="text-sm">Não encontrámos imóveis ativos que batam com o Perfil de Busca preenchido. Tente ajustar o Orçamento ou Bairros na aba anterior.</p>
+                    </div>
+                  ) : (
+                    <div className="max-w-4xl space-y-4">
+                      {matches.map((match: any, i: number) => (
+                        <div key={i} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col sm:flex-row hover:shadow-md transition-all group">
+                          {/* Imagem (Se Tiver) */}
+                          <div className="w-full sm:w-48 h-48 sm:h-auto bg-slate-100 shrink-0 relative overflow-hidden">
+                            {match.property.imageUrls && match.property.imageUrls[0] ? (
+                              <img src={match.property.imageUrls[0]} alt="Imóvel" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-slate-300"><Home size={40}/></div>
+                            )}
+                            {/* Badge do Match */}
+                            <div className={`absolute top-3 left-3 px-3 py-1 rounded-full text-xs font-black shadow-lg flex items-center gap-1 backdrop-blur-md
+                              ${match.score >= 80 ? 'bg-emerald-500/90 text-white border border-emerald-400' : 
+                                match.score >= 60 ? 'bg-yellow-400/90 text-yellow-900 border border-yellow-300' : 'bg-slate-800/90 text-white'}`}>
+                              <Sparkles size={12}/> {match.score}% MATCH
+                            </div>
+                          </div>
+                          
+                          {/* Dados do Imóvel */}
+                          <div className="p-5 flex-1 flex flex-col justify-between">
+                            <div>
+                              <div className="flex justify-between items-start">
+                                <div>
+                                  <span className="text-[10px] font-bold bg-slate-100 text-slate-600 px-2 py-1 rounded uppercase tracking-wider">{match.property.transaction}</span>
+                                  <h4 className="font-bold text-slate-800 text-lg mt-2 leading-tight">{match.property.title}</h4>
+                                  <p className="text-sm text-slate-500 mt-1 flex items-center gap-1"><MapPin size={14}/> {match.property.neighborhood}, {match.property.city}</p>
+                                </div>
+                                <p className="font-black text-blue-600 text-xl whitespace-nowrap ml-4">R$ {Number(match.property.price).toLocaleString('pt-BR')}</p>
+                              </div>
+
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4 text-xs font-semibold text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                <div>Tipo: <span className="text-slate-800">{match.property.type}</span></div>
+                                <div>Quartos: <span className="text-slate-800">{match.property.bedrooms}</span></div>
+                                <div>Vagas: <span className="text-slate-800">{match.property.garage}</span></div>
+                                <div>Área: <span className="text-slate-800">{match.property.area}m²</span></div>
+                              </div>
+                            </div>
+
+                            <div className="mt-4 flex items-center gap-3">
+                              <a 
+                                href={`https://wa.me/${selectedLead.phone.replace(/\D/g, '')}?text=Olá ${selectedLead.name.split(' ')[0]}! Encontrei um imóvel que bate exatamente com o que você procura no bairro ${match.property.neighborhood}. Dá uma olhada:`} 
+                                target="_blank" rel="noreferrer"
+                                className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors shadow-sm flex items-center gap-2"
+                              >
+                                <MessageCircle size={14}/> Enviar no WhatsApp
+                              </a>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
-              </div>
+              )}
 
-              {/* Formulário para adicionar novo histórico */}
-              <div className="p-5 bg-white border-t border-slate-200 shrink-0">
-                <form onSubmit={handleAddHistory} className="flex gap-3">
-                  <select 
-                    value={historyForm.actionType} 
-                    onChange={e => setHistoryForm({...historyForm, actionType: e.target.value})}
-                    className="px-4 py-3 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm font-semibold bg-slate-50 cursor-pointer"
-                  >
-                    <option value="WhatsApp">WhatsApp</option>
-                    <option value="Ligação">Ligação</option>
-                    <option value="E-mail">E-mail</option>
-                    <option value="Visita">Visita</option>
-                    <option value="Anotação">Anotação Interna</option>
-                  </select>
-                  <input 
-                    required type="text" placeholder="Descreva o que foi falado ou acordado com o cliente..."
-                    value={historyForm.description} onChange={e => setHistoryForm({...historyForm, description: e.target.value})}
-                    className="flex-1 px-4 py-3 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                  />
-                  <button type="submit" disabled={isSaving} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold transition-all shadow-sm flex items-center gap-2 disabled:opacity-70">
-                    {isSaving ? <Loader2 size={18} className="animate-spin" /> : 'Registar Ação'}
-                  </button>
-                </form>
-              </div>
             </div>
           </div>
         </div>
@@ -305,7 +545,7 @@ export default function CRMPage() {
                   <input required type="text" value={form.phone} onChange={e => setForm({...form, phone: maskPhone(e.target.value)})} className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm" placeholder="(00) 00000-0000" />
                 </div>
                 <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-1">Interesse</label>
+                  <label className="block text-sm font-bold text-slate-700 mb-1">Interesse Inicial</label>
                   <select value={form.interest} onChange={e => setForm({...form, interest: e.target.value})} className="w-full px-4 py-3 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500 outline-none text-sm">
                     <option value="Comprador">Comprador</option>
                     <option value="Inquilino">Inquilino</option>
@@ -321,8 +561,8 @@ export default function CRMPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-1">Anotações Iniciais</label>
-                <textarea rows={3} value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} className="w-full px-4 py-3 border border-slate-300 rounded-xl resize-none focus:ring-2 focus:ring-blue-500 outline-none text-sm" placeholder="Ex: Procura apartamento T3 na zona norte com garagem..."></textarea>
+                <label className="block text-sm font-bold text-slate-700 mb-1">Anotações / O que procura?</label>
+                <textarea rows={3} value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} className="w-full px-4 py-3 border border-slate-300 rounded-xl resize-none focus:ring-2 focus:ring-blue-500 outline-none text-sm" placeholder="Descreva brevemente... Pode detalhar o perfil exato depois na aba de Busca."></textarea>
               </div>
               <button type="submit" disabled={isSaving} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-all shadow-sm disabled:opacity-70 mt-4">
                 {isSaving ? <Loader2 size={20} className="animate-spin" /> : <Plus size={20}/>} 
