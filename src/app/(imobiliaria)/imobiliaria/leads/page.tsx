@@ -145,12 +145,36 @@ export default function CRMPage() {
     }
   };
 
+  // ==========================================
+  // NOVA LÓGICA DE HISTÓRICO COM REDIRECIONAMENTO
+  // ==========================================
   const handleAddHistory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedLead) return;
     setIsSaving(true);
+
+    const currentAction = historyForm.actionType;
+    const currentDescription = historyForm.description;
+
     try {
       await api.post(`/leads/${selectedLead.id}/history`, historyForm);
+      
+      // Redirecionamentos Automáticos baseados na Ação Escolhida
+      if (currentAction === 'WhatsApp' && selectedLead.phone) {
+        const cleanPhone = selectedLead.phone.replace(/\D/g, '');
+        const message = encodeURIComponent(currentDescription);
+        window.open(`https://wa.me/${cleanPhone}?text=${message}`, '_blank');
+      } 
+      else if (currentAction === 'E-mail' && selectedLead.email) {
+        const subject = encodeURIComponent(`Contato sobre Imóveis - Zenix`);
+        const body = encodeURIComponent(currentDescription);
+        window.open(`mailto:${selectedLead.email}?subject=${subject}&body=${body}`, '_self');
+      }
+      else if (currentAction === 'Ligação' && selectedLead.phone) {
+        const cleanPhone = selectedLead.phone.replace(/\D/g, '');
+        window.open(`tel:${cleanPhone}`, '_self');
+      }
+
       setHistoryForm({ actionType: 'WhatsApp', description: '' });
       
       const response = await api.get('/leads');
@@ -185,7 +209,7 @@ export default function CRMPage() {
         </button>
       </div>
 
-      {/* QUADRO KANBAN (Scroll Horizontal) */}
+      {/* QUADRO KANBAN */}
       <div className="flex-1 overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-100">
         <div className="flex gap-5 min-w-max h-full">
           {STAGES.map(stage => {
@@ -220,13 +244,11 @@ export default function CRMPage() {
                         </div>
                       </div>
                       
-                      {/* NOVOS DADOS NO CARD DO LEAD */}
                       <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100 space-y-1.5">
                         <p className="text-xs text-slate-600 flex items-center gap-1.5"><Phone size={12} className="text-slate-400 shrink-0"/> {maskPhone(lead.phone)}</p>
                         {lead.email && (
                           <p className="text-xs text-slate-600 flex items-center gap-1.5 truncate"><Mail size={12} className="text-slate-400 shrink-0"/> <span className="truncate">{lead.email}</span></p>
                         )}
-                        {/* Se houver imóvel vinculado, mostra no card */}
                         {lead.property && (
                           <div className="mt-1 pt-1.5 border-t border-slate-200">
                             <p className="text-xs text-indigo-700 font-semibold flex items-center gap-1.5 truncate">
@@ -303,11 +325,35 @@ export default function CRMPage() {
                 </button>
               </div>
 
+              {/* DADOS DE CONTATO RÁPIDOS E CLICÁVEIS */}
               <div className="mt-auto pt-6 border-t border-slate-200 space-y-3">
-                <p className="flex items-center gap-2 text-xs font-bold text-slate-600 bg-white p-2.5 rounded-lg border border-slate-200"><Phone size={14} className="text-blue-500"/> {maskPhone(selectedLead.phone)}</p>
-                {selectedLead.email && <p className="flex items-center gap-2 text-xs font-bold text-slate-600 bg-white p-2.5 rounded-lg border border-slate-200"><Mail size={14} className="text-blue-500"/> <span className="truncate" title={selectedLead.email}>{selectedLead.email}</span></p>}
-                {selectedLead.property && <p className="flex items-center gap-2 text-xs font-bold text-indigo-700 bg-indigo-50 p-2.5 rounded-lg border border-indigo-100"><Home size={14} className="text-indigo-500 shrink-0"/> <span className="truncate" title={selectedLead.property.title}>{selectedLead.property.title}</span></p>}
-                <p className="flex items-center gap-2 text-xs font-bold text-slate-600 bg-white p-2.5 rounded-lg border border-slate-200"><Briefcase size={14} className="text-blue-500"/> {selectedLead.broker?.name || 'Sem Corretor'}</p>
+                <a 
+                  href={`https://wa.me/${selectedLead.phone?.replace(/\D/g, '')}`} 
+                  target="_blank" rel="noreferrer" 
+                  className="flex items-center gap-2 text-xs font-bold text-slate-600 bg-white hover:bg-green-50 hover:text-green-700 hover:border-green-200 p-2.5 rounded-lg border border-slate-200 transition-colors cursor-pointer"
+                  title="Abrir WhatsApp"
+                >
+                  <Phone size={14} className="text-green-500"/> {maskPhone(selectedLead.phone)}
+                </a>
+
+                {selectedLead.email && (
+                  <a 
+                    href={`mailto:${selectedLead.email}`} 
+                    className="flex items-center gap-2 text-xs font-bold text-slate-600 bg-white hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 p-2.5 rounded-lg border border-slate-200 transition-colors cursor-pointer"
+                    title="Enviar E-mail"
+                  >
+                    <Mail size={14} className="text-blue-500"/> <span className="truncate">{selectedLead.email}</span>
+                  </a>
+                )}
+                
+                {selectedLead.property && (
+                  <div className="flex items-center gap-2 text-xs font-bold text-indigo-700 bg-indigo-50 p-2.5 rounded-lg border border-indigo-100">
+                    <Home size={14} className="text-indigo-500 shrink-0"/> <span className="truncate" title={selectedLead.property.title}>{selectedLead.property.title}</span>
+                  </div>
+                )}
+                <p className="flex items-center gap-2 text-xs font-bold text-slate-600 bg-white p-2.5 rounded-lg border border-slate-200">
+                  <Briefcase size={14} className="text-blue-500"/> {selectedLead.broker?.name || 'Sem Corretor'}
+                </p>
               </div>
             </div>
 
@@ -331,11 +377,13 @@ export default function CRMPage() {
                             <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white shrink-0 shadow-md border-2 border-white
                               ${event.actionType === 'WhatsApp' ? 'bg-green-500' : 
                                 event.actionType === 'Ligação' ? 'bg-blue-500' : 
+                                event.actionType === 'E-mail' ? 'bg-cyan-500' :
                                 event.actionType === 'Visita' ? 'bg-purple-500' : 
                                 event.actionType === 'Sistema' ? 'bg-slate-400' : 
                                 event.actionType === 'Mudança de Estágio' ? 'bg-indigo-500' : 'bg-amber-500'}`}>
                               {event.actionType === 'WhatsApp' ? <MessageCircle size={18}/> : 
                                event.actionType === 'Ligação' ? <Phone size={18}/> : 
+                               event.actionType === 'E-mail' ? <Mail size={18}/> : 
                                event.actionType === 'Visita' ? <Calendar size={18}/> : 
                                event.actionType === 'Mudança de Estágio' ? <Briefcase size={18}/> : <Clock size={18}/>}
                             </div>
@@ -352,12 +400,13 @@ export default function CRMPage() {
                       ))}
                     </div>
                   </div>
+                  
                   <div className="p-5 bg-white border-t border-slate-200 shrink-0">
                     <form onSubmit={handleAddHistory} className="flex gap-3">
                       <select 
                         value={historyForm.actionType} 
                         onChange={e => setHistoryForm({...historyForm, actionType: e.target.value})}
-                        className="px-4 py-3 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm font-semibold bg-slate-50 cursor-pointer"
+                        className="px-4 py-3 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm font-semibold bg-slate-50 cursor-pointer w-[160px] shrink-0"
                       >
                         <option value="WhatsApp">WhatsApp</option>
                         <option value="Ligação">Ligação</option>
@@ -365,13 +414,19 @@ export default function CRMPage() {
                         <option value="Visita">Visita</option>
                         <option value="Anotação">Anotação Interna</option>
                       </select>
+                      
                       <input 
-                        required type="text" placeholder="Descreva o que foi falado..."
+                        required type="text" placeholder="Descreva o que foi falado (Será enviado ao cliente...)"
                         value={historyForm.description} onChange={e => setHistoryForm({...historyForm, description: e.target.value})}
                         className="flex-1 px-4 py-3 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                       />
-                      <button type="submit" disabled={isSaving} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold transition-all shadow-sm flex items-center gap-2 disabled:opacity-70">
-                        {isSaving ? <Loader2 size={18} className="animate-spin" /> : 'Registar Ação'}
+                      
+                      <button type="submit" disabled={isSaving} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold transition-all shadow-sm flex items-center gap-2 disabled:opacity-70 whitespace-nowrap">
+                        {isSaving ? <Loader2 size={18} className="animate-spin" /> : 
+                          (historyForm.actionType === 'WhatsApp' || historyForm.actionType === 'E-mail' || historyForm.actionType === 'Ligação') 
+                            ? 'Registar & Abrir' 
+                            : 'Registar Ação'
+                        }
                       </button>
                     </form>
                   </div>
