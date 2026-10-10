@@ -48,7 +48,6 @@ export function RealEstateSidebar() {
     loadStoreData();
   }, []);
 
-  // Mapeamento tolerante: aceita tanto os nomes em PT quanto em EN cadastrados no banco
   const menuItems = [
     { name: 'Dashboard', icon: LayoutDashboard, path: '/imobiliaria/dashboard', modules: ['always'] },
     { name: 'Imóveis', icon: Home, path: '/imobiliaria/imoveis', modules: ['imoveis', 'properties', 'portais'] },
