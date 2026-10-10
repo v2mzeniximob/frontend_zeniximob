@@ -67,7 +67,6 @@ export default function CRMPage() {
     setSelectedLead(lead);
     setLeadTab('historico');
     
-    // Pré-preenche o formulário do Perfil de Busca
     setForm({
       name: lead.name, phone: lead.phone, email: lead.email || '', interest: lead.interest, notes: lead.notes || '', brokerId: lead.brokerId || '',
       searchType: lead.searchType || '', searchTransaction: lead.searchTransaction || '', 
@@ -76,7 +75,6 @@ export default function CRMPage() {
       searchMinBedrooms: lead.searchMinBedrooms || '', searchMinGarage: lead.searchMinGarage || ''
     });
 
-    // Se ele já tiver algo de perfil preenchido, podemos pré-carregar os matches
     if (lead.searchMaxPrice || lead.searchTransaction || lead.searchType) {
       fetchMatches(lead.id);
     } else {
@@ -92,7 +90,7 @@ export default function CRMPage() {
     try {
       const payload = {
         ...form,
-        searchNeighborhoods: form.searchNeighborhoods ? form.searchNeighborhoods.split(',').map(n => n.trim()) : [],
+        searchNeighborhoods: form.searchNeighborhoods ? form.searchNeighborhoods.split(',').map((n: string) => n.trim()) : [],
         brokerId: form.brokerId === '' ? null : form.brokerId
       };
       
@@ -100,10 +98,7 @@ export default function CRMPage() {
       
       alert('Perfil de busca atualizado! O Radar de Imóveis foi recalculado.');
       
-      // Atualiza o Lead selecionado
       setSelectedLead(response.data);
-      
-      // Atualiza a lista geral e recalcula matches
       fetchData();
       fetchMatches(selectedLead.id);
       
@@ -120,7 +115,7 @@ export default function CRMPage() {
     try {
       const payload = {
         ...form,
-        phone: form.phone.replace(/\D/g, ''), // Limpa a máscara
+        phone: form.phone.replace(/\D/g, ''),
         brokerId: form.brokerId === '' ? null : form.brokerId
       };
       
@@ -197,18 +192,16 @@ export default function CRMPage() {
             const stageLeads = leads.filter(l => l.stage === stage);
             return (
               <div key={stage} className="w-[340px] bg-slate-100/50 rounded-2xl border border-slate-200 flex flex-col max-h-full">
-                {/* Cabeçalho da Coluna */}
+                
                 <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-100/80 rounded-t-2xl shrink-0">
                   <h3 className="font-bold text-slate-700">{stage}</h3>
                   <span className="bg-white text-slate-600 text-xs font-bold px-2.5 py-1 rounded-full shadow-sm">{stageLeads.length}</span>
                 </div>
 
-                {/* Lista de Cards */}
                 <div className="p-3 flex-1 overflow-y-auto space-y-3 scrollbar-thin scrollbar-thumb-slate-300">
                   {stageLeads.map(lead => (
                     <div key={lead.id} className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 hover:shadow-md hover:border-blue-300 transition-all cursor-pointer flex flex-col gap-3 group relative" onClick={() => handleOpenLeadDetails(lead)}>
                       
-                      {/* Indicador de Match Discreto no Canto */}
                       {(lead.searchMaxPrice || lead.searchNeighborhoods?.length > 0) && (
                         <div className="absolute -top-2 -right-2 bg-gradient-to-r from-amber-400 to-orange-500 text-white rounded-full p-1.5 shadow-md" title="Perfil de Busca Preenchido / Radar Ativo">
                           <Sparkles size={14} className="animate-pulse" />
@@ -221,15 +214,29 @@ export default function CRMPage() {
                         </div>
                         <div className="flex-1 overflow-hidden">
                           <h4 className="font-bold text-slate-800 group-hover:text-blue-600 transition-colors truncate">{lead.name}</h4>
-                          <p className="text-[11px] font-semibold text-slate-500 mt-1 uppercase tracking-wider">
+                          <p className="text-[11px] font-semibold text-slate-500 mt-1 uppercase tracking-wider truncate">
                             {lead.interest}
                           </p>
                         </div>
                       </div>
                       
-                      <div className="bg-slate-50 p-2 rounded-lg border border-slate-100">
-                        <p className="text-xs text-slate-600 flex items-center gap-1.5 mb-1"><Phone size={12} className="text-slate-400"/> {maskPhone(lead.phone)}</p>
-                        <p className="text-xs text-slate-600 flex items-center gap-1.5"><Briefcase size={12} className="text-slate-400"/> {lead.broker?.name || 'Sem corretor'}</p>
+                      {/* NOVOS DADOS NO CARD DO LEAD */}
+                      <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100 space-y-1.5">
+                        <p className="text-xs text-slate-600 flex items-center gap-1.5"><Phone size={12} className="text-slate-400 shrink-0"/> {maskPhone(lead.phone)}</p>
+                        {lead.email && (
+                          <p className="text-xs text-slate-600 flex items-center gap-1.5 truncate"><Mail size={12} className="text-slate-400 shrink-0"/> <span className="truncate">{lead.email}</span></p>
+                        )}
+                        {/* Se houver imóvel vinculado, mostra no card */}
+                        {lead.property && (
+                          <div className="mt-1 pt-1.5 border-t border-slate-200">
+                            <p className="text-xs text-indigo-700 font-semibold flex items-center gap-1.5 truncate">
+                              <Home size={12} className="shrink-0"/> <span className="truncate">{lead.property.title}</span>
+                            </p>
+                          </div>
+                        )}
+                        <p className="text-[10px] text-slate-400 flex items-center gap-1.5 pt-1">
+                          <Briefcase size={10} className="shrink-0"/> {lead.broker?.name || 'S/ Corretor'}
+                        </p>
                       </div>
 
                       <div className="flex items-center justify-between mt-1" onClick={e => e.stopPropagation()}>
@@ -258,14 +265,11 @@ export default function CRMPage() {
         </div>
       </div>
 
-      {/* ========================================================= */}
-      {/* MODAL: DETALHES, HISTÓRICO E RADAR DO LEAD                  */}
-      {/* ========================================================= */}
+      {/* MODAL: DETALHES, HISTÓRICO E RADAR DO LEAD */}
       {selectedLead && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-6xl h-[90vh] flex flex-col md:flex-row overflow-hidden animate-in zoom-in-95 duration-200">
             
-            {/* Esquerda: Menu Lateral do Modal */}
             <div className="w-full md:w-1/4 bg-slate-50 border-r border-slate-200 p-6 flex flex-col">
               <div className="flex justify-between items-start mb-6">
                 <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mb-2 shrink-0 shadow-sm border border-blue-200">
@@ -277,7 +281,6 @@ export default function CRMPage() {
               <h2 className="text-xl font-bold text-slate-800 leading-tight">{selectedLead.name}</h2>
               <span className="inline-block mt-2 bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-xs font-bold w-fit">{selectedLead.interest}</span>
 
-              {/* Botões de Navegação do Lead */}
               <div className="mt-8 flex flex-col gap-2">
                 <button 
                   onClick={() => setLeadTab('historico')} 
@@ -302,12 +305,12 @@ export default function CRMPage() {
 
               <div className="mt-auto pt-6 border-t border-slate-200 space-y-3">
                 <p className="flex items-center gap-2 text-xs font-bold text-slate-600 bg-white p-2.5 rounded-lg border border-slate-200"><Phone size={14} className="text-blue-500"/> {maskPhone(selectedLead.phone)}</p>
-                {selectedLead.email && <p className="flex items-center gap-2 text-xs font-bold text-slate-600 bg-white p-2.5 rounded-lg border border-slate-200"><Mail size={14} className="text-blue-500"/> <span className="truncate">{selectedLead.email}</span></p>}
+                {selectedLead.email && <p className="flex items-center gap-2 text-xs font-bold text-slate-600 bg-white p-2.5 rounded-lg border border-slate-200"><Mail size={14} className="text-blue-500"/> <span className="truncate" title={selectedLead.email}>{selectedLead.email}</span></p>}
+                {selectedLead.property && <p className="flex items-center gap-2 text-xs font-bold text-indigo-700 bg-indigo-50 p-2.5 rounded-lg border border-indigo-100"><Home size={14} className="text-indigo-500 shrink-0"/> <span className="truncate" title={selectedLead.property.title}>{selectedLead.property.title}</span></p>}
                 <p className="flex items-center gap-2 text-xs font-bold text-slate-600 bg-white p-2.5 rounded-lg border border-slate-200"><Briefcase size={14} className="text-blue-500"/> {selectedLead.broker?.name || 'Sem Corretor'}</p>
               </div>
             </div>
 
-            {/* Direita: Área de Conteúdo */}
             <div className="w-full md:w-3/4 flex flex-col h-full relative bg-slate-50/30">
               <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-white z-10 shadow-sm">
                 <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">
@@ -318,7 +321,6 @@ export default function CRMPage() {
                 <button onClick={() => setSelectedLead(null)} className="hidden md:flex p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"><X size={20}/></button>
               </div>
 
-              {/* CONTEÚDO 1: HISTÓRICO */}
               {leadTab === 'historico' && (
                 <>
                   <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50">
@@ -376,7 +378,6 @@ export default function CRMPage() {
                 </>
               )}
 
-              {/* CONTEÚDO 2: PERFIL DE BUSCA */}
               {leadTab === 'perfil' && (
                 <div className="flex-1 overflow-y-auto p-8 bg-slate-50/50">
                   <div className="max-w-3xl">
@@ -449,10 +450,8 @@ export default function CRMPage() {
                 </div>
               )}
 
-              {/* CONTEÚDO 3: RADAR DE OPORTUNIDADES (MATCH) */}
               {leadTab === 'radar' && (
                 <div className="flex-1 overflow-y-auto p-8 bg-slate-50/50">
-                  
                   {isFetchingMatches ? (
                     <div className="flex flex-col items-center justify-center h-64 text-orange-500">
                       <Sparkles size={48} className="animate-pulse mb-4" />
@@ -469,14 +468,12 @@ export default function CRMPage() {
                     <div className="max-w-4xl space-y-4">
                       {matches.map((match: any, i: number) => (
                         <div key={i} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col sm:flex-row hover:shadow-md transition-all group">
-                          {/* Imagem (Se Tiver) */}
                           <div className="w-full sm:w-48 h-48 sm:h-auto bg-slate-100 shrink-0 relative overflow-hidden">
                             {match.property.imageUrls && match.property.imageUrls[0] ? (
                               <img src={match.property.imageUrls[0]} alt="Imóvel" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center text-slate-300"><Home size={40}/></div>
                             )}
-                            {/* Badge do Match */}
                             <div className={`absolute top-3 left-3 px-3 py-1 rounded-full text-xs font-black shadow-lg flex items-center gap-1 backdrop-blur-md
                               ${match.score >= 80 ? 'bg-emerald-500/90 text-white border border-emerald-400' : 
                                 match.score >= 60 ? 'bg-yellow-400/90 text-yellow-900 border border-yellow-300' : 'bg-slate-800/90 text-white'}`}>
@@ -484,7 +481,6 @@ export default function CRMPage() {
                             </div>
                           </div>
                           
-                          {/* Dados do Imóvel */}
                           <div className="p-5 flex-1 flex flex-col justify-between">
                             <div>
                               <div className="flex justify-between items-start">
@@ -506,7 +502,7 @@ export default function CRMPage() {
 
                             <div className="mt-4 flex items-center gap-3">
                               <a 
-                                href={`https://wa.me/${selectedLead.phone.replace(/\D/g, '')}?text=Olá ${selectedLead.name.split(' ')[0]}! Encontrei um imóvel que bate exatamente com o que você procura no bairro ${match.property.neighborhood}. Dá uma olhada:`} 
+                                href={`https://wa.me/${selectedLead.phone.replace(/\D/g, '')}?text=Olá ${selectedLead.name.split(' ')[0]}! Encontrei um imóvel que bate exatamente com o que procura no bairro ${match.property.neighborhood}. Dá uma olhada:`} 
                                 target="_blank" rel="noreferrer"
                                 className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors shadow-sm flex items-center gap-2"
                               >
@@ -520,7 +516,6 @@ export default function CRMPage() {
                   )}
                 </div>
               )}
-
             </div>
           </div>
         </div>
