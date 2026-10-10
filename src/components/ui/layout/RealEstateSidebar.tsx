@@ -54,6 +54,7 @@ export function RealEstateSidebar() {
     { name: 'Imóveis', icon: Home, path: '/imobiliaria/imoveis', modules: ['imoveis', 'properties', 'portais'] },
     { name: 'Clientes (CRM)', icon: UserCircle, path: '/imobiliaria/clientes', modules: ['crm'] },
     { name: 'Leads (CRM)', icon: Briefcase, path: '/imobiliaria/leads', modules: ['crm'] },
+    { name: 'Esteira de Negócios', icon: Briefcase, path: '/imobiliaria/esteira', modules: ['crm'] },
     { name: 'Controle de Chaves', icon: Key, path: '/imobiliaria/chaves', modules: ['chaves', 'keys'] },
     { name: 'Propostas e Termos', icon: FileSignature, path: '/imobiliaria/propostas', modules: ['contratos', 'contracts'] },
     { name: 'Visitas', icon: Calendar, path: '/imobiliaria/visitas', modules: ['crm'] },
