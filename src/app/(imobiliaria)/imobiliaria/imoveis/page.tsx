@@ -5,7 +5,7 @@ import { api } from '../../../../lib/api';
 import { 
   Plus, Edit, X, CheckCircle2, XCircle, Loader2, Home, 
   MapPin, DollarSign, Camera, User, UserCheck, FileSignature, 
-  Key, Sparkles, Rss, Building2
+  Key, Sparkles, Rss, Building2, Play, Compass
 } from 'lucide-react';
 
 const AVAILABLE_AMENITIES = [
@@ -40,10 +40,8 @@ export default function ImoveisPage() {
   const [storeSlug, setStoreSlug] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
   
-  // Controle das abas da página principal
   const [activePageTab, setActivePageTab] = useState<'imoveis' | 'condominios'>('imoveis');
 
-  // Controle dos Modais
   const [isPropertyModalOpen, setIsPropertyModalOpen] = useState(false);
   const [isCondoModalOpen, setIsCondoModalOpen] = useState(false);
   
@@ -52,18 +50,23 @@ export default function ImoveisPage() {
   const [isFetchingCep, setIsFetchingCep] = useState(false);
   const [isGeneratingAi, setIsGeneratingAi] = useState(false);
 
-  // Estado: Formulário de Imóvel
+  // Estado: Formulário de Imóvel Atualizado com os Novos Campos
   const [form, setForm] = useState({
     title: '', type: 'Casa', category: 'Residencial', transaction: 'Locação',
     price: '', condoFee: '', iptu: '', area: '', bedrooms: '', bathrooms: '', garage: '', yearBuilt: '',
     cep: '', address: '', neighborhood: '', city: '', state: '',
     description: '', imageUrls: '', brokerId: '', ownerId: '', inspectionUrl: '',
     rentProposalUrl: '', saleProposalUrl: '', keyTermUrl: '', exportToPortals: false,
-    condominiumId: '', iptuRegistration: '', // Novos campos incluídos aqui
+    condominiumId: '', iptuRegistration: '', 
+    
+    // NOVOS CAMPOS
+    acceptsFinancing: false, acceptsExchange: false, exchangeDetails: '',
+    videoUrl: '', tour360Url: '',
+    exclusive: false, exclusiveUntil: '', captatorId: '',
+
     amenities: [] as string[]
   });
 
-  // Estado: Formulário de Condomínio
   const [editingCondoId, setEditingCondoId] = useState<string | null>(null);
   const [isSavingCondo, setIsSavingCondo] = useState(false);
   const [condoForm, setCondoForm] = useState({
@@ -115,6 +118,17 @@ export default function ImoveisPage() {
         rentProposalUrl: property.rentProposalUrl || '', saleProposalUrl: property.saleProposalUrl || '',
         keyTermUrl: property.keyTermUrl || '', exportToPortals: property.exportToPortals || false,
         condominiumId: property.condominiumId || '', iptuRegistration: property.iptuRegistration || '',
+        
+        // NOVOS CAMPOS
+        acceptsFinancing: property.acceptsFinancing || false,
+        acceptsExchange: property.acceptsExchange || false,
+        exchangeDetails: property.exchangeDetails || '',
+        videoUrl: property.videoUrl || '',
+        tour360Url: property.tour360Url || '',
+        exclusive: property.exclusive || false,
+        exclusiveUntil: property.exclusiveUntil ? new Date(property.exclusiveUntil).toISOString().split('T')[0] : '',
+        captatorId: property.captatorId || '',
+
         amenities: property.amenities || []
       });
     } else {
@@ -124,7 +138,9 @@ export default function ImoveisPage() {
         price: '', condoFee: '', iptu: '', area: '', bedrooms: '', bathrooms: '', garage: '', yearBuilt: '',
         cep: '', address: '', neighborhood: '', city: '', state: '', description: '', imageUrls: '', brokerId: '', ownerId: '', inspectionUrl: '',
         rentProposalUrl: '', saleProposalUrl: '', keyTermUrl: '', exportToPortals: false,
-        condominiumId: '', iptuRegistration: '', amenities: []
+        condominiumId: '', iptuRegistration: '', 
+        acceptsFinancing: false, acceptsExchange: false, exchangeDetails: '', videoUrl: '', tour360Url: '', exclusive: false, exclusiveUntil: '', captatorId: '',
+        amenities: []
       });
     }
     setIsPropertyModalOpen(true);
@@ -320,7 +336,7 @@ export default function ImoveisPage() {
                 <tr>
                   <th className="py-4 px-6">Imóvel & Localização</th>
                   <th className="py-4 px-6">Transação & Valor</th>
-                  <th className="py-4 px-6">Proprietário / Captação</th>
+                  <th className="py-4 px-6">Equipa & Captação</th>
                   <th className="py-4 px-6">Status (Site & Portais)</th>
                   <th className="py-4 px-6 text-right">Ações</th>
                 </tr>
@@ -347,17 +363,18 @@ export default function ImoveisPage() {
                         <p className="font-bold text-slate-800 text-lg">R$ {Number(prop.price).toLocaleString('pt-BR')}</p>
                       </div>
                     </td>
-                    <td className="py-4 px-6 space-y-2">
-                      <div className="flex items-center gap-2 text-xs">
-                        <User size={14} className="text-slate-400" />
-                        <span className="font-medium text-slate-700">Dono:</span> 
-                        {prop.owner ? <span className="text-blue-600 font-bold">{prop.owner.name}</span> : <span className="text-slate-400 italic">Não vinculado</span>}
-                      </div>
+                    <td className="py-4 px-6 space-y-1">
                       <div className="flex items-center gap-2 text-xs">
                         <UserCheck size={14} className="text-slate-400" />
                         <span className="font-medium text-slate-700">Corretor:</span> 
-                        {prop.broker ? <span className="text-slate-600">{prop.broker.name}</span> : <span className="text-slate-400 italic">Nenhum</span>}
+                        {prop.broker ? <span className="text-blue-600 font-bold">{prop.broker.name}</span> : <span className="text-slate-400 italic">Nenhum</span>}
                       </div>
+                      <div className="flex items-center gap-2 text-xs">
+                        <User size={14} className="text-slate-400" />
+                        <span className="font-medium text-slate-700">Angariador:</span> 
+                        {prop.captator ? <span className="text-slate-600">{prop.captator.name}</span> : <span className="text-slate-400 italic">Nenhum</span>}
+                      </div>
+                      {prop.exclusive && <span className="inline-block mt-1 bg-yellow-100 text-yellow-800 border border-yellow-200 text-[10px] px-2 py-0.5 rounded font-bold uppercase">Exclusividade</span>}
                     </td>
                     <td className="py-4 px-6 space-y-2">
                       <button onClick={() => handleToggleStatus(prop.id)} className="focus:outline-none block">
@@ -491,9 +508,9 @@ export default function ImoveisPage() {
                   </div>
                 </div>
 
-                {/* 2. Valores e Dimensões */}
+                {/* 2. Valores e Condições de Negociação */}
                 <div>
-                  <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">2. Valores & Dimensões</h3>
+                  <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">2. Valores, Áreas & Condições</h3>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div>
                       <label className="block text-xs font-bold text-slate-600 mb-1 flex items-center gap-1"><DollarSign size={14}/> Valor (R$)</label>
@@ -511,6 +528,7 @@ export default function ImoveisPage() {
                       <label className="block text-xs font-bold text-slate-600 mb-1">Área (m²)</label>
                       <input required type="number" value={form.area} onChange={e => setForm({...form, area: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm" placeholder="Ex: 80" />
                     </div>
+                    
                     <div>
                       <label className="block text-xs font-bold text-slate-600 mb-1">Quartos</label>
                       <input type="number" value={form.bedrooms} onChange={e => setForm({...form, bedrooms: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm" />
@@ -523,6 +541,26 @@ export default function ImoveisPage() {
                       <label className="block text-xs font-bold text-slate-600 mb-1">Vagas</label>
                       <input type="number" value={form.garage} onChange={e => setForm({...form, garage: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm" />
                     </div>
+
+                    {/* NOVOS CHECKS DE FINANCIAMENTO E PERMUTA */}
+                    <div className="md:col-span-4 flex gap-6 mt-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" checked={form.acceptsFinancing} onChange={(e) => setForm({...form, acceptsFinancing: e.target.checked})} className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500" />
+                        <span className="text-sm font-bold text-slate-700">Aceita Financiamento</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" checked={form.acceptsExchange} onChange={(e) => setForm({...form, acceptsExchange: e.target.checked})} className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500" />
+                        <span className="text-sm font-bold text-slate-700">Aceita Permuta</span>
+                      </label>
+                    </div>
+
+                    {form.acceptsExchange && (
+                      <div className="md:col-span-4 animate-in fade-in">
+                        <label className="block text-xs font-bold text-slate-600 mb-1">Detalhes da Permuta (O que aceita em troca?)</label>
+                        <input type="text" value={form.exchangeDetails} onChange={e => setForm({...form, exchangeDetails: e.target.value})} className="w-full px-4 py-2 border border-blue-200 rounded-lg outline-none focus:border-blue-500 text-sm bg-blue-50/50" placeholder="Ex: Aceita carro automático até R$ 50 mil..." />
+                      </div>
+                    )}
+
                   </div>
                 </div>
 
@@ -576,18 +614,15 @@ export default function ImoveisPage() {
                   </div>
                 </div>
 
-                {/* 5. GESTÃO E PORTAIS (NOVO LUGAR, TUDO JUNTO) */}
+                {/* 5. GESTÃO E PORTAIS (TUDO JUNTO) */}
                 <div className="bg-blue-50 p-6 rounded-xl border border-blue-200">
                   <h3 className="text-sm font-bold text-blue-800 uppercase tracking-wider mb-4 border-b border-blue-200 pb-2 flex items-center gap-2">
-                    <UserCheck size={18}/> 5. Gestão de Captação & Portais
+                    <UserCheck size={18}/> 5. Equipe, Captação, Gestão & Portais
                   </h3>
                   
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                    {/* INSCRIÇÃO IMOBILIÁRIA (NOVO CAMPO) */}
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">Inscrição Imobiliária (IPTU)</label>
-                      <input type="text" value={form.iptuRegistration} onChange={e => setForm({...form, iptuRegistration: e.target.value})} className="w-full px-4 py-2.5 border border-blue-200 rounded-lg outline-none focus:border-blue-500 text-sm bg-white" placeholder="Nº de Contribuinte / Registro..." />
-                    </div>
+                    
+                    {/* Linha 1: Equipa e IPTU */}
                     <div>
                       <label className="block text-xs font-bold text-slate-700 mb-1">Proprietário (Dono)</label>
                       <select value={form.ownerId} onChange={e => setForm({...form, ownerId: e.target.value})} className="w-full px-4 py-2.5 border border-blue-200 rounded-lg outline-none focus:border-blue-500 bg-white text-sm">
@@ -596,14 +631,42 @@ export default function ImoveisPage() {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">Corretor Responsável</label>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">Inscrição Imobiliária (IPTU)</label>
+                      <input type="text" value={form.iptuRegistration} onChange={e => setForm({...form, iptuRegistration: e.target.value})} className="w-full px-4 py-2.5 border border-blue-200 rounded-lg outline-none focus:border-blue-500 text-sm bg-white" placeholder="Nº de Contribuinte / Registro..." />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">Corretor (Venda/Locação)</label>
                       <select value={form.brokerId} onChange={e => setForm({...form, brokerId: e.target.value})} className="w-full px-4 py-2.5 border border-blue-200 rounded-lg outline-none focus:border-blue-500 bg-white text-sm">
                         <option value="">Nenhum (Livre)</option>
                         {brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                       </select>
                     </div>
-                    
-                    <div className="md:col-span-3 grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
+
+                    {/* Linha 2: Angariador e Exclusividade (NOVOS CAMPOS) */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">Captador (Angariador)</label>
+                      <select value={form.captatorId} onChange={e => setForm({...form, captatorId: e.target.value})} className="w-full px-4 py-2.5 border border-blue-200 rounded-lg outline-none focus:border-blue-500 bg-white text-sm">
+                        <option value="">Nenhum</option>
+                        {brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                      </select>
+                    </div>
+
+                    <div className="md:col-span-2 flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+                      <label className="flex items-center gap-2 cursor-pointer mt-2 sm:mt-6">
+                        <input type="checkbox" checked={form.exclusive} onChange={(e) => setForm({...form, exclusive: e.target.checked})} className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500" />
+                        <span className="text-sm font-bold text-slate-700">Contrato de Exclusividade</span>
+                      </label>
+
+                      {form.exclusive && (
+                        <div className="w-full sm:w-auto animate-in fade-in">
+                          <label className="block text-xs font-bold text-slate-700 mb-1">Vencimento da Exclusividade</label>
+                          <input type="date" value={form.exclusiveUntil} onChange={e => setForm({...form, exclusiveUntil: e.target.value})} className="w-full px-4 py-2 border border-blue-200 rounded-lg outline-none focus:border-blue-500 text-sm bg-white" />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Linha 3: Links de Documentos */}
+                    <div className="md:col-span-3 grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2 pt-4 border-t border-blue-200/50">
                       <div>
                         <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1"><FileSignature size={14}/> Proposta de Aluguel (Link PDF)</label>
                         <input type="url" value={form.rentProposalUrl} onChange={e => setForm({...form, rentProposalUrl: e.target.value})} className="w-full px-4 py-2 border border-blue-200 rounded-lg outline-none focus:border-blue-500 text-sm bg-white" placeholder="Link do Google Drive..." />
@@ -622,6 +685,7 @@ export default function ImoveisPage() {
                       </div>
                     </div>
 
+                    {/* Exportação XML */}
                     <div className="md:col-span-3 mt-4 pt-4 border-t border-blue-200/50">
                       <label className="flex items-center gap-3 cursor-pointer bg-orange-50 border border-orange-200 px-4 py-3 rounded-xl transition-colors hover:bg-orange-100">
                         <input type="checkbox" checked={form.exportToPortals} onChange={(e) => setForm({...form, exportToPortals: e.target.checked})} className="w-5 h-5 text-orange-600 rounded border-orange-300 focus:ring-orange-500" />
@@ -632,13 +696,27 @@ export default function ImoveisPage() {
                         </div>
                       </label>
                     </div>
+
                   </div>
                 </div>
 
-                {/* 6. Apresentação (IA e Fotos) */}
+                {/* 6. Apresentação (Mídia e IA) */}
                 <div>
-                  <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">6. Apresentação na Vitrine</h3>
+                  <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">6. Apresentação na Vitrine (Multimídia)</h3>
                   <div className="space-y-4">
+                    
+                    {/* NOVOS CAMPOS: TOUR 360 E VIDEO */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-600 mb-1 flex items-center gap-1"><Play size={14}/> Vídeo do Imóvel (YouTube/Vimeo)</label>
+                        <input type="url" value={form.videoUrl} onChange={e => setForm({...form, videoUrl: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm bg-white" placeholder="https://youtube.com/watch?v=..." />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-600 mb-1 flex items-center gap-1"><Compass size={14}/> Tour Virtual 360º</label>
+                        <input type="url" value={form.tour360Url} onChange={e => setForm({...form, tour360Url: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm bg-white" placeholder="Link do Matterport ou similar..." />
+                      </div>
+                    </div>
+
                     <div>
                       <div className="flex justify-between items-end mb-2">
                         <label className="block text-xs font-bold text-slate-600">Descrição Comercial</label>
@@ -657,7 +735,7 @@ export default function ImoveisPage() {
               </form>
             </div>
 
-            {/* RODAPÉ DO MODAL */}
+            {/* RODAPÉ DO MODAL DO IMÓVEL */}
             <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 shrink-0">
               <button type="button" onClick={() => setIsPropertyModalOpen(false)} className="px-5 py-2.5 text-slate-600 font-bold hover:bg-slate-200 rounded-lg transition-colors text-sm">
                 Cancelar
