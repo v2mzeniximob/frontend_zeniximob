@@ -1,24 +1,41 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { api } from '../../../../lib/api';
 import { 
   Camera, Plus, X, Loader2, Home, FileText, Calendar, 
   Link as LinkIcon, Smartphone, FileUp, ChevronLeft, 
-  ImagePlus, Trash2, CheckCircle2, Download
+  ImagePlus, Trash2, CheckCircle2, Download, Edit
 } from 'lucide-react';
+
+// =========================================================================
+// COMPONENTE AUXILIAR (Resolve o erro do TypeScript e garante o Portal Nativo)
+// =========================================================================
+const ClientPortal = ({ children }: { children: React.ReactNode }) => {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  
+  if (!mounted || typeof document === 'undefined') return null;
+  return createPortal(children, document.body);
+};
 
 export default function VistoriasAppPage() {
   const [contracts, setContracts] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
   // Controle de Navegação da Tela
-  const [viewMode, setViewMode] = useState<'list' | 'choose_type' | 'modal_manual' | 'app_digital'>('list');
+  const [viewMode, setViewMode] = useState<'list' | 'choose_type' | 'modal_manual' | 'app_digital' | 'modal_edit'>('list');
   const [isSaving, setIsSaving] = useState(false);
 
   // Estados: MODO MANUAL
   const [manualForm, setManualForm] = useState({
     contractId: '', type: 'Entrada', date: new Date().toISOString().split('T')[0], reportUrl: ''
+  });
+
+  // Estados: MODO EDIÇÃO
+  const [editForm, setEditForm] = useState({
+    id: '', contractId: '', type: 'Entrada', date: '', reportUrl: ''
   });
 
   // Estados: MODO DIGITAL (App Vistoriador)
@@ -30,12 +47,11 @@ export default function VistoriasAppPage() {
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
   const [obsForm, setObsForm] = useState({ photo: '', note: '' });
 
-  // Busca inicial
   useEffect(() => {
     fetchData();
   }, []);
 
-  // EFEITO APP NATIVO: Bloqueia o scroll da página de fundo quando um modal/app está aberto
+  // EFEITO APP NATIVO: Bloqueia o scroll da página de fundo quando a app/modal abre
   useEffect(() => {
     if (viewMode !== 'list') {
       document.body.style.overflow = 'hidden';
@@ -73,7 +89,48 @@ export default function VistoriasAppPage() {
     }
   };
 
-  // Lógica do App Digital
+  // EDIÇÃO E EXCLUSÃO
+  const handleOpenEdit = (insp: any, contractId: string) => {
+    setEditForm({
+      id: insp.id,
+      contractId: contractId,
+      type: insp.type || 'Entrada',
+      date: insp.date ? new Date(insp.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+      reportUrl: insp.reportUrl || ''
+    });
+    setViewMode('modal_edit');
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSaving(true);
+    try {
+      await api.put(`/inspections/${editForm.id}`, {
+        type: editForm.type,
+        date: editForm.date,
+        reportUrl: editForm.reportUrl
+      });
+      alert('Vistoria atualizada com sucesso!');
+      setViewMode('list');
+      fetchData();
+    } catch (error: any) {
+      alert(error.response?.data?.error || 'Erro ao atualizar a vistoria.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDeleteInspection = async (inspId: string) => {
+    if (!confirm('Tem certeza que deseja excluir permanentemente esta vistoria?')) return;
+    try {
+      await api.delete(`/inspections/${inspId}`);
+      fetchData();
+    } catch (error: any) {
+      alert(error.response?.data?.error || 'Erro ao excluir vistoria.');
+    }
+  };
+
+  // LÓGICA DO APP DIGITAL
   const handleAddRoom = () => {
     const name = window.prompt('Qual o nome do cômodo? (Ex: Sala de Estar, Quarto Principal)');
     if (name && name.trim() !== '') {
@@ -218,7 +275,7 @@ export default function VistoriasAppPage() {
       const response = await api.post(`/contracts/${digitalForm.contractId}/inspections`, {
         type: digitalForm.type,
         date: digitalForm.date,
-        reportUrl: 'Gerado no App ZenixImob'
+        reportUrl: 'Gerado no App ZenixImob (Pendente Link Drive)' 
       });
 
       const inspectionId = response.data?.id || `temp_${Date.now()}`;
@@ -230,7 +287,7 @@ export default function VistoriasAppPage() {
         printWindow.document.close();
       }
 
-      alert('Laudo gerado e salvo com sucesso! Já pode ver na lista.');
+      alert('Laudo gerado e salvo com sucesso! Não se esqueça de guardar o PDF no Google Drive e colar o link depois em "Editar".');
       setViewMode('list');
       setDigitalForm({ contractId: '', type: 'Entrada', date: new Date().toISOString().split('T')[0], rooms: [] });
       fetchData();
@@ -251,14 +308,14 @@ export default function VistoriasAppPage() {
         printWindow.document.close();
       }
     } else {
-      alert('⚠️ Este laudo foi gerado noutro dispositivo (ou a cache foi limpa). O PDF local só pode ser reaberto no dispositivo original.');
+      alert('⚠️ Este laudo foi gerado noutro dispositivo (ou a cache foi limpa). Se você já salvou o PDF no Drive, clique no botão de Editar (lápis) e cole o link para poder acessar de qualquer aparelho.');
     }
   };
 
   if (isLoading) return <div className="min-h-screen flex justify-center pt-20 text-slate-500"><Loader2 className="animate-spin" size={40}/></div>;
 
   return (
-    <div className={`mx-auto font-sans bg-slate-50 min-h-[100dvh] ${viewMode === 'app_digital' ? 'p-0 max-w-full' : 'p-4 md:p-8 max-w-4xl'}`}>
+    <div className={`mx-auto font-sans bg-slate-50 min-h-screen p-4 md:p-8 max-w-4xl`}>
       
       {/* ========================================== */}
       {/* VIEW 1: LISTA PRINCIPAL                    */}
@@ -299,22 +356,35 @@ export default function VistoriasAppPage() {
                   <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Laudos de Vistoria Anexados</h4>
                   {contract.inspections && contract.inspections.length > 0 ? (
                     contract.inspections.map((insp: any) => (
-                      <div key={insp.id} className="flex flex-col sm:flex-row sm:items-center justify-between bg-slate-50 p-3 rounded-lg border border-slate-100 gap-2">
+                      <div key={insp.id} className="flex flex-col sm:flex-row sm:items-center justify-between bg-slate-50 p-3 rounded-lg border border-slate-100 gap-2 hover:bg-slate-100 transition-colors">
                         <div className="flex items-center gap-2">
                           <Camera size={16} className={insp.type === 'Entrada' ? 'text-green-500' : insp.type === 'Saída' ? 'text-red-500' : 'text-blue-500'} />
                           <span className="text-sm font-bold text-slate-700">Vistoria de {insp.type}</span>
                           <span className="text-[10px] bg-white px-2 py-0.5 rounded border border-slate-200 text-slate-500 flex items-center gap-1"><Calendar size={10}/> {new Date(insp.date).toLocaleDateString('pt-BR')}</span>
                         </div>
                         
-                        {insp.reportUrl?.includes('http') ? (
-                          <a href={insp.reportUrl} target="_blank" rel="noreferrer" className="text-xs font-bold text-blue-600 hover:underline flex items-center gap-1">
-                            <LinkIcon size={12}/> Ver Laudo
-                          </a>
-                        ) : (
-                          <button onClick={() => handleOpenLocalPDF(insp.id)} className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors">
-                            <Download size={14}/> Abrir PDF
-                          </button>
-                        )}
+                        <div className="flex items-center gap-2 mt-2 sm:mt-0">
+                          {/* Botão de Ver PDF */}
+                          {insp.reportUrl?.includes('http') ? (
+                            <a href={insp.reportUrl} target="_blank" rel="noreferrer" className="text-xs font-bold text-blue-600 hover:underline flex items-center gap-1 px-2 py-1.5">
+                              <LinkIcon size={12}/> Ver Laudo Permanente
+                            </a>
+                          ) : (
+                            <button onClick={() => handleOpenLocalPDF(insp.id)} className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors">
+                              <Download size={14}/> PDF Local
+                            </button>
+                          )}
+                          
+                          {/* Botões: EDITAR e EXCLUIR */}
+                          <div className="flex items-center ml-2 border-l border-slate-200 pl-2">
+                            <button onClick={() => handleOpenEdit(insp, contract.id)} className="p-2 text-slate-400 hover:bg-white hover:text-blue-600 rounded-md transition-colors" title="Editar Vistoria (Adicionar Link Permanente)">
+                              <Edit size={16}/>
+                            </button>
+                            <button onClick={() => handleDeleteInspection(insp.id)} className="p-2 text-slate-400 hover:bg-white hover:text-red-600 rounded-md transition-colors" title="Excluir Vistoria">
+                              <Trash2 size={16}/>
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     ))
                   ) : (
@@ -330,225 +400,271 @@ export default function VistoriasAppPage() {
         </>
       )}
 
-      {/* ========================================== */}
-      {/* OVERLAY: ESCOLHA DO TIPO DE VISTORIA       */}
-      {/* ========================================== */}
+      {/* ========================================================================= */}
+      {/* USO DE CLIENT-PORTAL PARA FORÇAR MODAIS A SOBREPOR O MENU LATERAL         */}
+      {/* ========================================================================= */}
+
+      {/* OVERLAY: ESCOLHA DO TIPO DE VISTORIA */}
       {viewMode === 'choose_type' && (
-        <div className="fixed top-0 left-0 w-screen h-[100dvh] bg-slate-900/60 flex items-end md:items-center justify-center z-[9999] p-0 md:p-4">
-          <div className="bg-white rounded-t-3xl md:rounded-3xl shadow-xl w-full max-w-md overflow-hidden animate-in slide-in-from-bottom-10 md:zoom-in-95 duration-200">
-            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-              <h2 className="text-lg font-bold text-slate-800">Nova Vistoria</h2>
-              <button onClick={() => setViewMode('list')} className="text-slate-400 hover:text-slate-600 bg-slate-200 p-1.5 rounded-full"><X size={20}/></button>
-            </div>
-            <div className="p-6 space-y-4">
-              <button onClick={() => setViewMode('app_digital')} className="w-full flex items-center gap-4 p-5 rounded-2xl border-2 border-blue-100 bg-blue-50 hover:bg-blue-100 hover:border-blue-300 transition-all text-left group">
-                <div className="w-12 h-12 rounded-full bg-blue-600 text-white flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform"><Smartphone size={24}/></div>
-                <div>
-                  <h3 className="font-bold text-blue-900 text-lg">Fazer Vistoria Digital</h3>
-                  <p className="text-xs text-blue-700 mt-1">Use a câmara do telemóvel agora para tirar fotos aos cômodos e gerar o laudo em PDF.</p>
-                </div>
-              </button>
-              
-              <div className="text-center text-xs font-bold text-slate-300 uppercase tracking-widest my-2">Ou</div>
-
-              <button onClick={() => setViewMode('modal_manual')} className="w-full flex items-center gap-4 p-5 rounded-2xl border-2 border-slate-100 bg-white hover:bg-slate-50 hover:border-slate-300 transition-all text-left group">
-                <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform"><FileUp size={24}/></div>
-                <div>
-                  <h3 className="font-bold text-slate-700 text-lg">Anexar Link / PDF</h3>
-                  <p className="text-xs text-slate-500 mt-1">Já tenho o laudo pronto (Google Drive, Dropbox ou sistema externo).</p>
-                </div>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================== */}
-      {/* MODAL MANUAL (Upload Link)                 */}
-      {/* ========================================== */}
-      {viewMode === 'modal_manual' && (
-        <div className="fixed top-0 left-0 w-screen h-[100dvh] bg-slate-900/60 flex items-end md:items-center justify-center z-[9999] p-0 md:p-4">
-          <div className="bg-white rounded-t-3xl md:rounded-3xl shadow-xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-              <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2"><LinkIcon className="text-slate-600" size={20}/> Anexar Laudo</h2>
-              <button onClick={() => setViewMode('list')} className="text-slate-400 hover:text-slate-600 bg-slate-200 p-1.5 rounded-full"><X size={20}/></button>
-            </div>
-            
-            <form onSubmit={handleSaveManual} className="p-5 space-y-5">
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">Imóvel Alugado</label>
-                <select required value={manualForm.contractId} onChange={e => setManualForm({...manualForm, contractId: e.target.value})} className="w-full px-4 py-3 border border-slate-300 rounded-xl outline-none bg-white text-base">
-                  <option value="">Selecione o imóvel...</option>
-                  {contracts.map(c => <option key={c.id} value={c.id}>{c.property.title}</option>)}
-                </select>
+        <ClientPortal>
+          <div className="fixed inset-0 z-[99999] w-full h-[100dvh] bg-slate-900/60 flex items-end md:items-center justify-center p-0 md:p-4">
+            <div className="bg-white rounded-t-3xl md:rounded-3xl shadow-xl w-full max-w-md overflow-hidden animate-in slide-in-from-bottom-10 md:zoom-in-95 duration-200">
+              <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <h2 className="text-lg font-bold text-slate-800">Nova Vistoria</h2>
+                <button onClick={() => setViewMode('list')} className="text-slate-400 hover:text-slate-600 bg-slate-200 p-1.5 rounded-full"><X size={20}/></button>
               </div>
+              <div className="p-6 space-y-4">
+                <button onClick={() => setViewMode('app_digital')} className="w-full flex items-center gap-4 p-5 rounded-2xl border-2 border-blue-100 bg-blue-50 hover:bg-blue-100 hover:border-blue-300 transition-all text-left group">
+                  <div className="w-12 h-12 rounded-full bg-blue-600 text-white flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform"><Smartphone size={24}/></div>
+                  <div>
+                    <h3 className="font-bold text-blue-900 text-lg">Fazer Vistoria Digital</h3>
+                    <p className="text-xs text-blue-700 mt-1">Use a câmara do telemóvel agora para tirar fotos aos cômodos e gerar o laudo em PDF.</p>
+                  </div>
+                </button>
+                
+                <div className="text-center text-xs font-bold text-slate-300 uppercase tracking-widest my-2">Ou</div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1">Tipo</label>
-                  <select required value={manualForm.type} onChange={e => setManualForm({...manualForm, type: e.target.value})} className="w-full px-4 py-3 border border-slate-300 rounded-xl outline-none bg-white text-base">
-                    <option value="Entrada">Entrada</option>
-                    <option value="Saída">Saída</option>
-                    <option value="Rotina">Rotina</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1">Data</label>
-                  <input required type="date" value={manualForm.date} onChange={e => setManualForm({...manualForm, date: e.target.value})} className="w-full px-4 py-3 border border-slate-300 rounded-xl outline-none text-base" />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">Link do PDF ou Pasta (Drive)</label>
-                <input required type="url" placeholder="https://..." value={manualForm.reportUrl} onChange={e => setManualForm({...manualForm, reportUrl: e.target.value})} className="w-full px-4 py-3 border border-slate-300 rounded-xl outline-none text-base" />
-              </div>
-
-              <button type="submit" disabled={isSaving} className="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold text-lg py-4 rounded-xl flex items-center justify-center gap-2 mt-4 transition-colors">
-                {isSaving ? <Loader2 size={24} className="animate-spin" /> : 'Salvar Vistoria'}
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================== */}
-      {/* APP DIGITAL (Mobile-First UI Fullscreen)   */}
-      {/* ========================================== */}
-      {viewMode === 'app_digital' && (
-        <div className="fixed top-0 left-0 w-screen h-[100dvh] bg-slate-50 z-[9999] flex flex-col overflow-hidden animate-in slide-in-from-right duration-300">
-          
-          <div className="bg-blue-600 text-white p-4 flex items-center justify-between shadow-md shrink-0 pt-safe-top">
-            <button onClick={() => setViewMode('list')} className="p-2 hover:bg-blue-700 rounded-full transition-colors"><ChevronLeft size={24}/></button>
-            <h2 className="font-bold text-lg">App Vistoriador</h2>
-            <div className="w-10"></div>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-4 pb-32">
-            
-            <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 mb-6 space-y-4">
-              <h3 className="font-bold text-slate-800 border-b border-slate-100 pb-2 mb-2">1. Detalhes da Vistoria</h3>
-              <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">Imóvel e Inquilino *</label>
-                <select value={digitalForm.contractId} onChange={e => setDigitalForm({...digitalForm, contractId: e.target.value})} className="w-full p-3 border border-slate-300 rounded-xl outline-none bg-white text-sm font-semibold text-slate-800">
-                  <option value="">Selecione...</option>
-                  {contracts.map(c => <option key={c.id} value={c.id}>{c.property.title} - {c.tenant.name}</option>)}
-                </select>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">Tipo *</label>
-                  <select value={digitalForm.type} onChange={e => setDigitalForm({...digitalForm, type: e.target.value})} className="w-full p-3 border border-slate-300 rounded-xl outline-none bg-white text-sm font-semibold text-slate-800">
-                    <option value="Entrada">Entrada</option>
-                    <option value="Saída">Saída</option>
-                    <option value="Rotina">Rotina</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">Data *</label>
-                  <input type="date" value={digitalForm.date} onChange={e => setDigitalForm({...digitalForm, date: e.target.value})} className="w-full p-3 border border-slate-300 rounded-xl outline-none text-sm font-semibold text-slate-800" />
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="font-bold text-slate-800">2. Cômodos & Fotos</h3>
-                <button onClick={handleAddRoom} className="text-blue-600 bg-blue-50 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 active:scale-95 transition-transform">
-                  <Plus size={14}/> Add Cômodo
+                <button onClick={() => setViewMode('modal_manual')} className="w-full flex items-center gap-4 p-5 rounded-2xl border-2 border-slate-100 bg-white hover:bg-slate-50 hover:border-slate-300 transition-all text-left group">
+                  <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform"><FileUp size={24}/></div>
+                  <div>
+                    <h3 className="font-bold text-slate-700 text-lg">Anexar Link / PDF</h3>
+                    <p className="text-xs text-slate-500 mt-1">Já tenho o laudo pronto (Google Drive, Dropbox ou sistema externo).</p>
+                  </div>
                 </button>
               </div>
+            </div>
+          </div>
+        </ClientPortal>
+      )}
 
-              {digitalForm.rooms.length === 0 ? (
-                <div className="text-center p-8 bg-white border border-slate-200 border-dashed rounded-2xl text-slate-400">
-                  <Camera size={32} className="mx-auto mb-2 opacity-50"/>
-                  <p className="text-sm font-medium">Nenhum cômodo adicionado.</p>
-                  <p className="text-xs mt-1">Clique acima para começar (Ex: Sala, Cozinha).</p>
+      {/* MODAL MANUAL (Novo Link) */}
+      {viewMode === 'modal_manual' && (
+        <ClientPortal>
+          <div className="fixed inset-0 z-[99999] w-full h-[100dvh] bg-slate-900/60 flex items-end md:items-center justify-center p-0 md:p-4">
+            <div className="bg-white rounded-t-3xl md:rounded-3xl shadow-xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+              <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2"><LinkIcon className="text-slate-600" size={20}/> Anexar Laudo</h2>
+                <button onClick={() => setViewMode('list')} className="text-slate-400 hover:text-slate-600 bg-slate-200 p-1.5 rounded-full"><X size={20}/></button>
+              </div>
+              
+              <form onSubmit={handleSaveManual} className="p-5 space-y-5">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">Imóvel Alugado</label>
+                  <select required value={manualForm.contractId} onChange={e => setManualForm({...manualForm, contractId: e.target.value})} className="w-full px-4 py-3 border border-slate-300 rounded-xl outline-none bg-white text-base">
+                    <option value="">Selecione o imóvel...</option>
+                    {contracts.map(c => <option key={c.id} value={c.id}>{c.property.title}</option>)}
+                  </select>
                 </div>
-              ) : (
-                <div className="space-y-4">
-                  {digitalForm.rooms.map(room => (
-                    <div key={room.id} className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                      <div className="bg-slate-800 text-white p-3 px-4 font-bold flex justify-between items-center">
-                        {room.name}
-                        <span className="text-xs bg-slate-700 px-2 py-0.5 rounded-full">{room.items.length} Itens</span>
-                      </div>
-                      
-                      <div className="p-4 space-y-4">
-                        {room.items.map(item => (
-                          <div key={item.id} className="flex gap-3 bg-slate-50 p-3 rounded-xl border border-slate-100 relative group">
-                            {item.photo ? (
-                              <img src={item.photo} alt="Foto" className="w-20 h-20 object-cover rounded-lg border border-slate-200 shrink-0" />
-                            ) : (
-                              <div className="w-20 h-20 bg-slate-200 rounded-lg flex items-center justify-center text-slate-400 shrink-0 border border-slate-300"><Camera size={20}/></div>
-                            )}
-                            <div className="flex-1">
-                              <p className="text-sm text-slate-700 whitespace-pre-wrap">{item.note || <span className="italic text-slate-400">Sem nota escrita.</span>}</p>
-                            </div>
-                            <button onClick={() => handleRemoveObservation(room.id, item.id)} className="absolute -top-2 -right-2 bg-red-100 text-red-600 p-1.5 rounded-full shadow-sm hover:bg-red-200"><Trash2 size={12}/></button>
-                          </div>
-                        ))}
 
-                        <button onClick={() => setActiveRoomId(room.id)} className="w-full py-3 border-2 border-dashed border-blue-200 text-blue-600 rounded-xl font-bold text-sm flex items-center justify-center gap-2 bg-blue-50/50 active:bg-blue-100 transition-colors">
-                          <ImagePlus size={18}/> Tirar Foto / Adicionar Anotação
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">Tipo</label>
+                    <select required value={manualForm.type} onChange={e => setManualForm({...manualForm, type: e.target.value})} className="w-full px-4 py-3 border border-slate-300 rounded-xl outline-none bg-white text-base">
+                      <option value="Entrada">Entrada</option>
+                      <option value="Saída">Saída</option>
+                      <option value="Rotina">Rotina</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">Data</label>
+                    <input required type="date" value={manualForm.date} onChange={e => setManualForm({...manualForm, date: e.target.value})} className="w-full px-4 py-3 border border-slate-300 rounded-xl outline-none text-base" />
+                  </div>
                 </div>
-              )}
+
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">Link do PDF ou Pasta (Drive)</label>
+                  <input required type="url" placeholder="https://..." value={manualForm.reportUrl} onChange={e => setManualForm({...manualForm, reportUrl: e.target.value})} className="w-full px-4 py-3 border border-slate-300 rounded-xl outline-none text-base" />
+                </div>
+
+                <button type="submit" disabled={isSaving} className="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold text-lg py-4 rounded-xl flex items-center justify-center gap-2 mt-4 transition-colors">
+                  {isSaving ? <Loader2 size={24} className="animate-spin" /> : 'Salvar Vistoria'}
+                </button>
+              </form>
+            </div>
+          </div>
+        </ClientPortal>
+      )}
+
+      {/* MODAL EDITAR VISTORIA EXISTENTE */}
+      {viewMode === 'modal_edit' && (
+        <ClientPortal>
+          <div className="fixed inset-0 z-[99999] w-full h-[100dvh] bg-slate-900/60 flex items-end md:items-center justify-center p-0 md:p-4">
+            <div className="bg-white rounded-t-3xl md:rounded-3xl shadow-xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+              <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2"><Edit className="text-slate-600" size={20}/> Editar Vistoria</h2>
+                <button onClick={() => setViewMode('list')} className="text-slate-400 hover:text-slate-600 bg-slate-200 p-1.5 rounded-full"><X size={20}/></button>
+              </div>
+              
+              <form onSubmit={handleSaveEdit} className="p-5 space-y-5">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">Tipo</label>
+                    <select required value={editForm.type} onChange={e => setEditForm({...editForm, type: e.target.value})} className="w-full px-4 py-3 border border-slate-300 rounded-xl outline-none bg-white text-base">
+                      <option value="Entrada">Entrada</option>
+                      <option value="Saída">Saída</option>
+                      <option value="Rotina">Rotina</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">Data</label>
+                    <input required type="date" value={editForm.date} onChange={e => setEditForm({...editForm, date: e.target.value})} className="w-full px-4 py-3 border border-slate-300 rounded-xl outline-none text-base" />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">Link Definitivo (Google Drive, Dropbox...)</label>
+                  <input required type="text" placeholder="https://..." value={editForm.reportUrl} onChange={e => setEditForm({...editForm, reportUrl: e.target.value})} className="w-full px-4 py-3 border border-slate-300 rounded-xl outline-none text-base" />
+                  <p className="text-xs text-slate-500 mt-2">Cole aqui o link permanente para que o PDF gerado pelo App fique acessível em qualquer outro dispositivo.</p>
+                </div>
+
+                <button type="submit" disabled={isSaving} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold text-lg py-4 rounded-xl flex items-center justify-center gap-2 mt-4 transition-colors">
+                  {isSaving ? <Loader2 size={24} className="animate-spin" /> : 'Atualizar Vistoria'}
+                </button>
+              </form>
+            </div>
+          </div>
+        </ClientPortal>
+      )}
+
+      {/* APP DIGITAL (Mobile-First UI Fullscreen) */}
+      {viewMode === 'app_digital' && (
+        <ClientPortal>
+          <div className="fixed inset-0 z-[99999] w-full h-[100dvh] bg-slate-50 flex flex-col overflow-hidden animate-in slide-in-from-right duration-300">
+            
+            <div className="bg-blue-600 text-white p-4 flex items-center justify-between shadow-md shrink-0 pt-safe-top">
+              <button onClick={() => setViewMode('list')} className="p-2 hover:bg-blue-700 rounded-full transition-colors"><ChevronLeft size={24}/></button>
+              <h2 className="font-bold text-lg">App Vistoriador</h2>
+              <div className="w-10"></div>
             </div>
 
-          </div>
-
-          <div className="fixed bottom-0 left-0 w-full p-4 bg-white border-t border-slate-200 shadow-[0_-10px_40px_rgba(0,0,0,0.05)] pb-safe-bottom z-[9999]">
-            <button onClick={handleGenerateDigitalReport} disabled={isSaving || digitalForm.rooms.length === 0} className="w-full bg-emerald-600 active:bg-emerald-700 text-white font-black text-lg py-4 rounded-2xl flex items-center justify-center gap-2 shadow-lg transition-transform active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100">
-              {isSaving ? <Loader2 size={24} className="animate-spin" /> : <CheckCircle2 size={24}/>} 
-              Finalizar e Gerar Laudo PDF
-            </button>
-          </div>
-          
-          {activeRoomId && (
-            <div className="absolute inset-0 bg-black/80 z-[10000] flex flex-col">
-              <div className="bg-white rounded-t-3xl mt-auto p-5 animate-in slide-in-from-bottom-full duration-200 max-h-[90vh] overflow-y-auto">
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="font-bold text-slate-800 text-lg">Nova Observação</h3>
-                  <button onClick={() => { setActiveRoomId(null); setObsForm({photo:'', note:''}); }} className="bg-slate-100 text-slate-500 p-2 rounded-full"><X size={20}/></button>
+            <div className="flex-1 overflow-y-auto p-4 pb-32 w-full max-w-full overflow-x-hidden">
+              
+              <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 mb-6 space-y-4">
+                <h3 className="font-bold text-slate-800 border-b border-slate-100 pb-2 mb-2">1. Detalhes da Vistoria</h3>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">Imóvel e Inquilino *</label>
+                  <select value={digitalForm.contractId} onChange={e => setDigitalForm({...digitalForm, contractId: e.target.value})} className="w-full p-3 border border-slate-300 rounded-xl outline-none bg-white text-base font-semibold text-slate-800">
+                    <option value="">Selecione...</option>
+                    {contracts.map(c => <option key={c.id} value={c.id}>{c.property.title} - {c.tenant.name}</option>)}
+                  </select>
                 </div>
-                
-                <div className="space-y-4">
-                  <div className="relative">
-                    {obsForm.photo ? (
-                      <div className="relative rounded-2xl overflow-hidden shadow-sm border border-slate-200 aspect-video bg-black flex items-center justify-center">
-                        <img src={obsForm.photo} alt="Preview" className="max-w-full max-h-full object-contain" />
-                        <button onClick={() => setObsForm({...obsForm, photo: ''})} className="absolute top-2 right-2 bg-red-500 text-white p-2 rounded-full shadow-md"><Trash2 size={16}/></button>
-                      </div>
-                    ) : (
-                      <label className="flex flex-col items-center justify-center h-40 w-full border-2 border-dashed border-slate-300 rounded-2xl bg-slate-50 text-slate-500 cursor-pointer active:bg-slate-100 transition-colors">
-                        <Camera size={32} className="mb-2"/>
-                        <span className="font-bold text-sm">Abrir Câmera</span>
-                        <input type="file" accept="image/*" capture="environment" onChange={handlePhotoCapture} className="hidden" />
-                      </label>
-                    )}
-                  </div>
-
+                <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-1">Anotação (Opcional se houver foto)</label>
-                    <textarea 
-                      rows={4} placeholder="Ex: Parede com pintura descascada próxima ao rodapé..." 
-                      value={obsForm.note} onChange={e => setObsForm({...obsForm, note: e.target.value})}
-                      className="w-full p-4 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-slate-50 resize-none"
-                    ></textarea>
+                    <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">Tipo *</label>
+                    <select value={digitalForm.type} onChange={e => setDigitalForm({...digitalForm, type: e.target.value})} className="w-full p-3 border border-slate-300 rounded-xl outline-none bg-white text-base font-semibold text-slate-800">
+                      <option value="Entrada">Entrada</option>
+                      <option value="Saída">Saída</option>
+                      <option value="Rotina">Rotina</option>
+                    </select>
                   </div>
-
-                  <button onClick={handleSaveObservation} className="w-full bg-blue-600 active:bg-blue-700 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 shadow-sm">
-                    <CheckCircle2 size={20}/> Salvar neste Cômodo
-                  </button>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">Data *</label>
+                    <input type="date" value={digitalForm.date} onChange={e => setDigitalForm({...digitalForm, date: e.target.value})} className="w-full p-3 border border-slate-300 rounded-xl outline-none text-base font-semibold text-slate-800" />
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
 
-        </div>
+              <div>
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="font-bold text-slate-800">2. Cômodos & Fotos</h3>
+                  <button onClick={handleAddRoom} className="text-blue-600 bg-blue-50 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 active:scale-95 transition-transform">
+                    <Plus size={14}/> Add Cômodo
+                  </button>
+                </div>
+
+                {digitalForm.rooms.length === 0 ? (
+                  <div className="text-center p-8 bg-white border border-slate-200 border-dashed rounded-2xl text-slate-400">
+                    <Camera size={32} className="mx-auto mb-2 opacity-50"/>
+                    <p className="text-sm font-medium">Nenhum cômodo adicionado.</p>
+                    <p className="text-xs mt-1">Clique acima para começar (Ex: Sala, Cozinha).</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {digitalForm.rooms.map(room => (
+                      <div key={room.id} className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                        <div className="bg-slate-800 text-white p-3 px-4 font-bold flex justify-between items-center">
+                          {room.name}
+                          <span className="text-xs bg-slate-700 px-2 py-0.5 rounded-full">{room.items.length} Itens</span>
+                        </div>
+                        
+                        <div className="p-4 space-y-4">
+                          {room.items.map(item => (
+                            <div key={item.id} className="flex gap-3 bg-slate-50 p-3 rounded-xl border border-slate-100 relative group">
+                              {item.photo ? (
+                                <img src={item.photo} alt="Foto" className="w-20 h-20 object-cover rounded-lg border border-slate-200 shrink-0" />
+                              ) : (
+                                <div className="w-20 h-20 bg-slate-200 rounded-lg flex items-center justify-center text-slate-400 shrink-0 border border-slate-300"><Camera size={20}/></div>
+                              )}
+                              <div className="flex-1">
+                                <p className="text-sm text-slate-700 whitespace-pre-wrap">{item.note || <span className="italic text-slate-400">Sem nota escrita.</span>}</p>
+                              </div>
+                              <button onClick={() => handleRemoveObservation(room.id, item.id)} className="absolute -top-2 -right-2 bg-red-100 text-red-600 p-1.5 rounded-full shadow-sm hover:bg-red-200"><Trash2 size={12}/></button>
+                            </div>
+                          ))}
+
+                          <button onClick={() => setActiveRoomId(room.id)} className="w-full py-3 border-2 border-dashed border-blue-200 text-blue-600 rounded-xl font-bold text-sm flex items-center justify-center gap-2 bg-blue-50/50 active:bg-blue-100 transition-colors">
+                            <ImagePlus size={18}/> Tirar Foto / Adicionar Anotação
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+            </div>
+
+            <div className="absolute bottom-0 left-0 w-full p-4 bg-white border-t border-slate-200 shadow-[0_-10px_40px_rgba(0,0,0,0.05)] pb-safe-bottom z-20">
+              <button onClick={handleGenerateDigitalReport} disabled={isSaving || digitalForm.rooms.length === 0} className="w-full bg-emerald-600 active:bg-emerald-700 text-white font-black text-lg py-4 rounded-2xl flex items-center justify-center gap-2 shadow-lg transition-transform active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100">
+                {isSaving ? <Loader2 size={24} className="animate-spin" /> : <CheckCircle2 size={24}/>} 
+                Finalizar e Gerar Laudo PDF
+              </button>
+            </div>
+            
+            {/* Sub-modal: Capturar Foto */}
+            {activeRoomId && (
+              <div className="absolute inset-0 bg-black/80 z-[10000] flex flex-col w-full h-[100dvh]">
+                <div className="bg-white rounded-t-3xl mt-auto p-5 animate-in slide-in-from-bottom-full duration-200 max-h-[90dvh] overflow-y-auto w-full">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="font-bold text-slate-800 text-lg">Nova Observação</h3>
+                    <button onClick={() => { setActiveRoomId(null); setObsForm({photo:'', note:''}); }} className="bg-slate-100 text-slate-500 p-2 rounded-full"><X size={20}/></button>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <div className="relative">
+                      {obsForm.photo ? (
+                        <div className="relative rounded-2xl overflow-hidden shadow-sm border border-slate-200 aspect-video bg-black flex items-center justify-center">
+                          <img src={obsForm.photo} alt="Preview" className="max-w-full max-h-full object-contain" />
+                          <button onClick={() => setObsForm({...obsForm, photo: ''})} className="absolute top-2 right-2 bg-red-500 text-white p-2 rounded-full shadow-md"><Trash2 size={16}/></button>
+                        </div>
+                      ) : (
+                        <label className="flex flex-col items-center justify-center h-40 w-full border-2 border-dashed border-slate-300 rounded-2xl bg-slate-50 text-slate-500 cursor-pointer active:bg-slate-100 transition-colors">
+                          <Camera size={32} className="mb-2"/>
+                          <span className="font-bold text-sm">Abrir Câmera</span>
+                          <input type="file" accept="image/*" capture="environment" onChange={handlePhotoCapture} className="hidden" />
+                        </label>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-1">Anotação (Opcional se houver foto)</label>
+                      <textarea 
+                        rows={4} placeholder="Ex: Parede com pintura descascada próxima ao rodapé..." 
+                        value={obsForm.note} onChange={e => setObsForm({...obsForm, note: e.target.value})}
+                        className="w-full p-4 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-base bg-slate-50 resize-none"
+                      ></textarea>
+                    </div>
+
+                    <button onClick={handleSaveObservation} className="w-full bg-blue-600 active:bg-blue-700 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 shadow-sm">
+                      <CheckCircle2 size={20}/> Salvar neste Cômodo
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+          </div>
+        </ClientPortal>
       )}
     </div>
   );
