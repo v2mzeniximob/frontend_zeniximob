@@ -19,7 +19,8 @@ import {
   Camera,
   Briefcase,
   FileSignature,
-  Wrench
+  Wrench,
+  MessageSquare
 } from 'lucide-react';
 import { destroyCookie } from 'nookies';
 
@@ -36,7 +37,7 @@ export function RealEstateSidebar() {
       try {
         const res = await api.get('/my-store');
         const mods = res.data.modules || [];
-        // Converte tudo para minúsculas para não haver erro de "FINANCEIRO" vs "financeiro"
+        // Converte tudo para minúsculas para evitar erros (ex: "CRM" vs "crm")
         const normalizedMods = mods.map((m: string) => m.toLowerCase());
         setAllowedModules(normalizedMods);
       } catch (error) {
@@ -50,19 +51,20 @@ export function RealEstateSidebar() {
 
   const menuItems = [
     { name: 'Dashboard', icon: LayoutDashboard, path: '/imobiliaria/dashboard', modules: ['always'] },
-    { name: 'Imóveis', icon: Home, path: '/imobiliaria/imoveis', modules: ['imoveis', 'properties', 'portais'] },
+    { name: 'Imóveis', icon: Home, path: '/imobiliaria/imoveis', modules: ['imoveis', 'properties'] },
     { name: 'Clientes (CRM)', icon: UserCircle, path: '/imobiliaria/clientes', modules: ['crm'] },
     { name: 'Leads (CRM)', icon: Briefcase, path: '/imobiliaria/leads', modules: ['crm'] },
     { name: 'Esteira de Negócios', icon: Briefcase, path: '/imobiliaria/esteira', modules: ['crm'] },
+    { name: 'WhatsApp & Robô IA', icon: MessageSquare, path: '/imobiliaria/whatsapp', modules: ['whatsapp'] },
     { name: 'Controle de Chaves', icon: Key, path: '/imobiliaria/chaves', modules: ['chaves', 'keys'] },
     { name: 'Propostas e Termos', icon: FileSignature, path: '/imobiliaria/propostas', modules: ['contratos', 'contracts'] },
     { name: 'Visitas', icon: Calendar, path: '/imobiliaria/visitas', modules: ['crm'] },
-    { name: 'Proprietários', icon: UserCircle, path: '/imobiliaria/proprietarios', modules: ['imoveis', 'properties', 'portais'] },
+    { name: 'Proprietários', icon: UserCircle, path: '/imobiliaria/proprietarios', modules: ['imoveis', 'properties'] },
     { name: 'Inquilinos', icon: Users, path: '/imobiliaria/inquilinos', modules: ['contratos', 'contracts'] },
     { name: 'Contratos', icon: Key, path: '/imobiliaria/contratos', modules: ['contratos', 'contracts'] },
     { name: 'Financeiro', icon: DollarSign, path: '/imobiliaria/financeiro', modules: ['financeiro', 'financial'] },
     { name: 'Arquivo DIMOB (Fisco)', icon: FileSignature, path: '/imobiliaria/dimob', modules: ['dimob'] },
-    { name: 'Vistorias Mobile-First', icon: Camera, path: '/imobiliaria/vistorias', modules: ['vistorias', 'contratos', 'contracts'] },
+    { name: 'Vistorias Mobile-First', icon: Camera, path: '/imobiliaria/vistorias', modules: ['vistorias'] },
     { name: 'Chamados de Manutenção', icon: Wrench, path: '/imobiliaria/manutencao', modules: ['manutencao', 'tickets'] },
     { name: 'Corretores', icon: Users, path: '/imobiliaria/corretores', modules: ['corretores', 'brokers'] },
     { name: 'Configurações', icon: Settings, path: '/imobiliaria/configuracoes', modules: ['always'] },

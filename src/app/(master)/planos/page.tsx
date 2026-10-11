@@ -7,16 +7,19 @@ import {
   Layers, ShieldCheck, Loader2
 } from 'lucide-react';
 
-// Lista oficial de módulos que a sua plataforma possui
+// Lista expandida com IDs normalizados (minúsculas)
 const AVAILABLE_MODULES = [
-  { id: 'CRM', label: 'CRM & Funil de Vendas' },
-  { id: 'FINANCEIRO', label: 'Gestão Financeira & Repasses' },
-  { id: 'CONTRATOS', label: 'Emissão de Contratos & PDFs' },
-  { id: 'PORTAIS', label: 'Integração com Portais (VRSync)' },
-  { id: 'VISTORIAS', label: 'Vistorias Digitais' },
-  { id: 'CHAVES', label: 'Portaria e Controle de Chaves' },
-  { id: 'TICKETS', label: 'Manutenção e Chamados' },
+  { id: 'imoveis', label: 'Imóveis & Proprietários' },
+  { id: 'crm', label: 'CRM, Leads & Visitas' },
+  { id: 'contratos', label: 'Contratos & Inquilinos' },
+  { id: 'financeiro', label: 'Gestão Financeira & Repasses' },
   { id: 'dimob', label: 'Arquivo DIMOB (Fisco)' }, 
+  { id: 'vistorias', label: 'Vistorias Mobile-First' },
+  { id: 'chaves', label: 'Controle de Chaves' },
+  { id: 'manutencao', label: 'Chamados de Manutenção' },
+  { id: 'corretores', label: 'Gestão de Corretores' },
+  { id: 'portais', label: 'Integração com Portais' },
+  { id: 'whatsapp', label: 'Integração WhatsApp & Robô IA' },
 ];
 
 const initialForm = {
@@ -57,10 +60,13 @@ export default function GestaoPlanosPage() {
   const handleOpenModal = (plan?: any) => {
     if (plan) {
       setEditingId(plan.id);
+      // Força todos os módulos vindos do banco a ficarem em minúsculas para dar 'match' perfeito com os checkboxes
+      const normalizedModules = (plan.modules || []).map((m: string) => m.toLowerCase());
+      
       setFormData({
         name: plan.name,
         price: plan.price,
-        modules: plan.modules || [],
+        modules: normalizedModules,
         hasSupport: plan.hasSupport,
         supportPrice: plan.supportPrice || '',
         isActive: plan.isActive
@@ -76,10 +82,8 @@ export default function GestaoPlanosPage() {
     setFormData((prev: any) => {
       const currentModules = prev.modules || [];
       if (currentModules.includes(moduleId)) {
-        // Se já tem, remove
         return { ...prev, modules: currentModules.filter((m: string) => m !== moduleId) };
       } else {
-        // Se não tem, adiciona
         return { ...prev, modules: [...currentModules, moduleId] };
       }
     });
@@ -149,7 +153,7 @@ export default function GestaoPlanosPage() {
         </div>
       </div>
 
-      {/* LISTAGEM EM CARDS (Estilo Tabela de Preços) */}
+      {/* LISTAGEM EM CARDS */}
       {isLoading ? (
         <div className="flex justify-center p-12 text-slate-400"><Loader2 className="animate-spin" size={40}/></div>
       ) : (
@@ -171,7 +175,9 @@ export default function GestaoPlanosPage() {
                 <div className="space-y-3">
                   <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Módulos Inclusos:</p>
                   {AVAILABLE_MODULES.map(module => {
-                    const isIncluded = (plan.modules || []).includes(module.id);
+                    // Normalização para comparar com planos antigos
+                    const planMods = (plan.modules || []).map((m: string) => m.toLowerCase());
+                    const isIncluded = planMods.includes(module.id);
                     return (
                       <div key={module.id} className={`flex items-center gap-2 text-sm ${isIncluded ? 'text-slate-700 font-bold' : 'text-slate-300 line-through'}`}>
                         {isIncluded ? <CheckCircle2 size={16} className="text-emerald-500"/> : <X size={16} />}
@@ -215,7 +221,7 @@ export default function GestaoPlanosPage() {
               <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:bg-slate-200 p-2 rounded-xl transition-colors"><X size={20}/></button>
             </div>
             
-            <form onSubmit={handleSubmit} className="p-6 space-y-6 overflow-y-auto flex-1">
+            <form onSubmit={handleSubmit} className="p-6 space-y-6 overflow-y-auto flex-1 scrollbar-thin scrollbar-thumb-slate-200">
               
               <div className="grid grid-cols-2 gap-6">
                 <div className="col-span-2">
@@ -235,7 +241,7 @@ export default function GestaoPlanosPage() {
                 </div>
               </div>
 
-              {/* SELEÇÃO DE MÓDULOS (CHECKBOXES CORRIGIDOS) */}
+              {/* SELEÇÃO DE MÓDULOS */}
               <div>
                 <div className="mb-4">
                   <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2"><Layers size={18} className="text-indigo-600"/> Módulos Liberados</h3>
@@ -245,7 +251,6 @@ export default function GestaoPlanosPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {AVAILABLE_MODULES.map(module => (
                     <label key={module.id} className={`flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${formData.modules.includes(module.id) ? 'border-indigo-600 bg-indigo-50' : 'border-slate-200 hover:border-slate-300 bg-white'}`}>
-                      {/* O INPUT INVISÍVEL QUE RESOLVE O PROBLEMA */}
                       <input 
                         type="checkbox" 
                         className="hidden" 
