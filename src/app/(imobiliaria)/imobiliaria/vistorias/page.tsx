@@ -30,9 +30,20 @@ export default function VistoriasAppPage() {
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
   const [obsForm, setObsForm] = useState({ photo: '', note: '' });
 
+  // Busca inicial
   useEffect(() => {
     fetchData();
   }, []);
+
+  // EFEITO APP NATIVO: Bloqueia o scroll da página de fundo quando um modal/app está aberto
+  useEffect(() => {
+    if (viewMode !== 'list') {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => { document.body.style.overflow = 'unset'; };
+  }, [viewMode]);
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -120,7 +131,6 @@ export default function VistoriasAppPage() {
     }));
   };
 
-  // GERAR PDF E SALVAR DIGITAL
   const handleGenerateDigitalReport = async () => {
     if (!digitalForm.contractId) {
       alert('Selecione o imóvel alugado no topo da tela.');
@@ -159,7 +169,6 @@ export default function VistoriasAppPage() {
               .signatures { display: flex; justify-content: space-around; margin-top: 80px; page-break-inside: avoid; }
               .sig-line { border-top: 1px solid #333; width: 300px; text-align: center; padding-top: 10px; font-size: 14px; font-weight: bold; }
               
-              /* Botão de impressão (não sai no PDF) */
               @media print { .print-btn { display: none !important; } }
               .print-btn { background: #2563eb; color: white; padding: 15px 30px; text-align: center; font-size: 18px; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; display: block; margin: 0 auto 30px auto; width: 100%; max-width: 400px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
               .print-btn:hover { background: #1d4ed8; }
@@ -206,18 +215,15 @@ export default function VistoriasAppPage() {
         </html>
       `;
 
-      // Salva no banco de dados que a vistoria foi feita
       const response = await api.post(`/contracts/${digitalForm.contractId}/inspections`, {
         type: digitalForm.type,
         date: digitalForm.date,
         reportUrl: 'Gerado no App ZenixImob'
       });
 
-      // NOVIDADE: Guarda o HTML completo na Cache do navegador para poder reabrir depois!
       const inspectionId = response.data?.id || `temp_${Date.now()}`;
       localStorage.setItem(`laudo_zenix_${inspectionId}`, html);
 
-      // Abre a janela de impressão automaticamente
       const printWindow = window.open('', '_blank');
       if (printWindow) {
         printWindow.document.write(html);
@@ -236,7 +242,6 @@ export default function VistoriasAppPage() {
     }
   };
 
-  // NOVIDADE: Função que recupera o PDF da memória cache e abre
   const handleOpenLocalPDF = (inspectionId: string) => {
     const html = localStorage.getItem(`laudo_zenix_${inspectionId}`);
     if (html) {
@@ -246,14 +251,14 @@ export default function VistoriasAppPage() {
         printWindow.document.close();
       }
     } else {
-      alert('⚠️ Este laudo foi gerado noutro dispositivo (ou a cache foi limpa). Como as fotos não são enviadas para a nuvem para economizar espaço, o PDF só pode ser reaberto no telemóvel/computador que fez a vistoria.');
+      alert('⚠️ Este laudo foi gerado noutro dispositivo (ou a cache foi limpa). O PDF local só pode ser reaberto no dispositivo original.');
     }
   };
 
   if (isLoading) return <div className="min-h-screen flex justify-center pt-20 text-slate-500"><Loader2 className="animate-spin" size={40}/></div>;
 
   return (
-    <div className={`mx-auto font-sans bg-slate-50 min-h-screen ${viewMode === 'app_digital' ? 'p-0 max-w-full' : 'p-4 md:p-8 max-w-4xl'}`}>
+    <div className={`mx-auto font-sans bg-slate-50 min-h-[100dvh] ${viewMode === 'app_digital' ? 'p-0 max-w-full' : 'p-4 md:p-8 max-w-4xl'}`}>
       
       {/* ========================================== */}
       {/* VIEW 1: LISTA PRINCIPAL                    */}
@@ -301,7 +306,6 @@ export default function VistoriasAppPage() {
                           <span className="text-[10px] bg-white px-2 py-0.5 rounded border border-slate-200 text-slate-500 flex items-center gap-1"><Calendar size={10}/> {new Date(insp.date).toLocaleDateString('pt-BR')}</span>
                         </div>
                         
-                        {/* NOVIDADE: Botões Inteligentes (Abrir URL Externa ou Abrir PDF Gerado Local) */}
                         {insp.reportUrl?.includes('http') ? (
                           <a href={insp.reportUrl} target="_blank" rel="noreferrer" className="text-xs font-bold text-blue-600 hover:underline flex items-center gap-1">
                             <LinkIcon size={12}/> Ver Laudo
@@ -330,7 +334,7 @@ export default function VistoriasAppPage() {
       {/* OVERLAY: ESCOLHA DO TIPO DE VISTORIA       */}
       {/* ========================================== */}
       {viewMode === 'choose_type' && (
-        <div className="fixed inset-0 bg-slate-900/60 flex items-end md:items-center justify-center z-50 p-0 md:p-4">
+        <div className="fixed top-0 left-0 w-screen h-[100dvh] bg-slate-900/60 flex items-end md:items-center justify-center z-[9999] p-0 md:p-4">
           <div className="bg-white rounded-t-3xl md:rounded-3xl shadow-xl w-full max-w-md overflow-hidden animate-in slide-in-from-bottom-10 md:zoom-in-95 duration-200">
             <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
               <h2 className="text-lg font-bold text-slate-800">Nova Vistoria</h2>
@@ -363,7 +367,7 @@ export default function VistoriasAppPage() {
       {/* MODAL MANUAL (Upload Link)                 */}
       {/* ========================================== */}
       {viewMode === 'modal_manual' && (
-        <div className="fixed inset-0 bg-slate-900/60 flex items-end md:items-center justify-center z-50 p-0 md:p-4">
+        <div className="fixed top-0 left-0 w-screen h-[100dvh] bg-slate-900/60 flex items-end md:items-center justify-center z-[9999] p-0 md:p-4">
           <div className="bg-white rounded-t-3xl md:rounded-3xl shadow-xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
               <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2"><LinkIcon className="text-slate-600" size={20}/> Anexar Laudo</h2>
@@ -411,7 +415,7 @@ export default function VistoriasAppPage() {
       {/* APP DIGITAL (Mobile-First UI Fullscreen)   */}
       {/* ========================================== */}
       {viewMode === 'app_digital' && (
-        <div className="fixed inset-0 bg-slate-50 z-50 flex flex-col overflow-hidden animate-in slide-in-from-right duration-300">
+        <div className="fixed top-0 left-0 w-screen h-[100dvh] bg-slate-50 z-[9999] flex flex-col overflow-hidden animate-in slide-in-from-right duration-300">
           
           <div className="bg-blue-600 text-white p-4 flex items-center justify-between shadow-md shrink-0 pt-safe-top">
             <button onClick={() => setViewMode('list')} className="p-2 hover:bg-blue-700 rounded-full transition-colors"><ChevronLeft size={24}/></button>
@@ -496,7 +500,7 @@ export default function VistoriasAppPage() {
 
           </div>
 
-          <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-slate-200 shadow-[0_-10px_40px_rgba(0,0,0,0.05)] pb-safe-bottom">
+          <div className="fixed bottom-0 left-0 w-full p-4 bg-white border-t border-slate-200 shadow-[0_-10px_40px_rgba(0,0,0,0.05)] pb-safe-bottom z-[9999]">
             <button onClick={handleGenerateDigitalReport} disabled={isSaving || digitalForm.rooms.length === 0} className="w-full bg-emerald-600 active:bg-emerald-700 text-white font-black text-lg py-4 rounded-2xl flex items-center justify-center gap-2 shadow-lg transition-transform active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100">
               {isSaving ? <Loader2 size={24} className="animate-spin" /> : <CheckCircle2 size={24}/>} 
               Finalizar e Gerar Laudo PDF
@@ -504,7 +508,7 @@ export default function VistoriasAppPage() {
           </div>
           
           {activeRoomId && (
-            <div className="absolute inset-0 bg-black/80 z-[60] flex flex-col">
+            <div className="absolute inset-0 bg-black/80 z-[10000] flex flex-col">
               <div className="bg-white rounded-t-3xl mt-auto p-5 animate-in slide-in-from-bottom-full duration-200 max-h-[90vh] overflow-y-auto">
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="font-bold text-slate-800 text-lg">Nova Observação</h3>
