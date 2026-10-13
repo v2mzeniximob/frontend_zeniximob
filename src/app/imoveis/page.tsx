@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '../../lib/api';
 import { maskPhone } from '@/src/utils/mask'; // ou '../../utils/masks' dependendo da estrutura
-import { Search, MapPin, Building, Bed, Car, Maximize, MessageCircle, X, CheckCircle2, Loader2 } from 'lucide-react';
+import { Search, MapPin, Building, Bed, Car, Maximize, MessageCircle, X, CheckCircle2, Loader2, Hash } from 'lucide-react';
 
 export default function VitrinePublicaPage() {
   const [properties, setProperties] = useState<any[]>([]);
@@ -111,40 +111,49 @@ export default function VitrinePublicaPage() {
           <div className="text-center py-20 text-slate-400">Nenhum imóvel encontrado com estes filtros.</div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {filtered.map(prop => (
-              <div key={prop.id} className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col">
-                <div className="h-56 bg-slate-100 relative">
-                  {prop.imageUrl ? (
-                    <img src={prop.imageUrl} alt={prop.title} className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-slate-400"><Building size={40}/></div>
-                  )}
-                  <span className="absolute top-4 left-4 bg-emerald-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow-sm">
-                    {prop.transaction}
-                  </span>
-                </div>
+            {filtered.map(prop => {
+              // Obtém o código personalizado cadastrado ou usa os primeiros caracteres do ID como fallback
+              const displayCode = prop.code || prop.id?.substring(0, 6)?.toUpperCase();
 
-                <div className="p-6 flex-1 flex flex-col justify-between">
-                  <div>
-                    <h3 className="text-lg font-bold text-slate-800 line-clamp-1 mb-1">{prop.title}</h3>
-                    <p className="text-xs text-slate-400 flex items-center gap-1 mb-4"><MapPin size={14}/> {prop.address}</p>
-                    
-                    <div className="flex items-center gap-4 text-xs text-slate-500 mb-6 bg-slate-50 p-3 rounded-xl">
-                      <span className="flex items-center gap-1"><Maximize size={14}/> {prop.area} m²</span>
-                      <span className="flex items-center gap-1"><Bed size={14}/> {prop.bedrooms} Qts</span>
-                      <span className="flex items-center gap-1"><Car size={14}/> {prop.garage} Vagas</span>
+              return (
+                <div key={prop.id} className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col">
+                  <div className="h-56 bg-slate-100 relative">
+                    {prop.imageUrl ? (
+                      <img src={prop.imageUrl} alt={prop.title} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-slate-400"><Building size={40}/></div>
+                    )}
+                    <span className="absolute top-4 left-4 bg-emerald-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow-sm">
+                      {prop.transaction}
+                    </span>
+                    {/* Badge do Código do Imóvel */}
+                    <span className="absolute top-4 right-4 bg-slate-900/80 backdrop-blur-sm text-white px-2.5 py-1 rounded-full text-xs font-bold flex items-center gap-1 shadow-sm">
+                      <Hash size={12} /> {displayCode}
+                    </span>
+                  </div>
+
+                  <div className="p-6 flex-1 flex flex-col justify-between">
+                    <div>
+                      <h3 className="text-lg font-bold text-slate-800 line-clamp-1 mb-1">{prop.title}</h3>
+                      <p className="text-xs text-slate-400 flex items-center gap-1 mb-4"><MapPin size={14}/> {prop.address}</p>
+                      
+                      <div className="flex items-center gap-4 text-xs text-slate-500 mb-6 bg-slate-50 p-3 rounded-xl">
+                        <span className="flex items-center gap-1"><Maximize size={14}/> {prop.area} m²</span>
+                        <span className="flex items-center gap-1"><Bed size={14}/> {prop.bedrooms} Qts</span>
+                        <span className="flex items-center gap-1"><Car size={14}/> {prop.garage} Vagas</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+                      <span className="text-xl font-extrabold text-emerald-600">{formatCurrency(prop.price)}</span>
+                      <button onClick={() => setSelectedProperty(prop)} className="bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors flex items-center gap-1.5">
+                        <MessageCircle size={16} /> Tenho Interesse
+                      </button>
                     </div>
                   </div>
-
-                  <div className="flex items-center justify-between pt-4 border-t border-slate-100">
-                    <span className="text-xl font-extrabold text-emerald-600">{formatCurrency(prop.price)}</span>
-                    <button onClick={() => setSelectedProperty(prop)} className="bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors flex items-center gap-1.5">
-                      <MessageCircle size={16} /> Tenho Interesse
-                    </button>
-                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </main>
