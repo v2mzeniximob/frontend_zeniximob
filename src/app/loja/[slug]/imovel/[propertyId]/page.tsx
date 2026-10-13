@@ -47,12 +47,22 @@ export default function DetalheImovelPage(props: PageProps) {
         const storeResponse = await api.get(`/public/stores/${slug}`);
         const allProperties = storeResponse.data.properties || [];
         
-        // Filtra imóveis semelhantes (removendo o atual e ignorando vendidos/alugados se vierem na listagem)
-        const filtered = allProperties.filter((p: any) => 
-          p.id !== propertyId && 
-          p.status !== 'Vendido' && 
-          p.status !== 'Alugado'
-        );
+        // Filtro para ignorar o imóvel atual e remover vendidos e alugados
+        const filtered = allProperties.filter((p: any) => {
+          if (p.id === propertyId) return false;
+
+          const kStatus = (p.keyStatus || '').toLowerCase();
+          const rStatus = (p.rentStatus || '').toLowerCase();
+
+          const isSoldOrRented = 
+            kStatus.includes('vendido') || 
+            kStatus.includes('alugado') || 
+            rStatus.includes('vendido') || 
+            rStatus.includes('alugado');
+
+          return !isSoldOrRented;
+        });
+
         setSimilarProperties(filtered.slice(0, 3)); 
 
       } catch (err: any) {
@@ -158,7 +168,7 @@ export default function DetalheImovelPage(props: PageProps) {
 
       <main className="max-w-7xl mx-auto px-4 mt-6">
         
-        {/* GALERIA DE FOTOS (CLICÁVEL) */}
+        {/* GALERIA DE FOTOS */}
         {mainImage ? (
           <div className="grid grid-cols-1 md:grid-cols-4 gap-2 h-[300px] md:h-[500px] rounded-2xl overflow-hidden mb-8">
             <div 
@@ -206,7 +216,7 @@ export default function DetalheImovelPage(props: PageProps) {
                 <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">{property.transaction}</span>
                 <span className="bg-slate-100 text-slate-600 px-3 py-1 rounded-full text-xs font-medium uppercase tracking-wider">{property.type}</span>
                 
-                {/* CÓDIGO AMIGÁVEL DO IMÓVEL EM DESTAQUE AO LADO DO TÍTULO */}
+                {/* TAG DE CÓDIGO DO IMÓVEL NO CABEÇALHO */}
                 {property.code && (
                   <span className="bg-slate-800 text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 tracking-wide shadow-sm">
                     <Hash size={12} /> Cód: {property.code}
@@ -240,11 +250,20 @@ export default function DetalheImovelPage(props: PageProps) {
               </div>
             </div>
 
-            <div>
-              <h3 className="text-2xl font-bold text-slate-800 mb-4">Sobre o Imóvel</h3>
+            {/* SEÇÃO: SOBRE O IMÓVEL + CÓDIGO DESTACADO LOGO ABAIXO DA DESCRIÇÃO */}
+            <div className="space-y-4">
+              <h3 className="text-2xl font-bold text-slate-800">Sobre o Imóvel</h3>
               <p className="text-slate-600 leading-relaxed whitespace-pre-line text-lg">
                 {property.description || 'Nenhuma descrição fornecida para este imóvel.'}
               </p>
+
+              {/* BLOCO AMIGÁVEL COM O CÓDIGO DO IMÓVEL */}
+              {property.code && (
+                <div className="inline-flex items-center gap-2 bg-blue-50 border border-blue-200 text-blue-800 px-4 py-2.5 rounded-xl font-bold text-sm mt-2 shadow-sm">
+                  <Hash size={18} className="text-blue-600" />
+                  <span>Código de Referência do Imóvel: <strong className="text-blue-900 text-base ml-1">{property.code}</strong></span>
+                </div>
+              )}
             </div>
 
             {/* VÍDEO E TOUR 360° */}
@@ -310,7 +329,7 @@ export default function DetalheImovelPage(props: PageProps) {
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-sm font-medium text-slate-500 uppercase tracking-wide">Valor de {property.transaction}</p>
                   {property.code && (
-                    <span className="text-xs font-bold bg-slate-100 text-slate-600 px-2.5 py-1 rounded-md">
+                    <span className="text-xs font-bold bg-slate-900 text-white px-2.5 py-1 rounded-md shadow-sm">
                       Cód: {property.code}
                     </span>
                   )}
