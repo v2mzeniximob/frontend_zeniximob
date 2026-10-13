@@ -5,7 +5,7 @@ import { api } from '../../../../../lib/api';
 import { 
   MapPin, Phone, Mail, Home, Loader2, BedDouble, Bath, Car, 
   CheckCircle2, Ruler, Calendar, Send, ChevronLeft, ChevronRight, 
-  X, Building2, Image as ImageIcon, Video, View
+  X, Building2, Image as ImageIcon, Video, View, Hash
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -47,7 +47,12 @@ export default function DetalheImovelPage(props: PageProps) {
         const storeResponse = await api.get(`/public/stores/${slug}`);
         const allProperties = storeResponse.data.properties || [];
         
-        const filtered = allProperties.filter((p: any) => p.id !== propertyId);
+        // Filtra imóveis semelhantes (removendo o atual e ignorando vendidos/alugados se vierem na listagem)
+        const filtered = allProperties.filter((p: any) => 
+          p.id !== propertyId && 
+          p.status !== 'Vendido' && 
+          p.status !== 'Alugado'
+        );
         setSimilarProperties(filtered.slice(0, 3)); 
 
       } catch (err: any) {
@@ -71,9 +76,9 @@ export default function DetalheImovelPage(props: PageProps) {
         email: leadForm.email,
         notes: leadForm.message,
         propertyId: property.id,
-        brokerId: property.brokerId || property.broker?.id || null, // Garante que pega o ID correto
+        brokerId: property.brokerId || property.broker?.id || null,
         realEstateId: storeData.id,
-        interest: `Interesse no imóvel: ${property.title}`
+        interest: `Interesse no imóvel Cód: ${property.code || property.id} - ${property.title}`
       });
       setLeadSuccess(true);
       setLeadForm({ name: '', phone: '', email: '', message: '' });
@@ -197,10 +202,18 @@ export default function DetalheImovelPage(props: PageProps) {
           {/* COLUNA ESQUERDA (Detalhes do Imóvel) */}
           <div className="flex-1 space-y-10">
             <div>
-              <div className="flex gap-2 mb-3">
+              <div className="flex flex-wrap items-center gap-2 mb-3">
                 <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">{property.transaction}</span>
                 <span className="bg-slate-100 text-slate-600 px-3 py-1 rounded-full text-xs font-medium uppercase tracking-wider">{property.type}</span>
+                
+                {/* CÓDIGO AMIGÁVEL DO IMÓVEL EM DESTAQUE AO LADO DO TÍTULO */}
+                {property.code && (
+                  <span className="bg-slate-800 text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 tracking-wide shadow-sm">
+                    <Hash size={12} /> Cód: {property.code}
+                  </span>
+                )}
               </div>
+
               <h1 className="text-3xl md:text-4xl font-bold text-slate-900 mb-2 leading-tight">{property.title}</h1>
               <p className="text-slate-500 flex items-start gap-2 text-lg">
                 <MapPin className="mt-1 shrink-0 text-blue-500" size={20} />
@@ -294,7 +307,14 @@ export default function DetalheImovelPage(props: PageProps) {
           <div className="w-full lg:w-[400px]">
             <div className="bg-white p-6 md:p-8 rounded-3xl shadow-xl border border-slate-100 sticky top-24">
               <div className="mb-6 pb-6 border-b border-slate-100">
-                <p className="text-sm font-medium text-slate-500 uppercase tracking-wide mb-1">Valor de {property.transaction}</p>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm font-medium text-slate-500 uppercase tracking-wide">Valor de {property.transaction}</p>
+                  {property.code && (
+                    <span className="text-xs font-bold bg-slate-100 text-slate-600 px-2.5 py-1 rounded-md">
+                      Cód: {property.code}
+                    </span>
+                  )}
+                </div>
                 <h2 className="text-4xl font-extrabold text-blue-600 mb-4">{formatCurrency(property.price)}</h2>
                 <div className="flex items-center justify-between text-slate-600 mb-2">
                   <span className="flex items-center gap-2"><Building2 size={16}/> Condomínio</span>
@@ -306,7 +326,7 @@ export default function DetalheImovelPage(props: PageProps) {
                 </div>
               </div>
 
-              {/* FORMULÁRIO DE CONTATO CORRIGIDO */}
+              {/* FORMULÁRIO DE CONTATO */}
               <div className="mb-4">
                 <h3 className="font-bold text-slate-800 text-lg mb-1">Falar com o Corretor</h3>
                 <p className="text-xs text-slate-500 mb-4">Deixe seus dados e entraremos em contato rapidamente.</p>
@@ -368,6 +388,11 @@ export default function DetalheImovelPage(props: PageProps) {
                       <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-semibold text-slate-700">
                         {prop.transaction}
                       </div>
+                      {prop.code && (
+                        <div className="absolute top-4 right-4 bg-slate-900/80 backdrop-blur-sm text-white px-2.5 py-1 rounded-full text-xs font-bold">
+                          Cód: {prop.code}
+                        </div>
+                      )}
                     </div>
                     
                     <div className="p-5 flex flex-col flex-1">
