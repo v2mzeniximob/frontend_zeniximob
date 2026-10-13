@@ -6,7 +6,7 @@ import {
   Plus, Edit, X, CheckCircle2, XCircle, Loader2, Home, 
   MapPin, DollarSign, Camera, User, UserCheck, FileSignature, 
   Key, Sparkles, Rss, Building2, Play, Compass, Palette, 
-  Download, Copy, Upload, Image as ImageIcon
+  Download, Copy, Upload, Image as ImageIcon, Hash
 } from 'lucide-react';
 
 const AVAILABLE_AMENITIES = [
@@ -72,16 +72,15 @@ export default function ImoveisPage() {
   const [loadedImageObj, setLoadedImageObj] = useState<HTMLImageElement | null>(null);
   const [imageCorsError, setImageCorsError] = useState(false);
 
-  // Estado: Formulário de Imóvel Atualizado com os Novos Campos
+  // Estado: Formulário de Imóvel com Código e demais campos
   const [form, setForm] = useState({
-    title: '', type: 'Casa', category: 'Residencial', transaction: 'Locação',
+    code: '', title: '', type: 'Casa', category: 'Residencial', transaction: 'Locação',
     price: '', condoFee: '', iptu: '', area: '', bedrooms: '', bathrooms: '', garage: '', yearBuilt: '',
     cep: '', address: '', neighborhood: '', city: '', state: '',
     description: '', imageUrls: '', brokerId: '', ownerId: '', inspectionUrl: '',
     rentProposalUrl: '', saleProposalUrl: '', keyTermUrl: '', exportToPortals: false,
     condominiumId: '', iptuRegistration: '', 
     
-    // NOVOS CAMPOS
     acceptsFinancing: false, acceptsExchange: false, exchangeDetails: '',
     videoUrl: '', tour360Url: '',
     exclusive: false, exclusiveUntil: '', captatorId: '',
@@ -148,7 +147,6 @@ export default function ImoveisPage() {
     });
   };
 
-  // Carrega a imagem selecionada na memória para desenhar no Canvas
   useEffect(() => {
     if (!studioProperty) return;
     if (!studioConfig.selectedPhotoUrl) {
@@ -170,7 +168,6 @@ export default function ImoveisPage() {
     img.src = studioConfig.selectedPhotoUrl;
   }, [studioConfig.selectedPhotoUrl, studioProperty]);
 
-  // Redesenha o Canvas sempre que o usuário altera texto, cor, formato ou foto
   useEffect(() => {
     if (!studioProperty || !canvasRef.current) return;
 
@@ -183,11 +180,9 @@ export default function ImoveisPage() {
     canvas.width = width;
     canvas.height = height;
 
-    // 1. FUNDO BASE
     ctx.fillStyle = '#0f172a';
     ctx.fillRect(0, 0, width, height);
 
-    // 2. DESENHA A FOTO DO IMÓVEL (Object-Fit: Cover)
     if (loadedImageObj) {
       const imgRatio = loadedImageObj.width / loadedImageObj.height;
       const canvasRatio = width / height;
@@ -205,7 +200,6 @@ export default function ImoveisPage() {
       }
       ctx.drawImage(loadedImageObj, offsetX, offsetY, drawWidth, drawHeight);
     } else {
-      // Fundo elegante caso o imóvel não tenha foto
       const bgGrad = ctx.createLinearGradient(0, 0, width, height);
       bgGrad.addColorStop(0, '#1e293b');
       bgGrad.addColorStop(1, '#0f172a');
@@ -213,7 +207,6 @@ export default function ImoveisPage() {
       ctx.fillRect(0, 0, width, height);
     }
 
-    // 3. GRADIENTE DE LEITURA (Overlay escuro na base e leve no topo)
     const topGrad = ctx.createLinearGradient(0, 0, 0, 320);
     topGrad.addColorStop(0, 'rgba(0,0,0,0.65)');
     topGrad.addColorStop(1, 'rgba(0,0,0,0)');
@@ -228,7 +221,6 @@ export default function ImoveisPage() {
     ctx.fillStyle = bottomGrad;
     ctx.fillRect(0, bottomStart, width, height - bottomStart);
 
-    // 4. BADGE DO TOPO ("VENDE-SE" / "ALUGA-SE")
     const badgeColor = studioConfig.theme === 'gold' ? '#d97706' : studioConfig.accentColor;
     ctx.font = '900 30px Arial, sans-serif';
     const badgePaddingX = 36;
@@ -247,7 +239,6 @@ export default function ImoveisPage() {
     ctx.textBaseline = 'middle';
     ctx.fillText(studioConfig.badgeText.toUpperCase(), badgeX + badgePaddingX, badgeY + badgeHeight / 2 + 2);
 
-    // 5. TIPO DO IMÓVEL NO CANTO SUPERIOR DIREITO
     if (studioProperty.type) {
       ctx.font = 'bold 26px Arial, sans-serif';
       const typeText = studioProperty.type.toUpperCase();
@@ -261,15 +252,12 @@ export default function ImoveisPage() {
       ctx.fillText(typeText, width - typeW - 45, badgeY + badgeHeight / 2 + 2);
     }
 
-    // 6. BLOCO INFERIOR: LOCALIZAÇÃO, TÍTULO, ÍCONES E PREÇO
     const baseBottomY = studioConfig.format === 'feed' ? height - 70 : height - 120;
 
-    // Rodapé (Nome da Loja e WhatsApp)
     ctx.fillStyle = 'rgba(255,255,255,0.75)';
     ctx.font = 'bold 26px Arial, sans-serif';
     ctx.fillText(studioConfig.footerText, 70, baseBottomY);
 
-    // Linha divisória sutil acima do rodapé
     ctx.strokeStyle = 'rgba(255,255,255,0.15)';
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -277,7 +265,6 @@ export default function ImoveisPage() {
     ctx.lineTo(width - 70, baseBottomY - 45);
     ctx.stroke();
 
-    // Caixa de Preço em Destaque
     ctx.font = '900 62px Arial, sans-serif';
     const priceText = studioConfig.priceText;
     const priceY = baseBottomY - 125;
@@ -285,7 +272,6 @@ export default function ImoveisPage() {
     ctx.fillStyle = studioConfig.theme === 'gold' ? '#fbbf24' : '#38bdf8';
     ctx.fillText(priceText, 70, priceY);
 
-    // Características (Área, Quartos, Banheiros, Vagas)
     let specsOffsetY = priceY - 85;
     if (studioConfig.showSpecs) {
       const specs: string[] = [];
@@ -295,7 +281,7 @@ export default function ImoveisPage() {
       if (studioProperty.garage) specs.push(`🚗 ${studioProperty.garage} Vagas`);
 
       if (specs.length > 0) {
-        const specsLine = specs.join('   •   ');
+        const specsLine = specs.join('    •    ');
         ctx.font = 'bold 28px Arial, sans-serif';
         ctx.fillStyle = '#e2e8f0';
         ctx.fillText(specsLine, 70, specsOffsetY);
@@ -303,7 +289,6 @@ export default function ImoveisPage() {
       }
     }
 
-    // Título do Imóvel (Quebra automática em até 2 linhas)
     ctx.font = '900 48px Arial, sans-serif';
     ctx.fillStyle = '#ffffff';
     const words = (studioConfig.headline || '').split(' ');
@@ -329,7 +314,6 @@ export default function ImoveisPage() {
       specsOffsetY -= 65;
     }
 
-    // Localização (Bairro • Cidade)
     if (studioConfig.locationText) {
       ctx.font = 'bold 28px Arial, sans-serif';
       ctx.fillStyle = studioConfig.theme === 'gold' ? '#fcd34d' : '#93c5fd';
@@ -396,7 +380,7 @@ export default function ImoveisPage() {
     if (property) {
       setEditingId(property.id);
       setForm({
-        title: property.title || '', type: property.type || 'Casa', category: property.category || 'Residencial', transaction: property.transaction || 'Locação',
+        code: property.code || '', title: property.title || '', type: property.type || 'Casa', category: property.category || 'Residencial', transaction: property.transaction || 'Locação',
         price: property.price || '', condoFee: property.condoFee || '', iptu: property.iptu || '',
         area: property.area || '', bedrooms: property.bedrooms || '', bathrooms: property.bathrooms || '',
         garage: property.garage || '', yearBuilt: property.yearBuilt || '', cep: property.cep || '',
@@ -405,9 +389,8 @@ export default function ImoveisPage() {
         brokerId: property.brokerId || '', ownerId: property.ownerId || '', inspectionUrl: property.inspectionUrl || '',
         rentProposalUrl: property.rentProposalUrl || '', saleProposalUrl: property.saleProposalUrl || '',
         keyTermUrl: property.keyTermUrl || '', exportToPortals: property.exportToPortals || false,
-        condominiumId: property.condominiumId || '', iptuRegistration: property.iptuRegistration || '',
+        condominiumId: property.condominiumId || '', iptuRegistration: property.iptuRegistration || '', 
         
-        // NOVOS CAMPOS
         acceptsFinancing: property.acceptsFinancing || false,
         acceptsExchange: property.acceptsExchange || false,
         exchangeDetails: property.exchangeDetails || '',
@@ -422,7 +405,7 @@ export default function ImoveisPage() {
     } else {
       setEditingId(null);
       setForm({
-        title: '', type: 'Casa', category: 'Residencial', transaction: 'Locação',
+        code: '', title: '', type: 'Casa', category: 'Residencial', transaction: 'Locação',
         price: '', condoFee: '', iptu: '', area: '', bedrooms: '', bathrooms: '', garage: '', yearBuilt: '',
         cep: '', address: '', neighborhood: '', city: '', state: '', description: '', imageUrls: '', brokerId: '', ownerId: '', inspectionUrl: '',
         rentProposalUrl: '', saleProposalUrl: '', keyTermUrl: '', exportToPortals: false,
@@ -630,70 +613,78 @@ export default function ImoveisPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-700">
-                {properties.map(prop => (
-                  <tr key={prop.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="py-4 px-6">
-                      <p className="font-bold text-slate-800 text-base">{prop.title}</p>
-                      <p className="text-xs text-slate-500 flex items-center gap-1 mt-1"><MapPin size={12}/> {prop.neighborhood}, {prop.city}</p>
-                      <div className="flex items-center gap-2 mt-2">
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${prop.rentStatus === 'Alugado' ? 'bg-amber-100 text-amber-700' : prop.rentStatus === 'Vendido' ? 'bg-purple-100 text-purple-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                          {prop.rentStatus ? prop.rentStatus.toUpperCase() : 'VAGO'}
-                        </span>
-                        <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-bold">{prop.type}</span>
-                        {prop.condominium && <span className="text-[10px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded font-bold border border-indigo-100 line-clamp-1 max-w-[120px]" title={prop.condominium.name}>{prop.condominium.name}</span>}
-                      </div>
-                    </td>
-                    <td className="py-4 px-6">
-                      <div className="flex flex-col items-start gap-1.5">
-                        <span className={`text-xs font-bold px-2 py-1 rounded-full ${prop.transaction === 'Venda' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
-                          {prop.transaction}
-                        </span>
-                        <p className="font-bold text-slate-800 text-lg">R$ {Number(prop.price).toLocaleString('pt-BR')}</p>
-                      </div>
-                    </td>
-                    <td className="py-4 px-6 space-y-1">
-                      <div className="flex items-center gap-2 text-xs">
-                        <UserCheck size={14} className="text-slate-400" />
-                        <span className="font-medium text-slate-700">Corretor:</span> 
-                        {prop.broker ? <span className="text-blue-600 font-bold">{prop.broker.name}</span> : <span className="text-slate-400 italic">Nenhum</span>}
-                      </div>
-                      <div className="flex items-center gap-2 text-xs">
-                        <User size={14} className="text-slate-400" />
-                        <span className="font-medium text-slate-700">Angariador:</span> 
-                        {prop.captator ? <span className="text-slate-600">{prop.captator.name}</span> : <span className="text-slate-400 italic">Nenhum</span>}
-                      </div>
-                      {prop.exclusive && <span className="inline-block mt-1 bg-yellow-100 text-yellow-800 border border-yellow-200 text-[10px] px-2 py-0.5 rounded font-bold uppercase">Exclusividade</span>}
-                    </td>
-                    <td className="py-4 px-6 space-y-2">
-                      <button onClick={() => handleToggleStatus(prop.id)} className="focus:outline-none block">
-                        {prop.isActive 
-                          ? <span className="bg-green-100 text-green-700 px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1 w-fit"><CheckCircle2 size={14}/> Site Oficial</span>
-                          : <span className="bg-red-100 text-red-700 px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1 w-fit"><XCircle size={14}/> Oculto Site</span>
-                        }
-                      </button>
-                      <div className="block">
-                        {prop.exportToPortals 
-                          ? <span className="bg-orange-100 text-orange-700 px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1 w-fit"><Rss size={14}/> Exporta XML</span>
-                          : <span className="bg-slate-100 text-slate-500 px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1 w-fit"><XCircle size={14}/> Não Exporta</span>
-                        }
-                      </div>
-                    </td>
-                    <td className="py-4 px-6 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <button 
-                          onClick={() => handleOpenStudioModal(prop)} 
-                          className="text-pink-600 hover:text-pink-800 font-bold bg-pink-50 hover:bg-pink-100 border border-pink-200 px-3 py-2 rounded-lg transition-colors flex items-center gap-1.5"
-                          title="Abrir Estúdio de Marketing (Gerar Post para Feed e Stories)"
-                        >
-                          <Palette size={16} /> Arte Insta
+                {properties.map(prop => {
+                  const displayCode = prop.code || prop.id?.substring(0, 6)?.toUpperCase();
+                  return (
+                    <tr key={prop.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="py-4 px-6">
+                        <div className="flex items-center gap-2">
+                          <p className="font-bold text-slate-800 text-base">{prop.title}</p>
+                          <span className="bg-slate-800 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-sm flex items-center gap-1">
+                            <Hash size={10} /> {displayCode}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500 flex items-center gap-1 mt-1"><MapPin size={12}/> {prop.neighborhood}, {prop.city}</p>
+                        <div className="flex items-center gap-2 mt-2">
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${prop.rentStatus === 'Alugado' ? 'bg-amber-100 text-amber-700' : prop.rentStatus === 'Vendido' ? 'bg-purple-100 text-purple-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                            {prop.rentStatus ? prop.rentStatus.toUpperCase() : 'VAGO'}
+                          </span>
+                          <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-bold">{prop.type}</span>
+                          {prop.condominium && <span className="text-[10px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded font-bold border border-indigo-100 line-clamp-1 max-w-[120px]" title={prop.condominium.name}>{prop.condominium.name}</span>}
+                        </div>
+                      </td>
+                      <td className="py-4 px-6">
+                        <div className="flex flex-col items-start gap-1.5">
+                          <span className={`text-xs font-bold px-2 py-1 rounded-full ${prop.transaction === 'Venda' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                            {prop.transaction}
+                          </span>
+                          <p className="font-bold text-slate-800 text-lg">R$ {Number(prop.price).toLocaleString('pt-BR')}</p>
+                        </div>
+                      </td>
+                      <td className="py-4 px-6 space-y-1">
+                        <div className="flex items-center gap-2 text-xs">
+                          <UserCheck size={14} className="text-slate-400" />
+                          <span className="font-medium text-slate-700">Corretor:</span> 
+                          {prop.broker ? <span className="text-blue-600 font-bold">{prop.broker.name}</span> : <span className="text-slate-400 italic">Nenhum</span>}
+                        </div>
+                        <div className="flex items-center gap-2 text-xs">
+                          <User size={14} className="text-slate-400" />
+                          <span className="font-medium text-slate-700">Angariador:</span> 
+                          {prop.captator ? <span className="text-slate-600">{prop.captator.name}</span> : <span className="text-slate-400 italic">Nenhum</span>}
+                        </div>
+                        {prop.exclusive && <span className="inline-block mt-1 bg-yellow-100 text-yellow-800 border border-yellow-200 text-[10px] px-2 py-0.5 rounded font-bold uppercase">Exclusividade</span>}
+                      </td>
+                      <td className="py-4 px-6 space-y-2">
+                        <button onClick={() => handleToggleStatus(prop.id)} className="focus:outline-none block">
+                          {prop.isActive 
+                            ? <span className="bg-green-100 text-green-700 px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1 w-fit"><CheckCircle2 size={14}/> Site Oficial</span>
+                            : <span className="bg-red-100 text-red-700 px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1 w-fit"><XCircle size={14}/> Oculto Site</span>
+                          }
                         </button>
-                        <button onClick={() => handleOpenPropertyModal(prop)} className="text-blue-600 hover:text-blue-800 font-bold bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded-lg transition-colors flex items-center gap-1.5">
-                          <Edit size={16} /> Editar
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                        <div className="block">
+                          {prop.exportToPortals 
+                            ? <span className="bg-orange-100 text-orange-700 px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1 w-fit"><Rss size={14}/> Exporta XML</span>
+                            : <span className="bg-slate-100 text-slate-500 px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1 w-fit"><XCircle size={14}/> Não Exporta</span>
+                          }
+                        </div>
+                      </td>
+                      <td className="py-4 px-6 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button 
+                            onClick={() => handleOpenStudioModal(prop)} 
+                            className="text-pink-600 hover:text-pink-800 font-bold bg-pink-50 hover:bg-pink-100 border border-pink-200 px-3 py-2 rounded-lg transition-colors flex items-center gap-1.5"
+                            title="Abrir Estúdio de Marketing (Gerar Post para Feed e Stories)"
+                          >
+                            <Palette size={16} /> Arte Insta
+                          </button>
+                          <button onClick={() => handleOpenPropertyModal(prop)} className="text-blue-600 hover:text-blue-800 font-bold bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded-lg transition-colors flex items-center gap-1.5">
+                            <Edit size={16} /> Editar
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
                 {properties.length === 0 && (
                   <tr><td colSpan={5} className="py-12 text-center text-slate-500 text-lg">Nenhum imóvel cadastrado.</td></tr>
                 )}
@@ -936,7 +927,7 @@ export default function ImoveisPage() {
       )}
 
       {/* ========================================================= */}
-      {/* MODAL: CADASTRO E EDIÇÃO DO IMÓVEL (TUDO NUM SÓ LUGAR)    */}
+      {/* MODAL: CADASTRO E EDIÇÃO DO IMÓVEL (COM O CAMPO CODE)      */}
       {/* ========================================================= */}
       {isPropertyModalOpen && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 overflow-y-auto">
@@ -953,13 +944,17 @@ export default function ImoveisPage() {
             <div className="p-6 overflow-y-auto flex-1">
               <form id="property-form" onSubmit={handleSaveProperty} className="space-y-8">
                 
-                {/* 1. Básico */}
+                {/* 1. Básico + Código do Imóvel */}
                 <div>
                   <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">1. Informações Básicas</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                     <div className="md:col-span-2">
                       <label className="block text-xs font-bold text-slate-600 mb-1">Título do Anúncio</label>
                       <input required type="text" value={form.title} onChange={e => setForm({...form, title: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm" placeholder="Ex: Lindo Apartamento..." />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Código (Ref.)</label>
+                      <input type="text" value={form.code} onChange={e => setForm({...form, code: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm uppercase" placeholder="Ex: AP1023" />
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-slate-600 mb-1">Transação</label>
@@ -1014,7 +1009,6 @@ export default function ImoveisPage() {
                       <input type="number" value={form.garage} onChange={e => setForm({...form, garage: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm" />
                     </div>
 
-                    {/* NOVOS CHECKS DE FINANCIAMENTO E PERMUTA */}
                     <div className="md:col-span-4 flex gap-6 mt-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
                       <label className="flex items-center gap-2 cursor-pointer">
                         <input type="checkbox" checked={form.acceptsFinancing} onChange={(e) => setForm({...form, acceptsFinancing: e.target.checked})} className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500" />
@@ -1040,7 +1034,6 @@ export default function ImoveisPage() {
                 <div>
                   <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">3. Localização & Condomínio</h3>
                   
-                  {/* SELEÇÃO DO CONDOMÍNIO (NOVO) */}
                   <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100 mb-4">
                     <label className="block text-xs font-bold text-indigo-800 mb-1 flex items-center gap-1"><Building2 size={14}/> Vincular a um Condomínio Cadastrado (Opcional)</label>
                     <select value={form.condominiumId} onChange={e => setForm({...form, condominiumId: e.target.value})} className="w-full md:w-1/2 px-4 py-2 border border-indigo-200 rounded-lg outline-none focus:border-indigo-500 bg-white text-sm">
@@ -1086,7 +1079,7 @@ export default function ImoveisPage() {
                   </div>
                 </div>
 
-                {/* 5. GESTÃO E PORTAIS (TUDO JUNTO) */}
+                {/* 5. GESTÃO E PORTAIS */}
                 <div className="bg-blue-50 p-6 rounded-xl border border-blue-200">
                   <h3 className="text-sm font-bold text-blue-800 uppercase tracking-wider mb-4 border-b border-blue-200 pb-2 flex items-center gap-2">
                     <UserCheck size={18}/> 5. Equipe, Captação, Gestão & Portais
@@ -1094,7 +1087,6 @@ export default function ImoveisPage() {
                   
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                     
-                    {/* Linha 1: Equipa e IPTU */}
                     <div>
                       <label className="block text-xs font-bold text-slate-700 mb-1">Proprietário (Dono)</label>
                       <select value={form.ownerId} onChange={e => setForm({...form, ownerId: e.target.value})} className="w-full px-4 py-2.5 border border-blue-200 rounded-lg outline-none focus:border-blue-500 bg-white text-sm">
@@ -1114,7 +1106,6 @@ export default function ImoveisPage() {
                       </select>
                     </div>
 
-                    {/* Linha 2: Angariador e Exclusividade (NOVOS CAMPOS) */}
                     <div>
                       <label className="block text-xs font-bold text-slate-700 mb-1">Captador (Angariador)</label>
                       <select value={form.captatorId} onChange={e => setForm({...form, captatorId: e.target.value})} className="w-full px-4 py-2.5 border border-blue-200 rounded-lg outline-none focus:border-blue-500 bg-white text-sm">
@@ -1137,7 +1128,6 @@ export default function ImoveisPage() {
                       )}
                     </div>
 
-                    {/* Linha 3: Links de Documentos */}
                     <div className="md:col-span-3 grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2 pt-4 border-t border-blue-200/50">
                       <div>
                         <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1"><FileSignature size={14}/> Proposta de Aluguel (Link PDF)</label>
@@ -1157,7 +1147,6 @@ export default function ImoveisPage() {
                       </div>
                     </div>
 
-                    {/* Exportação XML */}
                     <div className="md:col-span-3 mt-4 pt-4 border-t border-blue-200/50">
                       <label className="flex items-center gap-3 cursor-pointer bg-orange-50 border border-orange-200 px-4 py-3 rounded-xl transition-colors hover:bg-orange-100">
                         <input type="checkbox" checked={form.exportToPortals} onChange={(e) => setForm({...form, exportToPortals: e.target.checked})} className="w-5 h-5 text-orange-600 rounded border-orange-300 focus:ring-orange-500" />
@@ -1172,12 +1161,11 @@ export default function ImoveisPage() {
                   </div>
                 </div>
 
-                {/* 6. Apresentação (Mídia e IA) */}
+                {/* 6. Apresentação */}
                 <div>
                   <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">6. Apresentação na Vitrine (Multimídia)</h3>
                   <div className="space-y-4">
                     
-                    {/* NOVOS CAMPOS: TOUR 360 E VIDEO */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
                       <div>
                         <label className="block text-xs font-bold text-slate-600 mb-1 flex items-center gap-1"><Play size={14}/> Vídeo do Imóvel (YouTube/Vimeo)</label>
@@ -1207,7 +1195,6 @@ export default function ImoveisPage() {
               </form>
             </div>
 
-            {/* RODAPÉ DO MODAL DO IMÓVEL */}
             <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 shrink-0">
               <button type="button" onClick={() => setIsPropertyModalOpen(false)} className="px-5 py-2.5 text-slate-600 font-bold hover:bg-slate-200 rounded-lg transition-colors text-sm">
                 Cancelar
