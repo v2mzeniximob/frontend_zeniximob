@@ -2,7 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { api } from '../../../../lib/api';
-import { Plus, X, Loader2, User, Phone, MessageCircle, Mail, Calendar, Clock, Briefcase, Search, Sparkles, MapPin, DollarSign, Home } from 'lucide-react';
+import { 
+  Plus, X, Loader2, User, Phone, MessageCircle, Mail, Calendar, 
+  Clock, Briefcase, Search, Sparkles, MapPin, DollarSign, Home, 
+  Shuffle, AlertTriangle, CheckCircle2, Settings, RefreshCw
+} from 'lucide-react';
 import { maskPhone } from '@/src/utils/mask';
 
 const STAGES = ['Novo', 'Atendimento', 'Visita', 'Proposta', 'Negociação', 'Fechado', 'Perdido'];
@@ -11,7 +15,17 @@ export default function CRMPage() {
   const [leads, setLeads] = useState<any[]>([]);
   const [brokers, setBrokers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [now, setNow] = useState<number>(Date.now());
   
+  // Estados da Roleta de Leads & Repescagem
+  const [rouletteConfig, setRouletteConfig] = useState({
+    rouletteEnabled: false,
+    rouletteTimeoutMinutes: 30,
+    queue: [] as any[]
+  });
+  const [isRouletteModalOpen, setIsRouletteModalOpen] = useState(false);
+  const [isSavingRoulette, setIsSavingRoulette] = useState(false);
+
   // Modais e Abas
   const [isNewLeadModalOpen, setIsNewLeadModalOpen] = useState(false);
   const [selectedLead, setSelectedLead] = useState<any>(null);
@@ -19,7 +33,7 @@ export default function CRMPage() {
 
   // Formulários
   const [form, setForm] = useState({ 
-    name: '', phone: '', email: '', interest: 'Compra', notes: '', brokerId: '',
+    name: '', phone: '', email: '', interest: 'Comprador', notes: '', brokerId: '',
     searchType: '', searchTransaction: '', searchMinPrice: '', searchMaxPrice: '', 
     searchNeighborhoods: '', searchMinBedrooms: '', searchMinGarage: ''
   });
@@ -32,21 +46,51 @@ export default function CRMPage() {
 
   useEffect(() => {
     fetchData();
+    
+    // Atualiza o relógio visual a cada 15 segundos e checa repescagem no backend a cada 60 segundos
+    const clockInterval = setInterval(() => setNow(Date.now()), 15000);
+    const repescagemInterval = setInterval(() => {
+      fetchData(false);
+    }, 60000);
+
+    return () => {
+      clearInterval(clockInterval);
+      clearInterval(repescagemInterval);
+    };
   }, []);
 
-  const fetchData = async () => {
-    setIsLoading(true);
+  const fetchData = async (showSpinner = true) => {
+    if (showSpinner) setIsLoading(true);
     try {
-      const [leadsRes, brokersRes] = await Promise.all([
+      const [leadsRes, brokersRes, rouletteRes] = await Promise.all([
         api.get('/leads'),
-        api.get('/brokers').catch(() => ({ data: [] }))
+        api.get('/brokers').catch(() => ({ data: [] })),
+        api.get('/leads/roulette/settings').catch(() => ({ data: { rouletteEnabled: false, rouletteTimeoutMinutes: 30, queue: [] } }))
       ]);
       setLeads(leadsRes.data);
       setBrokers(brokersRes.data);
+      if (rouletteRes.data) setRouletteConfig(rouletteRes.data);
     } catch (error) {
       console.error('Erro ao buscar dados do CRM:', error);
     } finally {
-      setIsLoading(false);
+      if (showSpinner) setIsLoading(false);
+    }
+  };
+
+  const handleSaveRouletteSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSavingRoulette(true);
+    try {
+      await api.put('/leads/roulette/settings', {
+        rouletteEnabled: rouletteConfig.rouletteEnabled,
+        rouletteTimeoutMinutes: rouletteConfig.rouletteTimeoutMinutes
+      });
+      setIsRouletteModalOpen(false);
+      fetchData(false);
+    } catch (error) {
+      alert('Erro ao salvar configurações da Roleta.');
+    } finally {
+      setIsSavingRoulette(false);
     }
   };
 
@@ -99,7 +143,7 @@ export default function CRMPage() {
       alert('Perfil de busca atualizado! O Radar de Imóveis foi recalculado.');
       
       setSelectedLead(response.data);
-      fetchData();
+      fetchData(false);
       fetchMatches(selectedLead.id);
       
     } catch (error) {
@@ -125,7 +169,7 @@ export default function CRMPage() {
         name: '', phone: '', email: '', interest: 'Comprador', notes: '', brokerId: '',
         searchType: '', searchTransaction: '', searchMinPrice: '', searchMaxPrice: '', searchNeighborhoods: '', searchMinBedrooms: '', searchMinGarage: ''
       });
-      fetchData();
+      fetchData(false);
     } catch (error) {
       alert('Erro ao criar lead.');
     } finally {
@@ -136,18 +180,15 @@ export default function CRMPage() {
   const handleChangeStage = async (leadId: string, newStage: string) => {
     try {
       await api.put(`/leads/${leadId}`, { stage: newStage });
-      fetchData();
+      fetchData(false);
       if (selectedLead && selectedLead.id === leadId) {
-        setSelectedLead({ ...selectedLead, stage: newStage });
+        setSelectedLead({ ...selectedLead, stage: newStage, firstContactAt: new Date().toISOString() });
       }
     } catch (error) {
       alert('Erro ao mudar estágio.');
     }
   };
 
-  // ==========================================
-  // NOVA LÓGICA DE HISTÓRICO COM REDIRECIONAMENTO
-  // ==========================================
   const handleAddHistory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedLead) return;
@@ -159,7 +200,6 @@ export default function CRMPage() {
     try {
       await api.post(`/leads/${selectedLead.id}/history`, historyForm);
       
-      // Redirecionamentos Automáticos baseados na Ação Escolhida
       if (currentAction === 'WhatsApp' && selectedLead.phone) {
         const cleanPhone = selectedLead.phone.replace(/\D/g, '');
         const message = encodeURIComponent(currentDescription);
@@ -188,25 +228,86 @@ export default function CRMPage() {
     }
   };
 
+  // =========================================================
+  // RENDERIZA O CRONÓMETRO DE REPESCAGEM NO CARD DO LEAD
+  // =========================================================
+  const renderSlaBadge = (lead: any) => {
+    if (!rouletteConfig.rouletteEnabled || !lead.brokerId) return null;
+
+    if (lead.stage !== 'Novo' || lead.firstContactAt) {
+      return (
+        <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1 w-fit">
+          <CheckCircle2 size={10}/> Atendido no prazo
+        </span>
+      );
+    }
+
+    const assignedTime = lead.assignedAt ? new Date(lead.assignedAt).getTime() : new Date(lead.createdAt).getTime();
+    const elapsedMinutes = Math.floor((now - assignedTime) / 60000);
+    const remainingMinutes = (rouletteConfig.rouletteTimeoutMinutes || 30) - elapsedMinutes;
+
+    if (remainingMinutes <= 0) {
+      return (
+        <span className="text-[10px] font-bold bg-red-100 text-red-700 border border-red-300 px-2 py-0.5 rounded-full flex items-center gap-1 animate-pulse w-fit">
+          <AlertTriangle size={10}/> Repescando...
+        </span>
+      );
+    }
+
+    const isWarning = remainingMinutes <= 10;
+    return (
+      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 border w-fit ${isWarning ? 'bg-amber-100 text-amber-800 border-amber-300 animate-pulse' : 'bg-blue-50 text-blue-700 border-blue-200'}`} title="Tempo restante para o corretor iniciar o atendimento antes da repescagem automática">
+        <Clock size={10}/> Repescagem em {remainingMinutes} min
+      </span>
+    );
+  };
+
   if (isLoading) return <div className="p-8 flex justify-center text-slate-500"><Loader2 className="animate-spin" /></div>;
+
+  const nextBrokerInLine = rouletteConfig.queue?.[0];
 
   return (
     <div className="p-8 max-w-[1600px] mx-auto font-sans h-[calc(100vh-4rem)] flex flex-col animate-in fade-in duration-300">
       
-      <div className="flex justify-between items-center mb-6 shrink-0">
+      {/* HEADER + BARRA DA ROLETA */}
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6 shrink-0">
         <div>
           <h1 className="text-3xl font-bold text-slate-800 flex items-center gap-3">
             <MessageCircle className="text-blue-600 bg-blue-50 p-1.5 rounded-lg" size={36} />
             CRM & Funil de Vendas
           </h1>
-          <p className="text-slate-500 mt-2 text-sm">Gira os seus clientes, perfil de busca e matches com a base de imóveis.</p>
+          <p className="text-slate-500 mt-1 text-sm">Gira os seus clientes, roleta de distribuição automática e radar de imóveis.</p>
         </div>
-        <button onClick={() => {
-            setForm({ name: '', phone: '', email: '', interest: 'Comprador', notes: '', brokerId: '', searchType: '', searchTransaction: '', searchMinPrice: '', searchMaxPrice: '', searchNeighborhoods: '', searchMinBedrooms: '', searchMinGarage: '' });
-            setIsNewLeadModalOpen(true);
-          }} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-semibold flex items-center gap-2 transition-all shadow-sm">
-          <Plus size={18} /> Novo Lead
-        </button>
+
+        <div className="flex flex-wrap items-center gap-3">
+          {/* BOTÃO / STATUS DA ROLETA DE LEADS */}
+          <div className={`flex items-center gap-3 px-4 py-2 rounded-xl border text-xs font-bold ${rouletteConfig.rouletteEnabled ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-slate-100 border-slate-200 text-slate-600'}`}>
+            <Shuffle size={16} className={rouletteConfig.rouletteEnabled ? 'text-emerald-600' : 'text-slate-400'} />
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span>Roleta: {rouletteConfig.rouletteEnabled ? 'ATIVA' : 'PAUSADA'}</span>
+                {rouletteConfig.rouletteEnabled && (
+                  <span className="bg-emerald-600 text-white text-[10px] px-1.5 py-0.2 rounded">SLA {rouletteConfig.rouletteTimeoutMinutes}m</span>
+                )}
+              </div>
+              {rouletteConfig.rouletteEnabled && nextBrokerInLine && (
+                <p className="text-[10px] text-emerald-700 font-medium">
+                  Próximo da vez: <strong>{nextBrokerInLine.name}</strong>
+                </p>
+              )}
+            </div>
+            <button onClick={() => setIsRouletteModalOpen(true)} className="ml-2 p-1.5 bg-white hover:bg-slate-50 text-slate-700 rounded-lg border border-slate-200 shadow-sm transition-colors" title="Configurar Roleta e Repescagem">
+              <Settings size={14}/>
+            </button>
+          </div>
+
+          <button onClick={() => {
+              setForm({ name: '', phone: '', email: '', interest: 'Comprador', notes: '', brokerId: '', searchType: '', searchTransaction: '', searchMinPrice: '', searchMaxPrice: '', searchNeighborhoods: '', searchMinBedrooms: '', searchMinGarage: '' });
+              setIsNewLeadModalOpen(true);
+            }} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-semibold flex items-center gap-2 transition-all shadow-sm">
+            <Plus size={18} /> Novo Lead
+          </button>
+        </div>
       </div>
 
       {/* QUADRO KANBAN */}
@@ -243,6 +344,16 @@ export default function CRMPage() {
                           </p>
                         </div>
                       </div>
+
+                      {/* BADGES DE SLA / REPESCAGEM */}
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {renderSlaBadge(lead)}
+                        {lead.reassignedCount > 0 && (
+                          <span className="text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded-full flex items-center gap-1" title="Este lead já mudou de corretor automaticamente por falta de atendimento no prazo">
+                            <RefreshCw size={10}/> Repescado {lead.reassignedCount}x
+                          </span>
+                        )}
+                      </div>
                       
                       <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100 space-y-1.5">
                         <p className="text-xs text-slate-600 flex items-center gap-1.5"><Phone size={12} className="text-slate-400 shrink-0"/> {maskPhone(lead.phone)}</p>
@@ -256,8 +367,8 @@ export default function CRMPage() {
                             </p>
                           </div>
                         )}
-                        <p className="text-[10px] text-slate-400 flex items-center gap-1.5 pt-1">
-                          <Briefcase size={10} className="shrink-0"/> {lead.broker?.name || 'S/ Corretor'}
+                        <p className="text-[10px] text-slate-500 font-semibold flex items-center gap-1.5 pt-1">
+                          <Briefcase size={10} className="shrink-0 text-blue-500"/> {lead.broker?.name || 'S/ Corretor'}
                         </p>
                       </div>
 
@@ -287,7 +398,81 @@ export default function CRMPage() {
         </div>
       </div>
 
-      {/* MODAL: DETALHES, HISTÓRICO E RADAR DO LEAD */}
+      {/* ========================================================= */}
+      {/* MODAL CONFIGURAR ROLETA DE LEADS & REPESCAGEM (30 MIN)    */}
+      {/* ========================================================= */}
+      {isRouletteModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                <Shuffle className="text-blue-600" size={22}/> Roleta & Repescagem Automática
+              </h2>
+              <button onClick={() => setIsRouletteModalOpen(false)} className="text-slate-400 hover:text-slate-600 p-2 rounded-lg"><X size={20}/></button>
+            </div>
+
+            <form onSubmit={handleSaveRouletteSettings} className="p-6 space-y-5">
+              <label className="flex items-center justify-between p-4 bg-slate-50 border border-slate-200 rounded-2xl cursor-pointer">
+                <div>
+                  <span className="font-bold text-slate-800 text-sm block">Ativar Roleta de Leads & Repescagem</span>
+                  <span className="text-xs text-slate-500">Distribui novos leads em fila circular entre os corretores ativos.</span>
+                </div>
+                <input 
+                  type="checkbox" 
+                  checked={rouletteConfig.rouletteEnabled} 
+                  onChange={e => setRouletteConfig({...rouletteConfig, rouletteEnabled: e.target.checked})}
+                  className="w-5 h-5 rounded text-blue-600"
+                />
+              </label>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Tempo Limite para 1º Atendimento (Repescagem em Minutos)</label>
+                <input 
+                  type="number" 
+                  min={5} 
+                  max={1440}
+                  value={rouletteConfig.rouletteTimeoutMinutes} 
+                  onChange={e => setRouletteConfig({...rouletteConfig, rouletteTimeoutMinutes: Number(e.target.value)})}
+                  className="w-full px-4 py-3 border border-slate-300 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <p className="text-xs text-slate-500 mt-1.5">
+                  Se o corretor não mover o card da coluna <strong>"Novo"</strong> nem registar um contato na Linha do Tempo dentro de <strong>{rouletteConfig.rouletteTimeoutMinutes} minutos</strong>, o sistema transfere o lead para o próximo corretor da fila.
+                </p>
+              </div>
+
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Ordem Atual da Fila Circular ({rouletteConfig.queue?.length || 0} Corretores)</h4>
+                {(!rouletteConfig.queue || rouletteConfig.queue.length === 0) ? (
+                  <p className="text-xs text-slate-400 italic">Nenhum corretor ativo marcado como "Na Roleta".</p>
+                ) : (
+                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                    {rouletteConfig.queue.map((b: any, index: number) => (
+                      <div key={b.id} className="flex items-center justify-between text-xs bg-white p-2.5 rounded-xl border border-slate-100">
+                        <div className="flex items-center gap-2">
+                          <span className={`w-5 h-5 rounded-full flex items-center justify-center font-bold ${index === 0 ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                            {index + 1}º
+                          </span>
+                          <span className="font-bold text-slate-800">{b.name}</span>
+                        </div>
+                        <span className="text-[10px] text-slate-400">
+                          {index === 0 ? '🎯 Corretor da Vez' : b.lastLeadAssignedAt ? `Último: ${new Date(b.lastLeadAssignedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}` : 'Aguardando'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <button type="submit" disabled={isSavingRoulette} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 shadow-sm">
+                {isSavingRoulette ? <Loader2 size={18} className="animate-spin"/> : <CheckCircle2 size={18}/>}
+                Salvar Configuração da Roleta
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: DETALHES, HISTÓRICO E RADAR DO LEAD (MANTIDO 100%) */}
       {selectedLead && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-6xl h-[90vh] flex flex-col md:flex-row overflow-hidden animate-in zoom-in-95 duration-200">
@@ -606,7 +791,7 @@ export default function CRMPage() {
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-1">Corretor Responsável</label>
                 <select value={form.brokerId} onChange={e => setForm({...form, brokerId: e.target.value})} className="w-full px-4 py-3 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500 outline-none text-sm">
-                  <option value="">Sem corretor (Atendimento Geral)</option>
+                  <option value="">🎲 Automático (Distribuir pela Roleta / Geral)</option>
                   {brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                 </select>
               </div>

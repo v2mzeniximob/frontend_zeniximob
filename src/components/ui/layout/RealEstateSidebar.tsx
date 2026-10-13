@@ -59,6 +59,7 @@ export function RealEstateSidebar() {
     { name: 'Controle de Chaves', icon: Key, path: '/imobiliaria/chaves', modules: ['chaves', 'keys'] },
     { name: 'Propostas e Termos', icon: FileSignature, path: '/imobiliaria/propostas', modules: ['contratos', 'contracts'] },
     { name: 'Visitas', icon: Calendar, path: '/imobiliaria/visitas', modules: ['crm'] },
+    { name: 'Avaliador (PTAM)', icon: Camera, path: '/imobiliaria/avaliador', modules: ['imoveis', 'crm'] },
     { name: 'Proprietários', icon: UserCircle, path: '/imobiliaria/proprietarios', modules: ['imoveis', 'properties'] },
     { name: 'Inquilinos', icon: Users, path: '/imobiliaria/inquilinos', modules: ['contratos', 'contracts'] },
     { name: 'Contratos', icon: Key, path: '/imobiliaria/contratos', modules: ['contratos', 'contracts'] },

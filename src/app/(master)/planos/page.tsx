@@ -15,6 +15,7 @@ const AVAILABLE_MODULES = [
   { id: 'financeiro', label: 'Gestão Financeira & Repasses' },
   { id: 'dimob', label: 'Arquivo DIMOB (Fisco)' }, 
   { id: 'vistorias', label: 'Vistorias Mobile-First' },
+  { id: 'avaliador', label: 'Avaliador (PTAM)' },
   { id: 'chaves', label: 'Controle de Chaves' },
   { id: 'manutencao', label: 'Chamados de Manutenção' },
   { id: 'corretores', label: 'Gestão de Corretores' },

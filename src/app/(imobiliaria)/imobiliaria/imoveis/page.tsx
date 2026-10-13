@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { api } from '../../../../lib/api';
 import { 
   Plus, Edit, X, CheckCircle2, XCircle, Loader2, Home, 
   MapPin, DollarSign, Camera, User, UserCheck, FileSignature, 
-  Key, Sparkles, Rss, Building2, Play, Compass
+  Key, Sparkles, Rss, Building2, Play, Compass, Palette, 
+  Download, Copy, Upload, Image as ImageIcon
 } from 'lucide-react';
 
 const AVAILABLE_AMENITIES = [
@@ -38,6 +39,7 @@ export default function ImoveisPage() {
   const [owners, setOwners] = useState<any[]>([]);
   const [condominiums, setCondominiums] = useState<any[]>([]);
   const [storeSlug, setStoreSlug] = useState<string>('');
+  const [storeInfo, setStoreInfo] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   
   const [activePageTab, setActivePageTab] = useState<'imoveis' | 'condominios'>('imoveis');
@@ -49,6 +51,26 @@ export default function ImoveisPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isFetchingCep, setIsFetchingCep] = useState(false);
   const [isGeneratingAi, setIsGeneratingAi] = useState(false);
+
+  // =========================================================
+  // ESTADOS DO ESTÚDIO DE MARKETING (INSTAGRAM)
+  // =========================================================
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [studioProperty, setStudioProperty] = useState<any>(null);
+  const [studioConfig, setStudioConfig] = useState({
+    format: 'feed' as 'feed' | 'stories',
+    theme: 'dark' as 'dark' | 'clean' | 'gold',
+    accentColor: '#2563eb',
+    badgeText: 'OPORTUNIDADE',
+    headline: '',
+    locationText: '',
+    priceText: '',
+    footerText: '',
+    selectedPhotoUrl: '',
+    showSpecs: true
+  });
+  const [loadedImageObj, setLoadedImageObj] = useState<HTMLImageElement | null>(null);
+  const [imageCorsError, setImageCorsError] = useState(false);
 
   // Estado: Formulário de Imóvel Atualizado com os Novos Campos
   const [form, setForm] = useState({
@@ -93,12 +115,278 @@ export default function ImoveisPage() {
       setBrokers(resBrokers.data);
       setOwners(resOwners.data);
       setCondominiums(resCondos.data);
+      setStoreInfo(resStore.data || {});
       if(resStore.data.slug) setStoreSlug(resStore.data.slug);
     } catch (error) {
       console.error('Erro ao buscar dados:', error);
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // =========================================================
+  // LÓGICA DO ESTÚDIO DE MARKETING (CANVAS INSTAGRAM)
+  // =========================================================
+  const handleOpenStudioModal = (prop: any) => {
+    const firstPhoto = prop.imageUrls && prop.imageUrls.length > 0 ? prop.imageUrls[0] : '';
+    const storeName = storeInfo?.tradeName || 'Consulte-nos';
+    const storePhone = storeInfo?.whatsappDisplay || storeInfo?.phone || '';
+    const formattedPrice = `R$ ${Number(prop.price || 0).toLocaleString('pt-BR')}${prop.transaction === 'Locação' ? '/mês' : ''}`;
+
+    setStudioProperty(prop);
+    setStudioConfig({
+      format: 'feed',
+      theme: 'dark',
+      accentColor: prop.transaction === 'Venda' ? '#2563eb' : '#059669',
+      badgeText: prop.transaction === 'Venda' ? 'VENDE-SE' : 'ALUGA-SE',
+      headline: prop.title || `${prop.type} em ${prop.neighborhood}`,
+      locationText: `${prop.neighborhood || ''}${prop.city ? ` • ${prop.city}` : ''}`,
+      priceText: formattedPrice,
+      footerText: `${storeName}${storePhone ? ` • WhatsApp: ${maskPhone(storePhone)}` : ''}`,
+      selectedPhotoUrl: firstPhoto,
+      showSpecs: true
+    });
+  };
+
+  // Carrega a imagem selecionada na memória para desenhar no Canvas
+  useEffect(() => {
+    if (!studioProperty) return;
+    if (!studioConfig.selectedPhotoUrl) {
+      setLoadedImageObj(null);
+      setImageCorsError(false);
+      return;
+    }
+
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      setLoadedImageObj(img);
+      setImageCorsError(false);
+    };
+    img.onerror = () => {
+      setLoadedImageObj(null);
+      setImageCorsError(true);
+    };
+    img.src = studioConfig.selectedPhotoUrl;
+  }, [studioConfig.selectedPhotoUrl, studioProperty]);
+
+  // Redesenha o Canvas sempre que o usuário altera texto, cor, formato ou foto
+  useEffect(() => {
+    if (!studioProperty || !canvasRef.current) return;
+
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const width = 1080;
+    const height = studioConfig.format === 'feed' ? 1080 : 1920;
+    canvas.width = width;
+    canvas.height = height;
+
+    // 1. FUNDO BASE
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(0, 0, width, height);
+
+    // 2. DESENHA A FOTO DO IMÓVEL (Object-Fit: Cover)
+    if (loadedImageObj) {
+      const imgRatio = loadedImageObj.width / loadedImageObj.height;
+      const canvasRatio = width / height;
+      let drawWidth = width;
+      let drawHeight = height;
+      let offsetX = 0;
+      let offsetY = 0;
+
+      if (imgRatio > canvasRatio) {
+        drawWidth = height * imgRatio;
+        offsetX = (width - drawWidth) / 2;
+      } else {
+        drawHeight = width / imgRatio;
+        offsetY = (height - drawHeight) / 2;
+      }
+      ctx.drawImage(loadedImageObj, offsetX, offsetY, drawWidth, drawHeight);
+    } else {
+      // Fundo elegante caso o imóvel não tenha foto
+      const bgGrad = ctx.createLinearGradient(0, 0, width, height);
+      bgGrad.addColorStop(0, '#1e293b');
+      bgGrad.addColorStop(1, '#0f172a');
+      ctx.fillStyle = bgGrad;
+      ctx.fillRect(0, 0, width, height);
+    }
+
+    // 3. GRADIENTE DE LEITURA (Overlay escuro na base e leve no topo)
+    const topGrad = ctx.createLinearGradient(0, 0, 0, 320);
+    topGrad.addColorStop(0, 'rgba(0,0,0,0.65)');
+    topGrad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = topGrad;
+    ctx.fillRect(0, 0, width, 320);
+
+    const bottomStart = studioConfig.format === 'feed' ? height * 0.38 : height * 0.45;
+    const bottomGrad = ctx.createLinearGradient(0, bottomStart, 0, height);
+    bottomGrad.addColorStop(0, 'rgba(0,0,0,0)');
+    bottomGrad.addColorStop(0.55, studioConfig.theme === 'clean' ? 'rgba(15, 23, 42, 0.85)' : 'rgba(10, 15, 29, 0.92)');
+    bottomGrad.addColorStop(1, studioConfig.theme === 'clean' ? 'rgba(15, 23, 42, 0.98)' : 'rgba(5, 8, 18, 0.99)');
+    ctx.fillStyle = bottomGrad;
+    ctx.fillRect(0, bottomStart, width, height - bottomStart);
+
+    // 4. BADGE DO TOPO ("VENDE-SE" / "ALUGA-SE")
+    const badgeColor = studioConfig.theme === 'gold' ? '#d97706' : studioConfig.accentColor;
+    ctx.font = '900 30px Arial, sans-serif';
+    const badgePaddingX = 36;
+    const badgeTextWidth = ctx.measureText(studioConfig.badgeText.toUpperCase()).width;
+    const badgeWidth = badgeTextWidth + badgePaddingX * 2;
+    const badgeHeight = 68;
+    const badgeX = 70;
+    const badgeY = studioConfig.format === 'feed' ? 65 : 130;
+
+    ctx.fillStyle = badgeColor;
+    ctx.beginPath();
+    ctx.roundRect(badgeX, badgeY, badgeWidth, badgeHeight, 16);
+    ctx.fill();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(studioConfig.badgeText.toUpperCase(), badgeX + badgePaddingX, badgeY + badgeHeight / 2 + 2);
+
+    // 5. TIPO DO IMÓVEL NO CANTO SUPERIOR DIREITO
+    if (studioProperty.type) {
+      ctx.font = 'bold 26px Arial, sans-serif';
+      const typeText = studioProperty.type.toUpperCase();
+      const typeW = ctx.measureText(typeText).width + 50;
+      ctx.fillStyle = 'rgba(255,255,255,0.18)';
+      ctx.beginPath();
+      ctx.roundRect(width - typeW - 70, badgeY, typeW, badgeHeight, 16);
+      ctx.fill();
+
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(typeText, width - typeW - 45, badgeY + badgeHeight / 2 + 2);
+    }
+
+    // 6. BLOCO INFERIOR: LOCALIZAÇÃO, TÍTULO, ÍCONES E PREÇO
+    const baseBottomY = studioConfig.format === 'feed' ? height - 70 : height - 120;
+
+    // Rodapé (Nome da Loja e WhatsApp)
+    ctx.fillStyle = 'rgba(255,255,255,0.75)';
+    ctx.font = 'bold 26px Arial, sans-serif';
+    ctx.fillText(studioConfig.footerText, 70, baseBottomY);
+
+    // Linha divisória sutil acima do rodapé
+    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(70, baseBottomY - 45);
+    ctx.lineTo(width - 70, baseBottomY - 45);
+    ctx.stroke();
+
+    // Caixa de Preço em Destaque
+    ctx.font = '900 62px Arial, sans-serif';
+    const priceText = studioConfig.priceText;
+    const priceY = baseBottomY - 125;
+
+    ctx.fillStyle = studioConfig.theme === 'gold' ? '#fbbf24' : '#38bdf8';
+    ctx.fillText(priceText, 70, priceY);
+
+    // Características (Área, Quartos, Banheiros, Vagas)
+    let specsOffsetY = priceY - 85;
+    if (studioConfig.showSpecs) {
+      const specs: string[] = [];
+      if (studioProperty.area) specs.push(`📐 ${studioProperty.area} m²`);
+      if (studioProperty.bedrooms) specs.push(`🛏️ ${studioProperty.bedrooms} Quartos`);
+      if (studioProperty.bathrooms) specs.push(`🚿 ${studioProperty.bathrooms} Banh.`);
+      if (studioProperty.garage) specs.push(`🚗 ${studioProperty.garage} Vagas`);
+
+      if (specs.length > 0) {
+        const specsLine = specs.join('   •   ');
+        ctx.font = 'bold 28px Arial, sans-serif';
+        ctx.fillStyle = '#e2e8f0';
+        ctx.fillText(specsLine, 70, specsOffsetY);
+        specsOffsetY -= 70;
+      }
+    }
+
+    // Título do Imóvel (Quebra automática em até 2 linhas)
+    ctx.font = '900 48px Arial, sans-serif';
+    ctx.fillStyle = '#ffffff';
+    const words = (studioConfig.headline || '').split(' ');
+    const maxTextWidth = width - 140;
+    let line1 = '';
+    let line2 = '';
+
+    for (const word of words) {
+      const testLine = line1 ? `${line1} ${word}` : word;
+      if (ctx.measureText(testLine).width <= maxTextWidth) {
+        line1 = testLine;
+      } else {
+        line2 = line2 ? `${line2} ${word}` : word;
+      }
+    }
+
+    if (line2) {
+      ctx.fillText(line2, 70, specsOffsetY);
+      ctx.fillText(line1, 70, specsOffsetY - 60);
+      specsOffsetY -= 125;
+    } else {
+      ctx.fillText(line1, 70, specsOffsetY);
+      specsOffsetY -= 65;
+    }
+
+    // Localização (Bairro • Cidade)
+    if (studioConfig.locationText) {
+      ctx.font = 'bold 28px Arial, sans-serif';
+      ctx.fillStyle = studioConfig.theme === 'gold' ? '#fcd34d' : '#93c5fd';
+      ctx.fillText(`📍 ${studioConfig.locationText.toUpperCase()}`, 70, specsOffsetY);
+    }
+
+  }, [studioConfig, loadedImageObj, studioProperty]);
+
+  const handleUploadLocalStudioPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      setStudioConfig(prev => ({ ...prev, selectedPhotoUrl: ev.target?.result as string }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleDownloadInstagramImage = () => {
+    if (!canvasRef.current || !studioProperty) return;
+    try {
+      const dataUrl = canvasRef.current.toDataURL('image/png');
+      const link = document.createElement('a');
+      const safeName = studioProperty.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+      link.download = `post_${studioConfig.format}_${safeName}.png`;
+      link.href = dataUrl;
+      link.click();
+    } catch (err) {
+      alert('Este link de imagem externo bloqueia exportação direta por segurança do navegador (CORS). Clique em "Carregar Foto do PC/Telemóvel" ao lado para usar uma foto local!');
+    }
+  };
+
+  const generateInstagramCaption = () => {
+    if (!studioProperty) return '';
+    const storeName = storeInfo?.tradeName || 'Nossa Imobiliária';
+    const storePhone = storeInfo?.whatsappDisplay || storeInfo?.phone || '';
+    const bairroTag = (studioProperty.neighborhood || 'imoveis').replace(/\s+/g, '').toLowerCase();
+    const cidadeTag = (studioProperty.city || 'brasil').replace(/\s+/g, '').toLowerCase();
+
+    return `✨ ${studioConfig.badgeText}: ${studioConfig.headline}!\n\n` +
+      `📍 Localização: ${studioProperty.neighborhood}, ${studioProperty.city}\n` +
+      `💰 Valor: ${studioConfig.priceText}\n\n` +
+      ` Destaques do Imóvel:\n` +
+      `• Área: ${studioProperty.area} m²\n` +
+      (studioProperty.bedrooms ? `• ${studioProperty.bedrooms} Dormitório(s)\n` : '') +
+      (studioProperty.bathrooms ? `• ${studioProperty.bathrooms} Banheiro(s)\n` : '') +
+      (studioProperty.garage ? `• ${studioProperty.garage} Vaga(s) de garagem\n` : '') +
+      (studioProperty.acceptsFinancing ? `✅ Aceita Financiamento!\n` : '') +
+      `\n📲 Agende a sua visita agora mesmo com a ${storeName}!\n` +
+      (storePhone ? `WhatsApp: ${maskPhone(storePhone)}\n\n` : '\n') +
+      `#imoveis #${bairroTag} #${cidadeTag} #mercadoimobiliario #${studioProperty.type?.toLowerCase() || 'imovel'}`;
+  };
+
+  const handleCopyCaption = () => {
+    const caption = generateInstagramCaption();
+    navigator.clipboard.writeText(caption);
+    alert('Legenda copiada com sucesso! Agora é só colar no Instagram.');
   };
 
   // =========================================================
@@ -298,7 +586,7 @@ export default function ImoveisPage() {
             <Home className="text-blue-600" size={32} />
             Catálogo & Condomínios
           </h1>
-          <p className="text-slate-500 mt-1">Gira os seus imóveis, condomínios vinculados e integrações com portais.</p>
+          <p className="text-slate-500 mt-1">Gira os seus imóveis, condomínios vinculados, artes para redes sociais e integrações com portais.</p>
         </div>
       </div>
 
@@ -391,9 +679,18 @@ export default function ImoveisPage() {
                       </div>
                     </td>
                     <td className="py-4 px-6 text-right">
-                      <button onClick={() => handleOpenPropertyModal(prop)} className="text-blue-600 hover:text-blue-800 font-bold bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded-lg transition-colors flex items-center gap-2 ml-auto">
-                        <Edit size={16} /> Editar
-                      </button>
+                      <div className="flex items-center justify-end gap-2">
+                        <button 
+                          onClick={() => handleOpenStudioModal(prop)} 
+                          className="text-pink-600 hover:text-pink-800 font-bold bg-pink-50 hover:bg-pink-100 border border-pink-200 px-3 py-2 rounded-lg transition-colors flex items-center gap-1.5"
+                          title="Abrir Estúdio de Marketing (Gerar Post para Feed e Stories)"
+                        >
+                          <Palette size={16} /> Arte Insta
+                        </button>
+                        <button onClick={() => handleOpenPropertyModal(prop)} className="text-blue-600 hover:text-blue-800 font-bold bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded-lg transition-colors flex items-center gap-1.5">
+                          <Edit size={16} /> Editar
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -459,6 +756,181 @@ export default function ImoveisPage() {
                 )}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL: ESTÚDIO DE MARKETING (GERADOR DE POSTS INSTAGRAM)  */}
+      {/* ========================================================= */}
+      {studioProperty && (
+        <div className="fixed inset-0 bg-slate-900/75 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-6xl overflow-hidden flex flex-col max-h-[92vh] animate-in zoom-in-95 duration-200">
+            
+            {/* Header do Estúdio */}
+            <div className="px-6 py-4 bg-slate-900 text-white flex justify-between items-center shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="bg-gradient-to-tr from-amber-500 via-pink-500 to-purple-600 p-2 rounded-xl">
+                  <Palette size={22} className="text-white" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold">Estúdio de Marketing — Criador de Posts para Instagram</h2>
+                  <p className="text-xs text-slate-400">Gere artes em alta definição (Feed 1080x1080 ou Stories 1080x1920) com 1 clique.</p>
+                </div>
+              </div>
+              <button onClick={() => setStudioProperty(null)} className="text-slate-400 hover:text-white p-2 rounded-lg"><X size={22}/></button>
+            </div>
+
+            {/* Corpo do Estúdio */}
+            <div className="p-6 overflow-y-auto flex-1 grid grid-cols-1 lg:grid-cols-12 gap-8 bg-slate-50">
+              
+              {/* COLUNA ESQUERDA: PREVIEW DO CANVAS AO VIVO */}
+              <div className="lg:col-span-6 flex flex-col items-center justify-center bg-slate-900/95 rounded-2xl p-6 border border-slate-800">
+                <div className="flex items-center justify-between w-full mb-4 text-xs text-slate-400">
+                  <span className="font-bold uppercase tracking-wider text-pink-400">Pré-visualização em Tempo Real</span>
+                  <span>Resolução Nativa: {studioConfig.format === 'feed' ? '1080 x 1080 px' : '1080 x 1920 px'}</span>
+                </div>
+
+                <div className="flex items-center justify-center w-full overflow-hidden">
+                  <canvas 
+                    ref={canvasRef} 
+                    className={`rounded-xl shadow-2xl border border-slate-700 bg-slate-950 ${studioConfig.format === 'feed' ? 'w-full max-w-[400px] aspect-square' : 'h-[460px] w-auto aspect-[9/16]'}`}
+                  />
+                </div>
+
+                {imageCorsError && (
+                  <p className="text-xs text-amber-300 bg-amber-950/60 border border-amber-700/50 rounded-lg p-2.5 mt-4 text-center">
+                    ⚠️ O servidor onde esta foto está hospedada bloqueia edição direta. Use o botão <strong>"Subir Foto do PC/Telemóvel"</strong> ao lado para inserir a foto na arte!
+                  </p>
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full mt-6">
+                  <button 
+                    type="button" 
+                    onClick={handleDownloadInstagramImage} 
+                    className="w-full bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700 text-white font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 shadow-lg transition-all text-sm"
+                  >
+                    <Download size={18}/> Baixar Imagem (.PNG)
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={handleCopyCaption} 
+                    className="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 border border-slate-700 transition-all text-sm"
+                  >
+                    <Copy size={18}/> Copiar Legenda Pronta
+                  </button>
+                </div>
+              </div>
+
+              {/* COLUNA DIREITA: CONTROLES DE PERSONALIZAÇÃO */}
+              <div className="lg:col-span-6 space-y-5">
+                
+                {/* 1. Formato e Estilo */}
+                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">1. Formato & Estilo Visual</h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button 
+                      type="button"
+                      onClick={() => setStudioConfig({...studioConfig, format: 'feed'})}
+                      className={`py-2.5 px-4 rounded-xl font-bold text-xs border-2 transition-all ${studioConfig.format === 'feed' ? 'border-pink-600 bg-pink-50 text-pink-700' : 'border-slate-200 text-slate-600'}`}
+                    >
+                      ⬛ Feed Quadrado (1:1)
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => setStudioConfig({...studioConfig, format: 'stories'})}
+                      className={`py-2.5 px-4 rounded-xl font-bold text-xs border-2 transition-all ${studioConfig.format === 'stories' ? 'border-pink-600 bg-pink-50 text-pink-700' : 'border-slate-200 text-slate-600'}`}
+                    >
+                      📱 Stories / Reels (9:16)
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 pt-2">
+                    <button type="button" onClick={() => setStudioConfig({...studioConfig, theme: 'dark'})} className={`py-2 px-3 rounded-lg text-xs font-bold border ${studioConfig.theme === 'dark' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-200'}`}>
+                      Luxury Dark
+                    </button>
+                    <button type="button" onClick={() => setStudioConfig({...studioConfig, theme: 'clean'})} className={`py-2 px-3 rounded-lg text-xs font-bold border ${studioConfig.theme === 'clean' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200'}`}>
+                      Corporativo
+                    </button>
+                    <button type="button" onClick={() => setStudioConfig({...studioConfig, theme: 'gold'})} className={`py-2 px-3 rounded-lg text-xs font-bold border ${studioConfig.theme === 'gold' ? 'bg-amber-600 text-white border-amber-600' : 'bg-white text-slate-600 border-slate-200'}`}>
+                      Alto Padrão Gold
+                    </button>
+                  </div>
+                </div>
+
+                {/* 2. Escolha da Foto */}
+                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">2. Foto de Fundo</h3>
+                    <label className="cursor-pointer bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors">
+                      <Upload size={14}/> Subir Foto do PC/Telemóvel
+                      <input type="file" accept="image/*" onChange={handleUploadLocalStudioPhoto} className="hidden" />
+                    </label>
+                  </div>
+
+                  {studioProperty.imageUrls && studioProperty.imageUrls.length > 0 ? (
+                    <div className="flex gap-2 overflow-x-auto pb-2">
+                      {studioProperty.imageUrls.map((url: string, idx: number) => (
+                        <button 
+                          key={idx} 
+                          type="button" 
+                          onClick={() => setStudioConfig({...studioConfig, selectedPhotoUrl: url})}
+                          className={`w-16 h-16 rounded-xl overflow-hidden border-2 shrink-0 transition-all ${studioConfig.selectedPhotoUrl === url ? 'border-pink-600 scale-105 shadow-md' : 'border-transparent opacity-60 hover:opacity-100'}`}
+                        >
+                          <img src={url} alt={`Foto ${idx + 1}`} className="w-full h-full object-cover" />
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-400 italic flex items-center gap-1.5"><ImageIcon size={14}/> Nenhuma foto cadastrada no imóvel. Suba uma foto no botão acima.</p>
+                  )}
+                </div>
+
+                {/* 3. Textos da Arte */}
+                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">3. Textos & Chamadas da Arte</h3>
+                  
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="col-span-2">
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Selo do Topo (Ex: VENDE-SE)</label>
+                      <input type="text" value={studioConfig.badgeText} onChange={e => setStudioConfig({...studioConfig, badgeText: e.target.value})} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-bold" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Cor do Selo</label>
+                      <input type="color" value={studioConfig.accentColor} onChange={e => setStudioConfig({...studioConfig, accentColor: e.target.value})} className="w-full h-9 rounded-lg cursor-pointer border border-slate-300" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 mb-1">Título Principal na Arte</label>
+                    <input type="text" value={studioConfig.headline} onChange={e => setStudioConfig({...studioConfig, headline: e.target.value})} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs" />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Localização</label>
+                      <input type="text" value={studioConfig.locationText} onChange={e => setStudioConfig({...studioConfig, locationText: e.target.value})} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Preço Exibido</label>
+                      <input type="text" value={studioConfig.priceText} onChange={e => setStudioConfig({...studioConfig, priceText: e.target.value})} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-bold" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 mb-1">Assinatura de Rodapé (Imobiliária / WhatsApp)</label>
+                    <input type="text" value={studioConfig.footerText} onChange={e => setStudioConfig({...studioConfig, footerText: e.target.value})} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs" />
+                  </div>
+
+                  <label className="flex items-center gap-2 pt-1 cursor-pointer">
+                    <input type="checkbox" checked={studioConfig.showSpecs} onChange={e => setStudioConfig({...studioConfig, showSpecs: e.target.checked})} className="w-4 h-4 rounded text-pink-600" />
+                    <span className="text-xs font-bold text-slate-700">Exibir barra de ícones (Área m², Quartos, Banheiros e Vagas)</span>
+                  </label>
+                </div>
+
+              </div>
+            </div>
+
           </div>
         </div>
       )}
@@ -751,7 +1223,7 @@ export default function ImoveisPage() {
       )}
 
       {/* ========================================================= */}
-      {/* MODAL: CADASTRO E EDIÇÃO DO CONDOMÍNIO                      */}
+      {/* MODAL: CADASTRO E EDIÇÃO DO CONDOMÍNIO                    */}
       {/* ========================================================= */}
       {isCondoModalOpen && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 overflow-y-auto">
