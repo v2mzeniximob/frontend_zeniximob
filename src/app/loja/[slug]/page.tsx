@@ -185,6 +185,8 @@ export default function VitrineLojaPage(props: { params: Promise<{ slug: string 
             <button onClick={clearSearch} className={`${searchResults === null ? 'text-blue-600' : 'hover:text-blue-600 transition-colors'}`}>Início</button>
             <button onClick={() => triggerCategorySearch('Locação')} className="hover:text-blue-600 transition-colors">Locação</button>
             <button onClick={() => triggerCategorySearch('Venda')} className="hover:text-blue-600 transition-colors">Venda</button>
+            <Link href={`/loja/${slug}/simule-seu-financiamento`} className="hover:text-blue-600 transition-colors font-bold text-amber-600 bg-amber-50 px-3 py-1.5 rounded-lg border border-amber-200">Simule seu Financiamento</Link>
+            <Link href={`/loja/${slug}/cadastre-seu-imovel`} className="hover:text-blue-600 transition-colors font-bold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100">Cadastre seu Imóvel</Link>
             <Link href={`/loja/${slug}/sobre`} className="hover:text-blue-600 transition-colors">Sobre Nós</Link>
             <Link href={`/loja/${slug}/corretores`} className="hover:text-blue-600 transition-colors">Corretores</Link>
           </nav>
@@ -377,6 +379,8 @@ export default function VitrineLojaPage(props: { params: Promise<{ slug: string 
               <li><button onClick={clearSearch} className="hover:text-white transition-colors">Home</button></li>
               <li><button onClick={() => triggerCategorySearch('Locação')} className="hover:text-white transition-colors">Imóveis para Locação</button></li>
               <li><button onClick={() => triggerCategorySearch('Venda')} className="hover:text-white transition-colors">Imóveis à Venda</button></li>
+              <li><Link href={`/loja/${slug}/simule-seu-financiamento`} className="hover:text-white transition-colors">Simule seu Financiamento</Link></li>
+              <li><Link href={`/loja/${slug}/cadastre-seu-imovel`} className="hover:text-white transition-colors">Cadastre seu Imóvel</Link></li>
               <li><Link href={`/loja/${slug}/sobre`} className="hover:text-white transition-colors">Quem Somos</Link></li>
               <li><Link href={`/loja/${slug}/corretores`} className="hover:text-white transition-colors">Nossa Equipe</Link></li>
             </ul>
@@ -402,7 +406,7 @@ export default function VitrineLojaPage(props: { params: Promise<{ slug: string 
             </ul>
           </div>
 
-          {/* Coluna 4: Outros Links (Opcional) */}
+          {/* Coluna 4: Outros Links */}
           <div>
             <h4 className="text-white font-bold mb-6 uppercase tracking-wider text-sm">Outros Links</h4>
             <ul className="space-y-3 text-sm">
