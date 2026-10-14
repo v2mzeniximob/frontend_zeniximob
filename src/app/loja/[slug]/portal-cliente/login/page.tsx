@@ -2,8 +2,9 @@
 
 import { useState } from 'react';
 import { useRouter, useParams } from 'next/navigation'; 
+import Link from 'next/link';
 import { 
-  Key, User, Home, Loader2, ArrowRight, ShieldCheck, AlertCircle
+  Key, User, Home, Loader2, ArrowRight, ArrowLeft, ShieldCheck, AlertCircle
 } from 'lucide-react';
 import { maskCpf, maskCnpj } from '@/src/utils/mask';
 import { api } from '@/src/lib/api';
@@ -11,7 +12,7 @@ import { api } from '@/src/lib/api';
 export default function PortalLoginPage() {
   const router = useRouter();
   const params = useParams(); 
-  const slug = params.slug as string; // <-- Pega o 'vivian' direto da URL!
+  const slug = params.slug as string; // Pega o slug da URL (ex: 'vivian')
   
   const [role, setRole] = useState<'CLIENT' | 'OWNER'>('CLIENT');
   const [documentVal, setDocumentVal] = useState('');
@@ -45,7 +46,7 @@ export default function PortalLoginPage() {
       localStorage.setItem('@ZenixPortal:user', JSON.stringify(response.data.user));
       api.defaults.headers.authorization = `Bearer ${response.data.token}`;
 
-      // Redireciona para o dashboard correto DAQUELA loja!
+      // Redireciona para o dashboard da loja
       router.push(`/loja/${slug}/portal-cliente/dashboard`);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Erro ao realizar login. Verifique os seus dados.');
@@ -55,7 +56,19 @@ export default function PortalLoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center p-4 font-sans selection:bg-blue-200">
+    <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center p-4 font-sans selection:bg-blue-200 relative">
+      
+      {/* BOTÃO VOLTAR PARA O SITE NO TOPO */}
+      <div className="w-full max-w-md mb-4 flex justify-start">
+        <Link 
+          href={`/loja/${slug}`}
+          className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-blue-600 transition-colors bg-white px-4 py-2 rounded-xl shadow-sm border border-slate-200/80 hover:border-blue-200"
+        >
+          <ArrowLeft size={16} />
+          Voltar para o site
+        </Link>
+      </div>
+
       <div className="w-full max-w-md animate-in fade-in slide-in-from-bottom-4 duration-500">
         <div className="text-center mb-8">
           <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-600/20">
@@ -107,6 +120,13 @@ export default function PortalLoginPage() {
               {isLoading ? <Loader2 size={18} className="animate-spin" /> : <><ArrowRight size={18} /> Entrar no Meu Painel</>}
             </button>
           </form>
+
+          {/* LINK ADICIONAL NO RODAPÉ DO CARD */}
+          <div className="mt-6 text-center border-t border-slate-100 pt-4">
+            <Link href={`/loja/${slug}`} className="text-xs text-slate-500 hover:text-slate-800 transition-colors font-medium">
+              ← Deseja ver os imóveis disponíveis? Voltar ao site
+            </Link>
+          </div>
         </div>
       </div>
     </div>
