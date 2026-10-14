@@ -4,7 +4,7 @@ import { useState, useEffect, use } from 'react';
 import { api } from '../../../lib/api';
 import { 
   MapPin, Phone, Mail, Home, Loader2, BedDouble, Bath, Car, 
-  Search, Heart 
+  Search, Heart, UserCheck
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -26,7 +26,7 @@ export default function VitrineLojaPage(props: { params: Promise<{ slug: string 
   // ESTADOS DO MOTOR DE BUSCA
   // ==========================================
   const [searchFilter, setSearchFilter] = useState({ transaction: 'Todos', type: 'Todos', query: '' });
-  const [searchResults, setSearchResults] = useState<any[] | null>(null); // Se for null, mostra a Home. Se for array, mostra resultados.
+  const [searchResults, setSearchResults] = useState<any[] | null>(null);
 
   useEffect(() => {
     if (!slug) return;
@@ -37,9 +37,8 @@ export default function VitrineLojaPage(props: { params: Promise<{ slug: string 
         setStoreData(response.data.realEstate);
         
         const fetchedProperties = response.data.properties || [];
-        setAllProperties(fetchedProperties); // Guarda todos na memória
+        setAllProperties(fetchedProperties);
         
-        // Separa os imóveis de Locação e Venda para a Home
         setPropertiesRent(fetchedProperties.filter((p: any) => p.transaction === 'Locação' || p.transaction === 'Aluguel' || p.transaction?.includes('Locação') || p.transaction?.includes('Aluguel')));
         setPropertiesSale(fetchedProperties.filter((p: any) => p.transaction === 'Venda' || p.transaction?.includes('Venda')));
       } catch (err: any) {
@@ -58,7 +57,6 @@ export default function VitrineLojaPage(props: { params: Promise<{ slug: string 
   const handleSearch = () => {
     let filtered = allProperties;
 
-    // Filtro 1: Transação
     if (searchFilter.transaction !== 'Todos') {
       if (searchFilter.transaction === 'Locação') {
         filtered = filtered.filter(p => p.transaction === 'Locação' || p.transaction === 'Aluguel' || p.transaction?.includes('Locação') || p.transaction?.includes('Aluguel'));
@@ -67,12 +65,10 @@ export default function VitrineLojaPage(props: { params: Promise<{ slug: string 
       }
     }
 
-    // Filtro 2: Tipo de Imóvel
     if (searchFilter.type !== 'Todos') {
       filtered = filtered.filter(p => p.type === searchFilter.type);
     }
 
-    // Filtro 3: Texto (Cidade, Bairro, Endereço ou Título)
     if (searchFilter.query.trim() !== '') {
       const q = searchFilter.query.toLowerCase();
       filtered = filtered.filter(p => 
@@ -85,7 +81,6 @@ export default function VitrineLojaPage(props: { params: Promise<{ slug: string 
 
     setSearchResults(filtered);
     
-    // Rola suavemente para a secção de resultados
     setTimeout(() => {
       document.getElementById('area-resultados')?.scrollIntoView({ behavior: 'smooth' });
     }, 100);
@@ -97,7 +92,6 @@ export default function VitrineLojaPage(props: { params: Promise<{ slug: string 
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Função rápida para os botões do Menu e "Ver mais"
   const triggerCategorySearch = (transaction: string) => {
     setSearchFilter({ transaction, type: 'Todos', query: '' });
     
@@ -181,20 +175,28 @@ export default function VitrineLojaPage(props: { params: Promise<{ slug: string 
             )}
           </button>
 
-          <nav className="hidden md:flex items-center gap-8 text-sm font-semibold text-slate-600">
+          <nav className="hidden lg:flex items-center gap-6 text-sm font-semibold text-slate-600">
             <button onClick={clearSearch} className={`${searchResults === null ? 'text-blue-600' : 'hover:text-blue-600 transition-colors'}`}>Início</button>
             <button onClick={() => triggerCategorySearch('Locação')} className="hover:text-blue-600 transition-colors">Locação</button>
             <button onClick={() => triggerCategorySearch('Venda')} className="hover:text-blue-600 transition-colors">Venda</button>
-            <Link href={`/loja/${slug}/simule-seu-financiamento`} className="hover:text-blue-600 transition-colors font-bold text-amber-600 bg-amber-50 px-3 py-1.5 rounded-lg border border-amber-200">Simule seu Financiamento</Link>
-            <Link href={`/loja/${slug}/cadastre-seu-imovel`} className="hover:text-blue-600 transition-colors font-bold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100">Cadastre seu Imóvel</Link>
+            <Link href={`/loja/${slug}/simule-seu-financiamento`} className="hover:text-amber-700 transition-colors font-bold text-amber-600 bg-amber-50 px-3 py-1.5 rounded-lg border border-amber-200">Simular Financiamento</Link>
+            <Link href={`/loja/${slug}/cadastre-seu-imovel`} className="hover:text-blue-700 transition-colors font-bold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100">Cadastre seu Imóvel</Link>
             <Link href={`/loja/${slug}/sobre`} className="hover:text-blue-600 transition-colors">Sobre Nós</Link>
-            <Link href={`/loja/${slug}/corretores`} className="hover:text-blue-600 transition-colors">Corretores</Link>
           </nav>
 
           <div className="hidden md:flex items-center gap-4">
+            {/* BOTÃO PORTAL DO CLIENTE */}
+            <Link 
+              href={`/loja/${slug}/portal-cliente/login`}
+              className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition-all shadow-md hover:shadow-lg"
+            >
+              <UserCheck size={16} className="text-blue-400" />
+              <span>Portal do Cliente</span>
+            </Link>
+
             <div className="flex flex-col text-right">
-              <span className="text-xs text-slate-500">Ligue para nós</span>
-              <span className="text-sm font-bold text-slate-900">{storeData.phone}</span>
+              <span className="text-[10px] text-slate-400 font-bold uppercase">Telefone</span>
+              <span className="text-xs font-bold text-slate-900">{storeData.phone}</span>
             </div>
           </div>
         </div>
@@ -257,7 +259,6 @@ export default function VitrineLojaPage(props: { params: Promise<{ slug: string 
 
       <main id="area-resultados" className="max-w-7xl mx-auto px-4 py-16 space-y-20">
         
-        {/* LÓGICA DE EXIBIÇÃO: Se estiver a pesquisar, mostra os resultados. Senão, mostra a Home normal. */}
         {searchResults !== null ? (
           <section className="animate-in fade-in duration-500">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 gap-4">
@@ -348,7 +349,6 @@ export default function VitrineLojaPage(props: { params: Promise<{ slug: string 
       <footer className="bg-slate-900 text-slate-300 pt-16 pb-8 border-t border-slate-800">
         <div className="max-w-7xl mx-auto px-4 grid grid-cols-1 md:grid-cols-4 gap-12 mb-12">
           
-          {/* Coluna 1: Sobre */}
           <div>
             {storeData.logoUrl ? (
               <img src={storeData.logoUrl} alt="Logo" className="h-10 object-contain mb-6 brightness-0 invert opacity-90" />
@@ -358,35 +358,20 @@ export default function VitrineLojaPage(props: { params: Promise<{ slug: string 
             <p className="text-sm leading-relaxed mb-6">
               {storeData.footerText || 'Especialistas em realizar os seus sonhos. Encontre as melhores opções de compra, venda e locação.'}
             </p>
-            <div className="flex gap-4">
-              {storeData.instagramUrl && (
-                <a href={storeData.instagramUrl} target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="20" x="2" y="2" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/></svg>
-                </a>
-              )}
-              {storeData.facebookUrl && (
-                <a href={storeData.facebookUrl} target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
-                </a>
-              )}
-            </div>
           </div>
 
-          {/* Coluna 2: Navegação */}
           <div>
             <h4 className="text-white font-bold mb-6 uppercase tracking-wider text-sm">Navegação</h4>
             <ul className="space-y-3 text-sm">
               <li><button onClick={clearSearch} className="hover:text-white transition-colors">Home</button></li>
               <li><button onClick={() => triggerCategorySearch('Locação')} className="hover:text-white transition-colors">Imóveis para Locação</button></li>
               <li><button onClick={() => triggerCategorySearch('Venda')} className="hover:text-white transition-colors">Imóveis à Venda</button></li>
-              <li><Link href={`/loja/${slug}/simule-seu-financiamento`} className="hover:text-white transition-colors">Simule seu Financiamento</Link></li>
               <li><Link href={`/loja/${slug}/cadastre-seu-imovel`} className="hover:text-white transition-colors">Cadastre seu Imóvel</Link></li>
+              <li><Link href={`/loja/${slug}/simule-seu-financiamento`} className="hover:text-white transition-colors">Simule seu Financiamento</Link></li>
               <li><Link href={`/loja/${slug}/sobre`} className="hover:text-white transition-colors">Quem Somos</Link></li>
-              <li><Link href={`/loja/${slug}/corretores`} className="hover:text-white transition-colors">Nossa Equipe</Link></li>
             </ul>
           </div>
 
-          {/* Coluna 3: Matriz / Contato */}
           <div>
             <h4 className="text-white font-bold mb-6 uppercase tracking-wider text-sm">Matriz</h4>
             <ul className="space-y-4 text-sm">
@@ -406,14 +391,13 @@ export default function VitrineLojaPage(props: { params: Promise<{ slug: string 
             </ul>
           </div>
 
-          {/* Coluna 4: Outros Links */}
+          {/* Links para Área do Locador e Locatário direcionam para o Portal do Cliente */}
           <div>
-            <h4 className="text-white font-bold mb-6 uppercase tracking-wider text-sm">Outros Links</h4>
+            <h4 className="text-white font-bold mb-6 uppercase tracking-wider text-sm">Área Restrita</h4>
             <ul className="space-y-3 text-sm">
-              <li><a href="#" className="hover:text-white transition-colors">Área do Locador</a></li>
-              <li><a href="#" className="hover:text-white transition-colors">Área do Locatário</a></li>
-              <li><a href="#" className="hover:text-white transition-colors">Políticas de Privacidade</a></li>
-              <li><a href="#" className="hover:text-white transition-colors">Termos de Uso</a></li>
+              <li><Link href={`/loja/${slug}/portal-cliente/login`} className="hover:text-white transition-colors">Área do Locador (Proprietário)</Link></li>
+              <li><Link href={`/loja/${slug}/portal-cliente/login`} className="hover:text-white transition-colors">Área do Locatário (Inquilino)</Link></li>
+              <li><Link href={`/loja/${slug}/portal-cliente/login`} className="hover:text-white transition-colors">Acessar Portal do Cliente</Link></li>
             </ul>
           </div>
 
