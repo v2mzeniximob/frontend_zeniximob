@@ -53,6 +53,7 @@ export function RealEstateSidebar() {
     { name: 'Dashboard', icon: LayoutDashboard, path: '/imobiliaria/dashboard', modules: ['always'] },
     { name: 'Imóveis', icon: Home, path: '/imobiliaria/imoveis', modules: ['imoveis', 'properties'] },
     { name: 'Clientes (CRM)', icon: UserCircle, path: '/imobiliaria/clientes', modules: ['crm'] },
+    { name: 'Alugueis por Temporada', icon: Home, path: '/imobiliaria/alugueis-temporada', modules: ['temporada', 'properties'] },
     { name: 'Leads (CRM)', icon: Briefcase, path: '/imobiliaria/leads', modules: ['crm'] },
     { name: 'Esteira de Negócios', icon: Briefcase, path: '/imobiliaria/esteira', modules: ['crm'] },
     { name: 'WhatsApp & Robô IA', icon: MessageSquare, path: '/imobiliaria/whatsapp', modules: ['whatsapp'] },

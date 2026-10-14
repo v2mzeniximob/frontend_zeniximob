@@ -6,7 +6,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { 
   LogOut, Home, FileText, Wrench, DollarSign, AlertCircle, 
   CheckCircle, Clock, Plus, Building, User, Loader2, X,
-  MapPin, MessageSquare, Send
+  MapPin, MessageSquare, Send, Globe, Calendar, Key, Sparkles, RefreshCw
 } from 'lucide-react';
 import { api } from '@/src/lib/api';
 
@@ -21,8 +21,14 @@ export default function PortalDashboardPage() {
   const [contracts, setContracts] = useState<any[]>([]);
   const [tickets, setTickets] = useState<any[]>([]);
   const [properties, setProperties] = useState<any[]>([]);
+  
+  // Novos estados para Temporada
+  const [seasonProperties, setSeasonProperties] = useState<any[]>([]);
+  const [seasonBookings, setSeasonBookings] = useState<any[]>([]);
+  const [icalForm, setIcalForm] = useState<{ [key: string]: { airbnbIcalUrl: string; bookingIcalUrl: string; vrboIcalUrl: string } }>({});
+  const [isSavingIcal, setIsSavingIcal] = useState<string | null>(null);
 
-  const [activeTab, setActiveTab] = useState<'resumo' | 'boletos' | 'manutencao'>('resumo');
+  const [activeTab, setActiveTab] = useState<'resumo' | 'boletos' | 'manutencao' | 'temporada'>('resumo');
 
   // Modal Novo Chamado
   const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
@@ -58,6 +64,21 @@ export default function PortalDashboardPage() {
       if (response.data.contracts) setContracts(response.data.contracts);
       if (response.data.tickets) setTickets(response.data.tickets);
       if (response.data.properties) setProperties(response.data.properties);
+      
+      // Carrega dados de temporada se o backend retornar
+      if (response.data.seasonProperties) {
+        setSeasonProperties(response.data.seasonProperties);
+        const initialIcal: any = {};
+        response.data.seasonProperties.forEach((p: any) => {
+          initialIcal[p.id] = {
+            airbnbIcalUrl: p.airbnbIcalUrl || '',
+            bookingIcalUrl: p.bookingIcalUrl || '',
+            vrboIcalUrl: p.vrboIcalUrl || ''
+          };
+        });
+        setIcalForm(initialIcal);
+      }
+      if (response.data.seasonBookings) setSeasonBookings(response.data.seasonBookings);
 
       if (response.data.contracts && response.data.contracts.length === 1) {
         setTicketForm(prev => ({ ...prev, propertyId: response.data.contracts[0].propertyId }));
@@ -92,6 +113,19 @@ export default function PortalDashboardPage() {
     }
   };
 
+  const handleSaveIcal = async (propertyId: string) => {
+    setIsSavingIcal(propertyId);
+    try {
+      await api.put(`/properties/${propertyId}/ical-links`, icalForm[propertyId]);
+      alert('Links de integração iCal salvos e sincronizados com sucesso!');
+      fetchDashboardData();
+    } catch (error: any) {
+      alert(error.response?.data?.error || 'Erro ao salvar os links de integração.');
+    } finally {
+      setIsSavingIcal(null);
+    }
+  };
+
   const handleCreateTicket = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSavingTicket(true);
@@ -107,7 +141,6 @@ export default function PortalDashboardPage() {
     }
   };
 
-  // Enviar nova mensagem no chamado
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim() || !selectedTicket) return;
@@ -117,13 +150,12 @@ export default function PortalDashboardPage() {
       const response = await api.post(`/portal/tickets/${selectedTicket.id}/messages`, {
         message: newMessage
       });
-      // Atualiza o ticket selecionado localmente para mostrar a mensagem na hora
       setSelectedTicket({
         ...selectedTicket,
         messages: [...(selectedTicket.messages || []), response.data]
       });
       setNewMessage('');
-      fetchDashboardData(); // Atualiza em background
+      fetchDashboardData();
     } catch (error) {
       alert('Erro ao enviar mensagem.');
     } finally {
@@ -140,7 +172,6 @@ export default function PortalDashboardPage() {
     );
   }
 
-  // Componente reutilizável da lista de chamados
   const TicketCard = ({ ticket }: { ticket: any }) => (
     <div 
       onClick={() => setSelectedTicket(ticket)}
@@ -196,14 +227,17 @@ export default function PortalDashboardPage() {
         {/* ======================= VISÃO DO INQUILINO ======================= */}
         {user?.role === 'CLIENT' && (
           <div className="space-y-6">
-            <div className="flex bg-white rounded-xl shadow-sm border border-slate-200 p-1">
-              <button onClick={() => setActiveTab('resumo')} className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-colors flex items-center justify-center gap-2 ${activeTab === 'resumo' ? 'bg-blue-50 text-blue-700' : 'text-slate-500 hover:text-slate-700'}`}>
+            <div className="flex bg-white rounded-xl shadow-sm border border-slate-200 p-1 overflow-x-auto">
+              <button onClick={() => setActiveTab('resumo')} className={`flex-1 py-2.5 px-3 text-xs sm:text-sm font-bold rounded-lg transition-colors flex items-center justify-center gap-2 whitespace-nowrap ${activeTab === 'resumo' ? 'bg-blue-50 text-blue-700' : 'text-slate-500 hover:text-slate-700'}`}>
                 <Home size={16}/> Meu Aluguel
               </button>
-              <button onClick={() => setActiveTab('boletos')} className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-colors flex items-center justify-center gap-2 ${activeTab === 'boletos' ? 'bg-blue-50 text-blue-700' : 'text-slate-500 hover:text-slate-700'}`}>
+              <button onClick={() => setActiveTab('boletos')} className={`flex-1 py-2.5 px-3 text-xs sm:text-sm font-bold rounded-lg transition-colors flex items-center justify-center gap-2 whitespace-nowrap ${activeTab === 'boletos' ? 'bg-blue-50 text-blue-700' : 'text-slate-500 hover:text-slate-700'}`}>
                 <DollarSign size={16}/> Boletos
               </button>
-              <button onClick={() => setActiveTab('manutencao')} className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-colors flex items-center justify-center gap-2 ${activeTab === 'manutencao' ? 'bg-blue-50 text-blue-700' : 'text-slate-500 hover:text-slate-700'}`}>
+              <button onClick={() => setActiveTab('temporada')} className={`flex-1 py-2.5 px-3 text-xs sm:text-sm font-bold rounded-lg transition-colors flex items-center justify-center gap-2 whitespace-nowrap ${activeTab === 'temporada' ? 'bg-blue-50 text-blue-700' : 'text-slate-500 hover:text-slate-700'}`}>
+                <Calendar size={16}/> Temporada / Estadias
+              </button>
+              <button onClick={() => setActiveTab('manutencao')} className={`flex-1 py-2.5 px-3 text-xs sm:text-sm font-bold rounded-lg transition-colors flex items-center justify-center gap-2 whitespace-nowrap ${activeTab === 'manutencao' ? 'bg-blue-50 text-blue-700' : 'text-slate-500 hover:text-slate-700'}`}>
                 <Wrench size={16}/> Manutenção
               </button>
             </div>
@@ -266,6 +300,48 @@ export default function PortalDashboardPage() {
               </div>
             )}
 
+            {activeTab === 'temporada' && (
+              <div className="space-y-4">
+                <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 rounded-2xl text-white shadow-md">
+                  <span className="bg-white/20 text-white text-xs font-extrabold px-3 py-1 rounded-full uppercase tracking-wider">Short-Stay</span>
+                  <h3 className="text-xl font-bold mt-2">Suas Reservas de Aluguel por Temporada</h3>
+                  <p className="text-xs text-blue-100 mt-1">Acompanhe suas próximas estadias, check-ins e links de acesso rápido.</p>
+                </div>
+
+                {seasonBookings.length === 0 ? (
+                  <div className="bg-white p-8 rounded-2xl text-center border border-slate-200 shadow-sm">
+                    <Calendar size={40} className="mx-auto text-slate-300 mb-3" />
+                    <h3 className="font-bold text-slate-700">Nenhuma estadia por temporada no momento</h3>
+                    <p className="text-xs text-slate-400 mt-1">Suas reservas em imóveis de temporada aparecerão aqui.</p>
+                  </div>
+                ) : (
+                  seasonBookings.map((b: any) => (
+                    <div key={b.id} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-3">
+                      <div className="flex justify-between items-start">
+                        <h4 className="font-bold text-slate-800 text-base">{b.property?.title || 'Imóvel de Temporada'}</h4>
+                        <span className="bg-emerald-100 text-emerald-800 text-xs font-bold px-2.5 py-1 rounded-full">Confirmada</span>
+                      </div>
+                      <p className="text-xs text-slate-500 flex items-center gap-1"><MapPin size={14}/> {b.property?.address}</p>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 pt-3 border-t border-slate-100 text-xs">
+                        <div>
+                          <span className="text-slate-400 block font-bold uppercase">Check-in</span>
+                          <span className="font-extrabold text-slate-800">{new Date(b.checkIn).toLocaleDateString('pt-BR')}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block font-bold uppercase">Check-out</span>
+                          <span className="font-extrabold text-slate-800">{new Date(b.checkOut).toLocaleDateString('pt-BR')}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block font-bold uppercase">Valor Total</span>
+                          <span className="font-extrabold text-blue-600">{formatCurrency(b.totalAmount)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+
             {activeTab === 'manutencao' && (
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
@@ -287,11 +363,14 @@ export default function PortalDashboardPage() {
         {/* ======================= VISÃO DO PROPRIETÁRIO ======================= */}
         {user?.role === 'OWNER' && (
           <div className="space-y-6">
-            <div className="flex bg-white rounded-xl shadow-sm border border-slate-200 p-1 mb-6">
-              <button onClick={() => setActiveTab('resumo')} className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-colors flex items-center justify-center gap-2 ${activeTab === 'resumo' ? 'bg-emerald-50 text-emerald-700' : 'text-slate-500 hover:text-slate-700'}`}>
-                <Home size={16}/> Meus Imóveis
+            <div className="flex bg-white rounded-xl shadow-sm border border-slate-200 p-1 mb-6 overflow-x-auto">
+              <button onClick={() => setActiveTab('resumo')} className={`flex-1 py-2.5 px-3 text-xs sm:text-sm font-bold rounded-lg transition-colors flex items-center justify-center gap-2 whitespace-nowrap ${activeTab === 'resumo' ? 'bg-emerald-50 text-emerald-700' : 'text-slate-500 hover:text-slate-700'}`}>
+                <Home size={16}/> Meus Imóveis (Longo Prazo)
               </button>
-              <button onClick={() => setActiveTab('manutencao')} className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-colors flex items-center justify-center gap-2 ${activeTab === 'manutencao' ? 'bg-emerald-50 text-emerald-700' : 'text-slate-500 hover:text-slate-700'}`}>
+              <button onClick={() => setActiveTab('temporada')} className={`flex-1 py-2.5 px-3 text-xs sm:text-sm font-bold rounded-lg transition-colors flex items-center justify-center gap-2 whitespace-nowrap ${activeTab === 'temporada' ? 'bg-emerald-50 text-emerald-700' : 'text-slate-500 hover:text-slate-700'}`}>
+                <Sparkles size={16}/> Imóveis de Temporada & OTAs
+              </button>
+              <button onClick={() => setActiveTab('manutencao')} className={`flex-1 py-2.5 px-3 text-xs sm:text-sm font-bold rounded-lg transition-colors flex items-center justify-center gap-2 whitespace-nowrap ${activeTab === 'manutencao' ? 'bg-emerald-50 text-emerald-700' : 'text-slate-500 hover:text-slate-700'}`}>
                 <Wrench size={16}/> Manutenção
               </button>
             </div>
@@ -335,6 +414,122 @@ export default function PortalDashboardPage() {
               </>
             )}
 
+            {/* ABA DE TEMPORADA & INTEGRAÇÃO DE PLATAFORMAS (PROPRIETÁRIO) */}
+            {activeTab === 'temporada' && (
+              <div className="space-y-6">
+                <div className="bg-gradient-to-r from-emerald-600 to-teal-700 p-6 rounded-2xl text-white shadow-md">
+                  <span className="bg-white/20 text-white text-xs font-extrabold px-3 py-1 rounded-full uppercase tracking-wider">Short-Stay & Canais</span>
+                  <h3 className="text-xl font-bold mt-2">Gestão de Imóveis de Temporada & Sincronização de OTAs</h3>
+                  <p className="text-xs text-emerald-100 mt-1">Insira os links iCal do Airbnb e Booking.com para unificar o calendário e evitar overbooking.</p>
+                </div>
+
+                {seasonProperties.length === 0 ? (
+                  <div className="bg-white p-8 rounded-2xl text-center border border-slate-200 shadow-sm">
+                    <Sparkles size={40} className="mx-auto text-slate-300 mb-3" />
+                    <h3 className="font-bold text-slate-700">Nenhum imóvel de temporada cadastrado em seu nome</h3>
+                    <p className="text-xs text-slate-400 mt-1">Entre em contato com a imobiliária para cadastrar suas propriedades na modalidade de temporada.</p>
+                  </div>
+                ) : (
+                  seasonProperties.map((prop: any) => (
+                    <div key={prop.id} className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-6">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-100 pb-4">
+                        <div>
+                          <h3 className="text-lg font-black text-slate-800">{prop.title}</h3>
+                          <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5"><MapPin size={14}/> {prop.address}</p>
+                        </div>
+                        <span className="bg-amber-100 text-amber-800 text-xs font-bold px-3 py-1 rounded-full">Temporada Ativa</span>
+                      </div>
+
+                      {/* URL iCal de Exportação (Para colar no Airbnb/Booking) */}
+                      <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2">
+                        <label className="block text-xs font-bold text-slate-700 uppercase">Link iCal do Nosso Sistema (Para exportar para o Airbnb / Booking)</label>
+                        <div className="flex gap-2">
+                          <input 
+                            type="text" 
+                            readOnly 
+                            value={`${process.env.NEXT_PUBLIC_API_URL || 'https://backend-zeniximob.onrender.com'}/public/properties/${prop.id}/ical/${prop.icalExportToken || 'token'}.ics`}
+                            className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-mono text-slate-600 select-all"
+                          />
+                          <button 
+                            onClick={() => {
+                              navigator.clipboard.writeText(`${process.env.NEXT_PUBLIC_API_URL || 'https://backend-zeniximob.onrender.com'}/public/properties/${prop.id}/ical/${prop.icalExportToken || 'token'}.ics`);
+                              alert('Link iCal copiado para a área de transferência!');
+                            }}
+                            className="bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs px-4 py-2.5 rounded-lg whitespace-nowrap transition-colors"
+                          >
+                            Copiar Link
+                          </button>
+                        </div>
+                        <p className="text-[11px] text-slate-500">Cole este link nas configurações de importação de calendário do Airbnb ou Booking.com para que eles bloqueiem as datas quando houver reserva no site.</p>
+                      </div>
+
+                      {/* Formulário para colar os links iCal das Plataformas */}
+                      <div className="space-y-4 pt-2">
+                        <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                          <Globe size={16} className="text-emerald-600"/> Links de Importação das Plataformas (Validação de Integração)
+                        </h4>
+
+                        <div className="grid grid-cols-1 gap-4">
+                          <div>
+                            <label className="block text-xs font-bold text-slate-600 mb-1">Link iCal do Airbnb (.ics)</label>
+                            <input 
+                              type="text" 
+                              placeholder="https://www.airbnb.com.br/calendar/ical/..."
+                              value={icalForm[prop.id]?.airbnbIcalUrl || ''}
+                              onChange={(e) => setIcalForm({
+                                ...icalForm,
+                                [prop.id]: { ...icalForm[prop.id], airbnbIcalUrl: e.target.value }
+                              })}
+                              className="w-full p-3 border border-slate-300 rounded-xl text-xs outline-none focus:border-emerald-500 bg-white"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-bold text-slate-600 mb-1">Link iCal do Booking.com (.ics)</label>
+                            <input 
+                              type="text" 
+                              placeholder="https://admin.booking.com/hotel/hoteladmin/ical.ics?..."
+                              value={icalForm[prop.id]?.bookingIcalUrl || ''}
+                              onChange={(e) => setIcalForm({
+                                ...icalForm,
+                                [prop.id]: { ...icalForm[prop.id], bookingIcalUrl: e.target.value }
+                              })}
+                              className="w-full p-3 border border-slate-300 rounded-xl text-xs outline-none focus:border-emerald-500 bg-white"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-bold text-slate-600 mb-1">Link iCal do VRBO / Outros (.ics)</label>
+                            <input 
+                              type="text" 
+                              placeholder="https://www.vrbo.com/ical/..."
+                              value={icalForm[prop.id]?.vrboIcalUrl || ''}
+                              onChange={(e) => setIcalForm({
+                                ...icalForm,
+                                [prop.id]: { ...icalForm[prop.id], vrboIcalUrl: e.target.value }
+                              })}
+                              className="w-full p-3 border border-slate-300 rounded-xl text-xs outline-none focus:border-emerald-500 bg-white"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex justify-end pt-2">
+                          <button
+                            onClick={() => handleSaveIcal(prop.id)}
+                            disabled={isSavingIcal === prop.id}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-6 py-3 rounded-xl shadow-md transition-all flex items-center gap-2 disabled:opacity-50"
+                          >
+                            {isSavingIcal === prop.id ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+                            Salvar e Validar Integração com Plataformas
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+
             {activeTab === 'manutencao' && (
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
@@ -354,9 +549,7 @@ export default function PortalDashboardPage() {
         )}
       </main>
 
-      {/* =================================================================================== */}
-      {/* MODAL 1: NOVO CHAMADO DE MANUTENÇÃO                                                 */}
-      {/* =================================================================================== */}
+      {/* MODAL 1: NOVO CHAMADO DE MANUTENÇÃO */}
       {isTicketModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-4 sm:p-0">
           <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in slide-in-from-bottom-10 sm:zoom-in-95 duration-200">
@@ -365,7 +558,6 @@ export default function PortalDashboardPage() {
               <button onClick={() => setIsTicketModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-600 bg-slate-200/50 rounded-full"><X size={18} /></button>
             </div>
             <form onSubmit={handleCreateTicket} className="p-6 space-y-4">
-              
               {user?.role === 'CLIENT' && contracts.length > 1 && (
                 <div><label className="block text-xs font-bold text-slate-600 mb-1">Qual Imóvel?</label><select required value={ticketForm.propertyId} onChange={e => setTicketForm({...ticketForm, propertyId: e.target.value})} className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white"><option value="">Selecione o imóvel...</option>{contracts.map(c => <option key={c.propertyId} value={c.propertyId}>{c.property.title}</option>)}</select></div>
               )}
@@ -390,14 +582,10 @@ export default function PortalDashboardPage() {
         </div>
       )}
 
-      {/* =================================================================================== */}
-      {/* MODAL 2: INTERAÇÃO (CHAT DO CHAMADO)                                                */}
-      {/* =================================================================================== */}
+      {/* MODAL 2: INTERAÇÃO (CHAT DO CHAMADO) */}
       {selectedTicket && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
-            
-            {/* Cabecalho Modal */}
             <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
               <div>
                 <h2 className="font-bold text-slate-800 text-lg line-clamp-1">{selectedTicket.title}</h2>
@@ -406,10 +594,7 @@ export default function PortalDashboardPage() {
               <button onClick={() => setSelectedTicket(null)} className="p-2 text-slate-400 hover:text-slate-600 bg-slate-200/50 rounded-full"><X size={18} /></button>
             </div>
 
-            {/* Area de Mensagens (Scrollable) */}
             <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50 flex flex-col gap-4">
-              
-              {/* Descrição Original (Primeira Mensagem) */}
               <div className="flex flex-col items-end">
                 <span className="text-[10px] font-bold text-slate-400 mb-1 mr-1">Sua Solicitação (Original)</span>
                 <div className={`p-4 rounded-2xl rounded-tr-sm text-sm shadow-sm max-w-[85%] ${user?.role === 'CLIENT' ? 'bg-blue-600 text-white' : 'bg-emerald-600 text-white'}`}>
@@ -417,7 +602,6 @@ export default function PortalDashboardPage() {
                 </div>
               </div>
 
-              {/* Mensagens das interações */}
               {selectedTicket.messages && selectedTicket.messages.map((msg: any) => {
                 const isAdmin = msg.sender === 'ADMIN';
                 return (
@@ -437,7 +621,6 @@ export default function PortalDashboardPage() {
               })}
             </div>
 
-            {/* Input de Nova Mensagem */}
             <div className="p-4 bg-white border-t border-slate-100 shrink-0">
               {selectedTicket.status === 'Concluído' ? (
                 <div className="text-center p-3 bg-slate-50 rounded-xl border border-slate-200 text-sm font-medium text-slate-500">
@@ -462,11 +645,9 @@ export default function PortalDashboardPage() {
                 </form>
               )}
             </div>
-
           </div>
         </div>
       )}
-
     </div>
   );
 }

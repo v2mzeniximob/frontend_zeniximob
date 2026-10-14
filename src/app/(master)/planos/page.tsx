@@ -21,6 +21,7 @@ const AVAILABLE_MODULES = [
   { id: 'corretores', label: 'Gestão de Corretores' },
   { id: 'portais', label: 'Integração com Portais' },
   { id: 'whatsapp', label: 'Integração WhatsApp & Robô IA' },
+  { id: 'temporada', label: 'Alugueis por Temporada' }
 ];
 
 const initialForm = {
