@@ -52,6 +52,7 @@ export function RealEstateSidebar() {
   const menuItems = [
     { name: 'Dashboard', icon: LayoutDashboard, path: '/imobiliaria/dashboard', modules: ['always'] },
     { name: 'Imóveis', icon: Home, path: '/imobiliaria/imoveis', modules: ['imoveis', 'properties'] },
+    { name: 'Corretores', icon: Users, path: '/imobiliaria/corretores', modules: ['corretores', 'brokers'] },
     { name: 'Clientes (CRM)', icon: UserCircle, path: '/imobiliaria/clientes', modules: ['crm'] },
     { name: 'Alugueis por Temporada', icon: Home, path: '/imobiliaria/alugueis-temporada', modules: ['temporada', 'properties'] },
     { name: 'Leads (CRM)', icon: Briefcase, path: '/imobiliaria/leads', modules: ['crm'] },
@@ -66,9 +67,9 @@ export function RealEstateSidebar() {
     { name: 'Contratos', icon: Key, path: '/imobiliaria/contratos', modules: ['contratos', 'contracts'] },
     { name: 'Financeiro', icon: DollarSign, path: '/imobiliaria/financeiro', modules: ['financeiro', 'financial'] },
     { name: 'Arquivo DIMOB (Fisco)', icon: FileSignature, path: '/imobiliaria/dimob', modules: ['dimob'] },
+    { name: 'Fiscal e Contábil', icon: FileSignature, path: '/imobiliaria/fiscal', modules: ['fiscal', 'contabil'] },
     { name: 'Vistorias Mobile-First', icon: Camera, path: '/imobiliaria/vistorias', modules: ['vistorias'] },
     { name: 'Chamados de Manutenção', icon: Wrench, path: '/imobiliaria/manutencao', modules: ['manutencao', 'tickets'] },
-    { name: 'Corretores', icon: Users, path: '/imobiliaria/corretores', modules: ['corretores', 'brokers'] },
     { name: 'Configurações', icon: Settings, path: '/imobiliaria/configuracoes', modules: ['always'] },
   ];
 
