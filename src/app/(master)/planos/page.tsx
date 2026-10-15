@@ -9,6 +9,7 @@ import {
 
 // Lista expandida com IDs normalizados (minúsculas)
 const AVAILABLE_MODULES = [
+  { id: 'condominios', label: 'Condomínios' },
   { id: 'imoveis', label: 'Imóveis & Proprietários' },
   { id: 'crm', label: 'CRM, Leads & Visitas' },
   { id: 'contratos', label: 'Contratos & Inquilinos' },

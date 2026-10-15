@@ -8,6 +8,7 @@ import {
   Key, Sparkles, Rss, Building2, Play, Compass, Palette, 
   Download, Copy, Upload, Image as ImageIcon, Hash
 } from 'lucide-react';
+import { maskCep, maskCnpj, maskPhone } from '@/src/utils/mask';
 
 const AVAILABLE_AMENITIES = [
   'Piscina', 'Churrasqueira', 'Elevador', 'Academia', 
@@ -15,22 +16,8 @@ const AVAILABLE_AMENITIES = [
   'Móveis Planejados', 'Portaria 24h', 'Salão de Festas'
 ];
 
-const maskCep = (value: string) => {
+const maskCepInput = (value: string) => {
   return value.replace(/\D/g, '').replace(/(\d{5})(\d)/, '$1-$2').replace(/(-\d{3})\d+?$/, '$1');
-};
-
-const maskCnpj = (value: string) => {
-  return value.replace(/\D/g, '').replace(/(\d{2})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1/$2').replace(/(\d{4})(\d{1,2})/, '$1-$2').replace(/(-\d{2})\d+?$/, '$1');
-};
-
-const maskPhone = (value: string) => {
-  let v = value.replace(/\D/g, '');
-  if (v.length <= 10) {
-    v = v.replace(/^(\d{2})(\d)/g, '($1) $2').replace(/(\d{4})(\d)/, '$1-$2');
-  } else {
-    v = v.replace(/^(\d{2})(\d)/g, '($1) $2').replace(/(\d{5})(\d)/, '$1-$2');
-  }
-  return v;
 };
 
 export default function ImoveisPage() {
@@ -41,12 +28,8 @@ export default function ImoveisPage() {
   const [storeSlug, setStoreSlug] = useState<string>('');
   const [storeInfo, setStoreInfo] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
-  
-  const [activePageTab, setActivePageTab] = useState<'imoveis' | 'condominios'>('imoveis');
-
+   
   const [isPropertyModalOpen, setIsPropertyModalOpen] = useState(false);
-  const [isCondoModalOpen, setIsCondoModalOpen] = useState(false);
-  
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isFetchingCep, setIsFetchingCep] = useState(false);
@@ -80,20 +63,12 @@ export default function ImoveisPage() {
     description: '', imageUrls: '', brokerId: '', ownerId: '', inspectionUrl: '',
     rentProposalUrl: '', saleProposalUrl: '', keyTermUrl: '', exportToPortals: false,
     condominiumId: '', iptuRegistration: '', 
-    
+     
     acceptsFinancing: false, acceptsExchange: false, exchangeDetails: '',
     videoUrl: '', tour360Url: '',
     exclusive: false, exclusiveUntil: '', captatorId: '',
 
     amenities: [] as string[]
-  });
-
-  const [editingCondoId, setEditingCondoId] = useState<string | null>(null);
-  const [isSavingCondo, setIsSavingCondo] = useState(false);
-  const [condoForm, setCondoForm] = useState({
-    cnpj: '', name: '', cep: '', address: '', neighborhood: '', city: '', state: '', type: 'Vertical',
-    adminName: '', managerName: '', email: '', phone: '', towerOrBlock: '', privateArea: '', 
-    hasGarage: false, hasCoveredGarage: false
   });
 
   useEffect(() => {
@@ -342,7 +317,7 @@ export default function ImoveisPage() {
       link.href = dataUrl;
       link.click();
     } catch (err) {
-      alert('Este link de imagem externo bloqueia exportação direta por segurança do navegador (CORS). Clique em "Carregar Foto do PC/Telemóvel" ao lado para usar uma foto local!');
+      alert('Este link de imagem externo bloqueia exportação direta por segurança do navegador (CORS). Clique em "Subir Foto do PC/Telemóvel" ao lado para usar uma foto local!');
     }
   };
 
@@ -356,7 +331,7 @@ export default function ImoveisPage() {
     return `✨ ${studioConfig.badgeText}: ${studioConfig.headline}!\n\n` +
       `📍 Localização: ${studioProperty.neighborhood}, ${studioProperty.city}\n` +
       `💰 Valor: ${studioConfig.priceText}\n\n` +
-      ` Destaques do Imóvel:\n` +
+      `Destaques do Imóvel:\n` +
       `• Área: ${studioProperty.area} m²\n` +
       (studioProperty.bedrooms ? `• ${studioProperty.bedrooms} Dormitório(s)\n` : '') +
       (studioProperty.bathrooms ? `• ${studioProperty.bathrooms} Banheiro(s)\n` : '') +
@@ -390,7 +365,7 @@ export default function ImoveisPage() {
         rentProposalUrl: property.rentProposalUrl || '', saleProposalUrl: property.saleProposalUrl || '',
         keyTermUrl: property.keyTermUrl || '', exportToPortals: property.exportToPortals || false,
         condominiumId: property.condominiumId || '', iptuRegistration: property.iptuRegistration || '', 
-        
+         
         acceptsFinancing: property.acceptsFinancing || false,
         acceptsExchange: property.acceptsExchange || false,
         exchangeDetails: property.exchangeDetails || '',
@@ -420,7 +395,7 @@ export default function ImoveisPage() {
   const handleSaveProperty = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
-    
+     
     const urlsArray = form.imageUrls.split(',').map(url => url.trim()).filter(url => url !== '');
     const dataToSend = { ...form, imageUrls: urlsArray };
 
@@ -490,52 +465,9 @@ export default function ImoveisPage() {
     alert(`Link do Feed XML copiado!\n\nCole este link no painel do Zap Imóveis ou VivaReal:\n${xmlUrl}`);
   };
 
-  // =========================================================
-  // FUNÇÕES DO CONDOMÍNIO
-  // =========================================================
-  const handleOpenCondoModal = (condo?: any) => {
-    if (condo) {
-      setEditingCondoId(condo.id);
-      setCondoForm({
-        cnpj: condo.cnpj ? maskCnpj(condo.cnpj) : '', name: condo.name || '', cep: condo.cep ? maskCep(condo.cep) : '', address: condo.address || '',
-        neighborhood: condo.neighborhood || '', city: condo.city || '', state: condo.state || '', type: condo.type || 'Vertical',
-        adminName: condo.adminName || '', managerName: condo.managerName || '', email: condo.email || '', phone: condo.phone ? maskPhone(condo.phone) : '',
-        towerOrBlock: condo.towerOrBlock || '', privateArea: condo.privateArea || '', hasGarage: condo.hasGarage || false, hasCoveredGarage: condo.hasCoveredGarage || false
-      });
-    } else {
-      setEditingCondoId(null);
-      setCondoForm({
-        cnpj: '', name: '', cep: '', address: '', neighborhood: '', city: '', state: '', type: 'Vertical',
-        adminName: '', managerName: '', email: '', phone: '', towerOrBlock: '', privateArea: '', hasGarage: false, hasCoveredGarage: false
-      });
-    }
-    setIsCondoModalOpen(true);
-  };
-
-  const handleSaveCondominium = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSavingCondo(true);
-    try {
-      if (editingCondoId) {
-        await api.put(`/condominiums/${editingCondoId}`, condoForm);
-        alert('Condomínio atualizado com sucesso!');
-      } else {
-        await api.post('/condominiums', condoForm);
-        alert('Condomínio cadastrado com sucesso!');
-      }
-      setIsCondoModalOpen(false);
-      fetchData();
-    } catch (error: any) {
-      alert(error.response?.data?.error || 'Erro ao salvar condomínio.');
-    } finally {
-      setIsSavingCondo(false);
-    }
-  };
-
-  const handleCepChange = async (e: React.ChangeEvent<HTMLInputElement>, isCondo: boolean = false) => {
-    const masked = maskCep(e.target.value);
-    if (isCondo) setCondoForm({ ...condoForm, cep: masked });
-    else setForm({ ...form, cep: masked });
+  const handleCepChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const masked = maskCepInput(e.target.value);
+    setForm({ ...form, cep: masked });
 
     if (masked.length === 9) {
       setIsFetchingCep(true);
@@ -543,11 +475,7 @@ export default function ImoveisPage() {
         const rawCep = masked.replace(/\D/g, '');
         const response = await api.get(`/integrations/cep/${rawCep}`);
         const data = response.data;
-        if (isCondo) {
-          setCondoForm(prev => ({ ...prev, address: data.street || prev.address, neighborhood: data.neighborhood || prev.neighborhood, city: data.city || prev.city, state: data.state || prev.state }));
-        } else {
-          setForm(prev => ({ ...prev, address: data.street || prev.address, neighborhood: data.neighborhood || prev.neighborhood, city: data.city || prev.city, state: data.state || prev.state }));
-        }
+        setForm(prev => ({ ...prev, address: data.street || prev.address, neighborhood: data.neighborhood || prev.neighborhood, city: data.city || prev.city, state: data.state || prev.state }));
       } catch (error) {
         console.log('CEP não encontrado.');
       } finally {
@@ -555,7 +483,6 @@ export default function ImoveisPage() {
       }
     }
   };
-
 
   if (isLoading) return <div className="p-8 flex justify-center text-slate-500"><Loader2 className="animate-spin" /></div>;
 
@@ -567,189 +494,111 @@ export default function ImoveisPage() {
         <div>
           <h1 className="text-3xl font-bold text-slate-800 flex items-center gap-3">
             <Home className="text-blue-600" size={32} />
-            Catálogo & Condomínios
+            Catálogo de Imóveis
           </h1>
-          <p className="text-slate-500 mt-1">Gira os seus imóveis, condomínios vinculados, artes para redes sociais e integrações com portais.</p>
+          <p className="text-slate-500 mt-1">Gira os seus imóveis, artes para redes sociais e integrações com portais.</p>
         </div>
       </div>
 
-      {/* ABAS DA PÁGINA PRINCIPAL */}
-      <div className="flex gap-6 border-b border-slate-200 mb-6">
-        <button 
-          onClick={() => setActivePageTab('imoveis')} 
-          className={`pb-3 font-bold text-sm transition-colors flex items-center gap-2 border-b-2 ${activePageTab === 'imoveis' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
-        >
-          <Home size={18}/> Gestão de Imóveis
+      <div className="flex justify-end gap-3 mb-6">
+        <button onClick={handleCopyXmlLink} className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2.5 rounded-lg font-bold flex items-center gap-2 transition-colors border border-slate-300 text-sm">
+          <Rss size={18} className="text-orange-500"/> Link Feed XML
         </button>
-        <button 
-          onClick={() => setActivePageTab('condominios')} 
-          className={`pb-3 font-bold text-sm transition-colors flex items-center gap-2 border-b-2 ${activePageTab === 'condominios' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
-        >
-          <Building2 size={18}/> Gestão de Condomínios
+        <button onClick={() => handleOpenPropertyModal()} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-bold flex items-center gap-2 transition-colors shadow-sm text-sm">
+          <Plus size={18} /> Novo Imóvel
         </button>
       </div>
 
-      {/* CONTEÚDO DA ABA: IMÓVEIS */}
-      {activePageTab === 'imoveis' && (
-        <div className="animate-in fade-in slide-in-from-bottom-2">
-          <div className="flex justify-end gap-3 mb-6">
-            <button onClick={handleCopyXmlLink} className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2.5 rounded-lg font-bold flex items-center gap-2 transition-colors border border-slate-300">
-              <Rss size={18} className="text-orange-500"/> Link Feed XML
-            </button>
-            <button onClick={() => handleOpenPropertyModal()} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-bold flex items-center gap-2 transition-colors shadow-sm">
-              <Plus size={18} /> Novo Imóvel
-            </button>
-          </div>
-
-          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 text-slate-600 font-medium border-b border-slate-200">
-                <tr>
-                  <th className="py-4 px-6">Imóvel & Localização</th>
-                  <th className="py-4 px-6">Transação & Valor</th>
-                  <th className="py-4 px-6">Equipa & Captação</th>
-                  <th className="py-4 px-6">Status (Site & Portais)</th>
-                  <th className="py-4 px-6 text-right">Ações</th>
+      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+        <table className="w-full text-left text-sm">
+          <thead className="bg-slate-50 text-slate-600 font-medium border-b border-slate-200">
+            <tr>
+              <th className="py-4 px-6">Imóvel & Localização</th>
+              <th className="py-4 px-6">Transação & Valor</th>
+              <th className="py-4 px-6">Equipa & Captação</th>
+              <th className="py-4 px-6">Status (Site & Portais)</th>
+              <th className="py-4 px-6 text-right">Ações</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 text-slate-700">
+            {properties.map(prop => {
+              const displayCode = prop.code || prop.id?.substring(0, 6)?.toUpperCase();
+              return (
+                <tr key={prop.id} className="hover:bg-slate-50 transition-colors">
+                  <td className="py-4 px-6">
+                    <div className="flex items-center gap-2">
+                      <p className="font-bold text-slate-800 text-base">{prop.title}</p>
+                      <span className="bg-slate-800 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-sm flex items-center gap-1">
+                        <Hash size={10} /> {displayCode}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 flex items-center gap-1 mt-1"><MapPin size={12}/> {prop.neighborhood}, {prop.city}</p>
+                    <div className="flex items-center gap-2 mt-2">
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${prop.rentStatus === 'Alugado' ? 'bg-amber-100 text-amber-700' : prop.rentStatus === 'Vendido' ? 'bg-purple-100 text-purple-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                        {prop.rentStatus ? prop.rentStatus.toUpperCase() : 'VAGO'}
+                      </span>
+                      <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-bold">{prop.type}</span>
+                      {prop.condominium && <span className="text-[10px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded font-bold border border-indigo-100 line-clamp-1 max-w-[120px]" title={prop.condominium.name}>{prop.condominium.name}</span>}
+                    </div>
+                  </td>
+                  <td className="py-4 px-6">
+                    <div className="flex flex-col items-start gap-1.5">
+                      <span className={`text-xs font-bold px-2 py-1 rounded-full ${prop.transaction === 'Venda' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                        {prop.transaction}
+                      </span>
+                      <p className="font-bold text-slate-800 text-lg">R$ {Number(prop.price).toLocaleString('pt-BR')}</p>
+                    </div>
+                  </td>
+                  <td className="py-4 px-6 space-y-1">
+                    <div className="flex items-center gap-2 text-xs">
+                      <UserCheck size={14} className="text-slate-400" />
+                      <span className="font-medium text-slate-700">Corretor:</span> 
+                      {prop.broker ? <span className="text-blue-600 font-bold">{prop.broker.name}</span> : <span className="text-slate-400 italic">Nenhum</span>}
+                    </div>
+                    <div className="flex items-center gap-2 text-xs">
+                      <User size={14} className="text-slate-400" />
+                      <span className="font-medium text-slate-700">Angariador:</span> 
+                      {prop.captator ? <span className="text-slate-600">{prop.captator.name}</span> : <span className="text-slate-400 italic">Nenhum</span>}
+                    </div>
+                    {prop.exclusive && <span className="inline-block mt-1 bg-yellow-100 text-yellow-800 border border-yellow-200 text-[10px] px-2 py-0.5 rounded font-bold uppercase">Exclusividade</span>}
+                  </td>
+                  <td className="py-4 px-6 space-y-2">
+                    <button onClick={() => handleToggleStatus(prop.id)} className="focus:outline-none block">
+                      {prop.isActive 
+                        ? <span className="bg-green-100 text-green-700 px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1 w-fit"><CheckCircle2 size={14}/> Site Oficial</span>
+                        : <span className="bg-red-100 text-red-700 px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1 w-fit"><XCircle size={14}/> Oculto Site</span>
+                      }
+                    </button>
+                    <div className="block">
+                      {prop.exportToPortals 
+                        ? <span className="bg-orange-100 text-orange-700 px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1 w-fit"><Rss size={14}/> Exporta XML</span>
+                        : <span className="bg-slate-100 text-slate-500 px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1 w-fit"><XCircle size={14}/> Não Exporta</span>
+                      }
+                    </div>
+                  </td>
+                  <td className="py-4 px-6 text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      <button 
+                        onClick={() => handleOpenStudioModal(prop)} 
+                        className="text-pink-600 hover:text-pink-800 font-bold bg-pink-50 hover:bg-pink-100 border border-pink-200 px-3 py-2 rounded-lg transition-colors flex items-center gap-1.5 text-xs"
+                        title="Abrir Estúdio de Marketing (Gerar Post para Feed e Stories)"
+                      >
+                        <Palette size={16} /> Arte Insta
+                      </button>
+                      <button onClick={() => handleOpenPropertyModal(prop)} className="text-blue-600 hover:text-blue-800 font-bold bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded-lg transition-colors flex items-center gap-1.5 text-xs">
+                        <Edit size={16} /> Editar
+                      </button>
+                    </div>
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-slate-700">
-                {properties.map(prop => {
-                  const displayCode = prop.code || prop.id?.substring(0, 6)?.toUpperCase();
-                  return (
-                    <tr key={prop.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="py-4 px-6">
-                        <div className="flex items-center gap-2">
-                          <p className="font-bold text-slate-800 text-base">{prop.title}</p>
-                          <span className="bg-slate-800 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-sm flex items-center gap-1">
-                            <Hash size={10} /> {displayCode}
-                          </span>
-                        </div>
-                        <p className="text-xs text-slate-500 flex items-center gap-1 mt-1"><MapPin size={12}/> {prop.neighborhood}, {prop.city}</p>
-                        <div className="flex items-center gap-2 mt-2">
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${prop.rentStatus === 'Alugado' ? 'bg-amber-100 text-amber-700' : prop.rentStatus === 'Vendido' ? 'bg-purple-100 text-purple-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                            {prop.rentStatus ? prop.rentStatus.toUpperCase() : 'VAGO'}
-                          </span>
-                          <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-bold">{prop.type}</span>
-                          {prop.condominium && <span className="text-[10px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded font-bold border border-indigo-100 line-clamp-1 max-w-[120px]" title={prop.condominium.name}>{prop.condominium.name}</span>}
-                        </div>
-                      </td>
-                      <td className="py-4 px-6">
-                        <div className="flex flex-col items-start gap-1.5">
-                          <span className={`text-xs font-bold px-2 py-1 rounded-full ${prop.transaction === 'Venda' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
-                            {prop.transaction}
-                          </span>
-                          <p className="font-bold text-slate-800 text-lg">R$ {Number(prop.price).toLocaleString('pt-BR')}</p>
-                        </div>
-                      </td>
-                      <td className="py-4 px-6 space-y-1">
-                        <div className="flex items-center gap-2 text-xs">
-                          <UserCheck size={14} className="text-slate-400" />
-                          <span className="font-medium text-slate-700">Corretor:</span> 
-                          {prop.broker ? <span className="text-blue-600 font-bold">{prop.broker.name}</span> : <span className="text-slate-400 italic">Nenhum</span>}
-                        </div>
-                        <div className="flex items-center gap-2 text-xs">
-                          <User size={14} className="text-slate-400" />
-                          <span className="font-medium text-slate-700">Angariador:</span> 
-                          {prop.captator ? <span className="text-slate-600">{prop.captator.name}</span> : <span className="text-slate-400 italic">Nenhum</span>}
-                        </div>
-                        {prop.exclusive && <span className="inline-block mt-1 bg-yellow-100 text-yellow-800 border border-yellow-200 text-[10px] px-2 py-0.5 rounded font-bold uppercase">Exclusividade</span>}
-                      </td>
-                      <td className="py-4 px-6 space-y-2">
-                        <button onClick={() => handleToggleStatus(prop.id)} className="focus:outline-none block">
-                          {prop.isActive 
-                            ? <span className="bg-green-100 text-green-700 px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1 w-fit"><CheckCircle2 size={14}/> Site Oficial</span>
-                            : <span className="bg-red-100 text-red-700 px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1 w-fit"><XCircle size={14}/> Oculto Site</span>
-                          }
-                        </button>
-                        <div className="block">
-                          {prop.exportToPortals 
-                            ? <span className="bg-orange-100 text-orange-700 px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1 w-fit"><Rss size={14}/> Exporta XML</span>
-                            : <span className="bg-slate-100 text-slate-500 px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1 w-fit"><XCircle size={14}/> Não Exporta</span>
-                          }
-                        </div>
-                      </td>
-                      <td className="py-4 px-6 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <button 
-                            onClick={() => handleOpenStudioModal(prop)} 
-                            className="text-pink-600 hover:text-pink-800 font-bold bg-pink-50 hover:bg-pink-100 border border-pink-200 px-3 py-2 rounded-lg transition-colors flex items-center gap-1.5"
-                            title="Abrir Estúdio de Marketing (Gerar Post para Feed e Stories)"
-                          >
-                            <Palette size={16} /> Arte Insta
-                          </button>
-                          <button onClick={() => handleOpenPropertyModal(prop)} className="text-blue-600 hover:text-blue-800 font-bold bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded-lg transition-colors flex items-center gap-1.5">
-                            <Edit size={16} /> Editar
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-                {properties.length === 0 && (
-                  <tr><td colSpan={5} className="py-12 text-center text-slate-500 text-lg">Nenhum imóvel cadastrado.</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* CONTEÚDO DA ABA: CONDOMÍNIOS */}
-      {activePageTab === 'condominios' && (
-        <div className="animate-in fade-in slide-in-from-bottom-2">
-          <div className="flex justify-end mb-6">
-            <button onClick={() => handleOpenCondoModal()} className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-lg font-bold flex items-center gap-2 transition-colors shadow-sm">
-              <Plus size={18} /> Novo Condomínio
-            </button>
-          </div>
-
-          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 font-bold uppercase text-xs tracking-wider">
-                <tr>
-                  <th className="p-4">Nome do Condomínio / CNPJ</th>
-                  <th className="p-4">Endereço</th>
-                  <th className="p-4">Administração / Síndico</th>
-                  <th className="p-4 text-center">Status</th>
-                  <th className="p-4 text-right">Ação</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {condominiums.length === 0 ? (
-                  <tr><td colSpan={5} className="p-8 text-center text-slate-400">Nenhum condomínio cadastrado.</td></tr>
-                ) : (
-                  condominiums.map(c => (
-                    <tr key={c.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="p-4">
-                        <p className="font-bold text-slate-800">{c.name}</p>
-                        {c.cnpj && <p className="text-xs text-slate-500 mt-1">{maskCnpj(c.cnpj)}</p>}
-                      </td>
-                      <td className="p-4">
-                        <p className="text-slate-700">{c.neighborhood}, {c.city}</p>
-                        <p className="text-xs text-slate-500 mt-1">{c.type}</p>
-                      </td>
-                      <td className="p-4">
-                        <p className="font-medium text-slate-700">{c.adminName || 'Admin Não Informada'}</p>
-                        <p className="text-xs text-slate-500 mt-1">Síndico: {c.managerName || 'Não Informado'}</p>
-                      </td>
-                      <td className="p-4 text-center">
-                        <span className={`inline-flex items-center px-2 py-1 rounded text-[10px] font-bold uppercase border ${c.isActive ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>
-                          {c.isActive ? 'Ativo' : 'Inativo'}
-                        </span>
-                      </td>
-                      <td className="p-4 text-right">
-                        <button onClick={() => handleOpenCondoModal(c)} className="text-indigo-600 hover:text-indigo-800 font-bold bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 ml-auto text-xs">
-                          <Edit size={14} /> Editar
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+              );
+            })}
+            {properties.length === 0 && (
+              <tr><td colSpan={5} className="py-12 text-center text-slate-500 text-lg">Nenhum imóvel cadastrado.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
 
       {/* ========================================================= */}
       {/* MODAL: ESTÚDIO DE MARKETING (GERADOR DE POSTS INSTAGRAM)  */}
@@ -757,7 +606,7 @@ export default function ImoveisPage() {
       {studioProperty && (
         <div className="fixed inset-0 bg-slate-900/75 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-6xl overflow-hidden flex flex-col max-h-[92vh] animate-in zoom-in-95 duration-200">
-            
+             
             {/* Header do Estúdio */}
             <div className="px-6 py-4 bg-slate-900 text-white flex justify-between items-center shrink-0">
               <div className="flex items-center gap-3">
@@ -774,7 +623,7 @@ export default function ImoveisPage() {
 
             {/* Corpo do Estúdio */}
             <div className="p-6 overflow-y-auto flex-1 grid grid-cols-1 lg:grid-cols-12 gap-8 bg-slate-50">
-              
+               
               {/* COLUNA ESQUERDA: PREVIEW DO CANVAS AO VIVO */}
               <div className="lg:col-span-6 flex flex-col items-center justify-center bg-slate-900/95 rounded-2xl p-6 border border-slate-800">
                 <div className="flex items-center justify-between w-full mb-4 text-xs text-slate-400">
@@ -815,8 +664,7 @@ export default function ImoveisPage() {
 
               {/* COLUNA DIREITA: CONTROLES DE PERSONALIZAÇÃO */}
               <div className="lg:col-span-6 space-y-5">
-                
-                {/* 1. Formato e Estilo */}
+                 
                 <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
                   <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">1. Formato & Estilo Visual</h3>
                   <div className="grid grid-cols-2 gap-3">
@@ -849,7 +697,6 @@ export default function ImoveisPage() {
                   </div>
                 </div>
 
-                {/* 2. Escolha da Foto */}
                 <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
                   <div className="flex justify-between items-center">
                     <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">2. Foto de Fundo</h3>
@@ -873,27 +720,26 @@ export default function ImoveisPage() {
                       ))}
                     </div>
                   ) : (
-                    <p className="text-xs text-slate-400 italic flex items-center gap-1.5"><ImageIcon size={14}/> Nenhuma foto cadastrada no imóvel. Suba uma foto no botão acima.</p>
+                    <p className="text-xs text-slate-400 italic flex items-center gap-1.5"><ImageIcon size={14}/> Nenhuma foto cadastrada no imóvel.</p>
                   )}
                 </div>
 
-                {/* 3. Textos da Arte */}
                 <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
                   <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">3. Textos & Chamadas da Arte</h3>
-                  
+                   
                   <div className="grid grid-cols-3 gap-3">
                     <div className="col-span-2">
-                      <label className="block text-xs font-bold text-slate-600 mb-1">Selo do Topo (Ex: VENDE-SE)</label>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Selo do Topo</label>
                       <input type="text" value={studioConfig.badgeText} onChange={e => setStudioConfig({...studioConfig, badgeText: e.target.value})} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-bold" />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-slate-600 mb-1">Cor do Selo</label>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Cor</label>
                       <input type="color" value={studioConfig.accentColor} onChange={e => setStudioConfig({...studioConfig, accentColor: e.target.value})} className="w-full h-9 rounded-lg cursor-pointer border border-slate-300" />
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-600 mb-1">Título Principal na Arte</label>
+                    <label className="block text-xs font-bold text-slate-600 mb-1">Título Principal</label>
                     <input type="text" value={studioConfig.headline} onChange={e => setStudioConfig({...studioConfig, headline: e.target.value})} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs" />
                   </div>
 
@@ -903,20 +749,15 @@ export default function ImoveisPage() {
                       <input type="text" value={studioConfig.locationText} onChange={e => setStudioConfig({...studioConfig, locationText: e.target.value})} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs" />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-slate-600 mb-1">Preço Exibido</label>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Preço</label>
                       <input type="text" value={studioConfig.priceText} onChange={e => setStudioConfig({...studioConfig, priceText: e.target.value})} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-bold" />
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-600 mb-1">Assinatura de Rodapé (Imobiliária / WhatsApp)</label>
+                    <label className="block text-xs font-bold text-slate-600 mb-1">Rodapé</label>
                     <input type="text" value={studioConfig.footerText} onChange={e => setStudioConfig({...studioConfig, footerText: e.target.value})} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs" />
                   </div>
-
-                  <label className="flex items-center gap-2 pt-1 cursor-pointer">
-                    <input type="checkbox" checked={studioConfig.showSpecs} onChange={e => setStudioConfig({...studioConfig, showSpecs: e.target.checked})} className="w-4 h-4 rounded text-pink-600" />
-                    <span className="text-xs font-bold text-slate-700">Exibir barra de ícones (Área m², Quartos, Banheiros e Vagas)</span>
-                  </label>
                 </div>
 
               </div>
@@ -927,12 +768,12 @@ export default function ImoveisPage() {
       )}
 
       {/* ========================================================= */}
-      {/* MODAL: CADASTRO E EDIÇÃO DO IMÓVEL (COM O CAMPO CODE)      */}
+      {/* MODAL: CADASTRO E EDIÇÃO DO IMÓVEL (COM CONDOMÍNIO)       */}
       {/* ========================================================= */}
       {isPropertyModalOpen && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-5xl my-8 overflow-hidden flex flex-col max-h-[90vh]">
-            
+             
             <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
               <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
                 {editingId ? <Edit className="text-blue-600" size={20}/> : <Plus className="text-blue-600" size={20}/>}
@@ -940,11 +781,10 @@ export default function ImoveisPage() {
               </h2>
               <button onClick={() => setIsPropertyModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X size={24}/></button>
             </div>
-            
+             
             <div className="p-6 overflow-y-auto flex-1">
               <form id="property-form" onSubmit={handleSaveProperty} className="space-y-8">
-                
-                {/* 1. Básico + Código do Imóvel */}
+                 
                 <div>
                   <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">1. Informações Básicas</h3>
                   <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
@@ -975,27 +815,25 @@ export default function ImoveisPage() {
                   </div>
                 </div>
 
-                {/* 2. Valores e Condições de Negociação */}
                 <div>
                   <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">2. Valores, Áreas & Condições</h3>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div>
-                      <label className="block text-xs font-bold text-slate-600 mb-1 flex items-center gap-1"><DollarSign size={14}/> Valor (R$)</label>
-                      <input required type="number" value={form.price} onChange={e => setForm({...form, price: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm" placeholder="2500" />
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Valor (R$)</label>
+                      <input required type="number" value={form.price} onChange={e => setForm({...form, price: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm" />
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-slate-600 mb-1">Condomínio (R$)</label>
-                      <input type="number" value={form.condoFee} onChange={e => setForm({...form, condoFee: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm" placeholder="0" />
+                      <input type="number" value={form.condoFee} onChange={e => setForm({...form, condoFee: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm" />
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-slate-600 mb-1">IPTU (R$)</label>
-                      <input type="number" value={form.iptu} onChange={e => setForm({...form, iptu: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm" placeholder="0" />
+                      <input type="number" value={form.iptu} onChange={e => setForm({...form, iptu: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm" />
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-slate-600 mb-1">Área (m²)</label>
-                      <input required type="number" value={form.area} onChange={e => setForm({...form, area: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm" placeholder="Ex: 80" />
+                      <input required type="number" value={form.area} onChange={e => setForm({...form, area: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm" />
                     </div>
-                    
                     <div>
                       <label className="block text-xs font-bold text-slate-600 mb-1">Quartos</label>
                       <input type="number" value={form.bedrooms} onChange={e => setForm({...form, bedrooms: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm" />
@@ -1008,44 +846,25 @@ export default function ImoveisPage() {
                       <label className="block text-xs font-bold text-slate-600 mb-1">Vagas</label>
                       <input type="number" value={form.garage} onChange={e => setForm({...form, garage: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm" />
                     </div>
-
-                    <div className="md:col-span-4 flex gap-6 mt-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input type="checkbox" checked={form.acceptsFinancing} onChange={(e) => setForm({...form, acceptsFinancing: e.target.checked})} className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500" />
-                        <span className="text-sm font-bold text-slate-700">Aceita Financiamento</span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input type="checkbox" checked={form.acceptsExchange} onChange={(e) => setForm({...form, acceptsExchange: e.target.checked})} className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500" />
-                        <span className="text-sm font-bold text-slate-700">Aceita Permuta</span>
-                      </label>
-                    </div>
-
-                    {form.acceptsExchange && (
-                      <div className="md:col-span-4 animate-in fade-in">
-                        <label className="block text-xs font-bold text-slate-600 mb-1">Detalhes da Permuta (O que aceita em troca?)</label>
-                        <input type="text" value={form.exchangeDetails} onChange={e => setForm({...form, exchangeDetails: e.target.value})} className="w-full px-4 py-2 border border-blue-200 rounded-lg outline-none focus:border-blue-500 text-sm bg-blue-50/50" placeholder="Ex: Aceita carro automático até R$ 50 mil..." />
-                      </div>
-                    )}
-
                   </div>
                 </div>
 
-                {/* 3. Localização & Condomínio */}
                 <div>
                   <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">3. Localização & Condomínio</h3>
                   
+                  {/* SELEÇÃO DO CONDOMÍNIO CADASTRADO */}
                   <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100 mb-4">
-                    <label className="block text-xs font-bold text-indigo-800 mb-1 flex items-center gap-1"><Building2 size={14}/> Vincular a um Condomínio Cadastrado (Opcional)</label>
-                    <select value={form.condominiumId} onChange={e => setForm({...form, condominiumId: e.target.value})} className="w-full md:w-1/2 px-4 py-2 border border-indigo-200 rounded-lg outline-none focus:border-indigo-500 bg-white text-sm">
+                    <label className="block text-xs font-bold text-indigo-800 mb-1 flex items-center gap-1"><Building2 size={14}/> Vincular a um Condomínio Cadastrado</label>
+                    <select value={form.condominiumId} onChange={e => setForm({...form, condominiumId: e.target.value})} className="w-full md:w-1/2 px-4 py-2 border border-indigo-200 rounded-lg outline-none focus:border-indigo-500 bg-white text-sm font-medium">
                       <option value="">Não pertence a um condomínio / Não vincular</option>
-                      {condominiums.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      {condominiums.map(c => <option key={c.id} value={c.id}>{c.name} ({c.city})</option>)}
                     </select>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div className="md:col-span-1">
+                    <div>
                       <label className="flex items-center gap-2 text-xs font-bold text-slate-600 mb-1">CEP {isFetchingCep && <Loader2 size={12} className="animate-spin text-blue-500" />}</label>
-                      <input required type="text" value={form.cep} onChange={(e) => handleCepChange(e, false)} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm" placeholder="00000-000" />
+                      <input required type="text" value={form.cep} onChange={handleCepChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm" placeholder="00000-000" />
                     </div>
                     <div className="md:col-span-3">
                       <label className="block text-xs font-bold text-slate-600 mb-1">Endereço Completo</label>
@@ -1055,18 +874,17 @@ export default function ImoveisPage() {
                       <label className="block text-xs font-bold text-slate-600 mb-1">Bairro</label>
                       <input required type="text" value={form.neighborhood} onChange={e => setForm({...form, neighborhood: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm" />
                     </div>
-                    <div className="md:col-span-1">
+                    <div>
                       <label className="block text-xs font-bold text-slate-600 mb-1">Cidade</label>
                       <input required type="text" value={form.city} onChange={e => setForm({...form, city: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm" />
                     </div>
-                    <div className="md:col-span-1">
+                    <div>
                       <label className="block text-xs font-bold text-slate-600 mb-1">Estado (UF)</label>
                       <input required type="text" maxLength={2} value={form.state} onChange={e => setForm({...form, state: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm uppercase" />
                     </div>
                   </div>
                 </div>
 
-                {/* 4. Características */}
                 <div>
                   <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">4. Características & Comodidades</h3>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -1079,240 +897,49 @@ export default function ImoveisPage() {
                   </div>
                 </div>
 
-                {/* 5. GESTÃO E PORTAIS */}
                 <div className="bg-blue-50 p-6 rounded-xl border border-blue-200">
                   <h3 className="text-sm font-bold text-blue-800 uppercase tracking-wider mb-4 border-b border-blue-200 pb-2 flex items-center gap-2">
-                    <UserCheck size={18}/> 5. Equipe, Captação, Gestão & Portais
+                    <UserCheck size={18}/> 5. Equipe, Captação & Portais
                   </h3>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                    
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-bold text-slate-700 mb-1">Proprietário (Dono)</label>
-                      <select value={form.ownerId} onChange={e => setForm({...form, ownerId: e.target.value})} className="w-full px-4 py-2.5 border border-blue-200 rounded-lg outline-none focus:border-blue-500 bg-white text-sm">
+                      <select value={form.ownerId} onChange={e => setForm({...form, ownerId: e.target.value})} className="w-full px-4 py-2 border border-blue-200 rounded-lg outline-none bg-white text-sm">
                         <option value="">Selecione o proprietário...</option>
-                        {owners.map(o => <option key={o.id} value={o.id}>{o.name} ({o.cpfOrCnpj})</option>)}
+                        {owners.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">Inscrição Imobiliária (IPTU)</label>
-                      <input type="text" value={form.iptuRegistration} onChange={e => setForm({...form, iptuRegistration: e.target.value})} className="w-full px-4 py-2.5 border border-blue-200 rounded-lg outline-none focus:border-blue-500 text-sm bg-white" placeholder="Nº de Contribuinte / Registro..." />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">Corretor (Venda/Locação)</label>
-                      <select value={form.brokerId} onChange={e => setForm({...form, brokerId: e.target.value})} className="w-full px-4 py-2.5 border border-blue-200 rounded-lg outline-none focus:border-blue-500 bg-white text-sm">
-                        <option value="">Nenhum (Livre)</option>
-                        {brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">Captador (Angariador)</label>
-                      <select value={form.captatorId} onChange={e => setForm({...form, captatorId: e.target.value})} className="w-full px-4 py-2.5 border border-blue-200 rounded-lg outline-none focus:border-blue-500 bg-white text-sm">
+                      <label className="block text-xs font-bold text-slate-700 mb-1">Corretor Responsável</label>
+                      <select value={form.brokerId} onChange={e => setForm({...form, brokerId: e.target.value})} className="w-full px-4 py-2 border border-blue-200 rounded-lg outline-none bg-white text-sm">
                         <option value="">Nenhum</option>
                         {brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                       </select>
                     </div>
-
-                    <div className="md:col-span-2 flex flex-col sm:flex-row gap-4 items-start sm:items-center">
-                      <label className="flex items-center gap-2 cursor-pointer mt-2 sm:mt-6">
-                        <input type="checkbox" checked={form.exclusive} onChange={(e) => setForm({...form, exclusive: e.target.checked})} className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500" />
-                        <span className="text-sm font-bold text-slate-700">Contrato de Exclusividade</span>
-                      </label>
-
-                      {form.exclusive && (
-                        <div className="w-full sm:w-auto animate-in fade-in">
-                          <label className="block text-xs font-bold text-slate-700 mb-1">Vencimento da Exclusividade</label>
-                          <input type="date" value={form.exclusiveUntil} onChange={e => setForm({...form, exclusiveUntil: e.target.value})} className="w-full px-4 py-2 border border-blue-200 rounded-lg outline-none focus:border-blue-500 text-sm bg-white" />
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="md:col-span-3 grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2 pt-4 border-t border-blue-200/50">
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1"><FileSignature size={14}/> Proposta de Aluguel (Link PDF)</label>
-                        <input type="url" value={form.rentProposalUrl} onChange={e => setForm({...form, rentProposalUrl: e.target.value})} className="w-full px-4 py-2 border border-blue-200 rounded-lg outline-none focus:border-blue-500 text-sm bg-white" placeholder="Link do Google Drive..." />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1"><FileSignature size={14}/> Proposta de Venda (Link PDF)</label>
-                        <input type="url" value={form.saleProposalUrl} onChange={e => setForm({...form, saleProposalUrl: e.target.value})} className="w-full px-4 py-2 border border-blue-200 rounded-lg outline-none focus:border-blue-500 text-sm bg-white" placeholder="Link do Google Drive..." />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1"><Key size={14}/> Termo de Chaves (Link PDF)</label>
-                        <input type="url" value={form.keyTermUrl} onChange={e => setForm({...form, keyTermUrl: e.target.value})} className="w-full px-4 py-2 border border-blue-200 rounded-lg outline-none focus:border-blue-500 text-sm bg-white" placeholder="Link do Google Drive..." />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1"><Camera size={14}/> Laudo da Vistoria Inicial (Link PDF)</label>
-                        <input type="url" value={form.inspectionUrl} onChange={e => setForm({...form, inspectionUrl: e.target.value})} className="w-full px-4 py-2 border border-blue-200 rounded-lg outline-none focus:border-blue-500 text-sm bg-white" placeholder="Link do Google Drive..." />
-                      </div>
-                    </div>
-
-                    <div className="md:col-span-3 mt-4 pt-4 border-t border-blue-200/50">
-                      <label className="flex items-center gap-3 cursor-pointer bg-orange-50 border border-orange-200 px-4 py-3 rounded-xl transition-colors hover:bg-orange-100">
-                        <input type="checkbox" checked={form.exportToPortals} onChange={(e) => setForm({...form, exportToPortals: e.target.checked})} className="w-5 h-5 text-orange-600 rounded border-orange-300 focus:ring-orange-500" />
-                        <Rss size={24} className="text-orange-600"/>
-                        <div className="flex flex-col">
-                          <span className="text-sm font-bold text-orange-800">Exportar para Portais (Zap/VivaReal)</span>
-                          <span className="text-xs text-orange-600">Inclui este imóvel no feed XML da loja.</span>
-                        </div>
-                      </label>
-                    </div>
-
                   </div>
                 </div>
 
-                {/* 6. Apresentação */}
                 <div>
-                  <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">6. Apresentação na Vitrine (Multimídia)</h3>
-                  <div className="space-y-4">
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
-                      <div>
-                        <label className="block text-xs font-bold text-slate-600 mb-1 flex items-center gap-1"><Play size={14}/> Vídeo do Imóvel (YouTube/Vimeo)</label>
-                        <input type="url" value={form.videoUrl} onChange={e => setForm({...form, videoUrl: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm bg-white" placeholder="https://youtube.com/watch?v=..." />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-slate-600 mb-1 flex items-center gap-1"><Compass size={14}/> Tour Virtual 360º</label>
-                        <input type="url" value={form.tour360Url} onChange={e => setForm({...form, tour360Url: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm bg-white" placeholder="Link do Matterport ou similar..." />
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="flex justify-between items-end mb-2">
-                        <label className="block text-xs font-bold text-slate-600">Descrição Comercial</label>
-                        <button type="button" onClick={handleGenerateAiDescription} disabled={isGeneratingAi} className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2 rounded-lg flex items-center gap-2 transition-colors disabled:opacity-50">
-                          {isGeneratingAi ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />} Gerar Texto com IA
-                        </button>
-                      </div>
-                      <textarea rows={6} value={form.description} onChange={e => setForm({...form, description: e.target.value})} className="w-full px-4 py-3 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm resize-y leading-relaxed bg-slate-50 focus:bg-white transition-colors" placeholder="Escreva à mão ou clique no botão acima para a Inteligência Artificial criar uma descrição persuasiva..." />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-600 mb-1">Links das Imagens (Separados por vírgula)</label>
-                      <textarea rows={2} value={form.imageUrls} onChange={e => setForm({...form, imageUrls: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500 text-sm resize-none" placeholder="https://linkdafoto1.com, https://linkdafoto2.com" />
-                    </div>
+                  <div className="flex justify-between items-end mb-2">
+                    <label className="block text-xs font-bold text-slate-600">Descrição Comercial</label>
+                    <button type="button" onClick={handleGenerateAiDescription} disabled={isGeneratingAi} className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2 rounded-lg flex items-center gap-2 transition-colors">
+                      {isGeneratingAi ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />} Gerar com IA
+                    </button>
                   </div>
+                  <textarea rows={5} value={form.description} onChange={e => setForm({...form, description: e.target.value})} className="w-full px-4 py-3 border border-slate-300 rounded-lg outline-none text-sm bg-slate-50" placeholder="Escreva ou gere com IA..." />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 mb-1">Links das Imagens (Separados por vírgula)</label>
+                  <textarea rows={2} value={form.imageUrls} onChange={e => setForm({...form, imageUrls: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none text-sm" placeholder="https://..." />
                 </div>
               </form>
             </div>
 
             <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 shrink-0">
-              <button type="button" onClick={() => setIsPropertyModalOpen(false)} className="px-5 py-2.5 text-slate-600 font-bold hover:bg-slate-200 rounded-lg transition-colors text-sm">
-                Cancelar
-              </button>
-              <button form="property-form" type="submit" disabled={isSaving} className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg flex items-center gap-2 transition-colors shadow-sm text-sm">
-                {isSaving ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />} 
-                {editingId ? 'Salvar Alterações do Imóvel' : 'Cadastrar Imóvel'}
-              </button>
-            </div>
-
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================= */}
-      {/* MODAL: CADASTRO E EDIÇÃO DO CONDOMÍNIO                    */}
-      {/* ========================================================= */}
-      {isCondoModalOpen && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl my-8 overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="bg-indigo-50 px-6 py-4 flex justify-between items-center border-b border-indigo-100 shrink-0">
-              <h3 className="font-bold text-indigo-900 flex items-center gap-2 text-lg"><Building2 size={24}/> {editingCondoId ? 'Editar Condomínio' : 'Cadastrar Condomínio'}</h3>
-              <button onClick={() => setIsCondoModalOpen(false)} className="text-indigo-400 hover:text-indigo-700 bg-white p-1 rounded-md"><X size={20}/></button>
-            </div>
-            
-            <div className="p-6 overflow-y-auto flex-1">
-              <form id="condo-form" onSubmit={handleSaveCondominium} className="space-y-8">
-                <div>
-                  <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">1. Dados do Condomínio (PJ & Local)</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div className="md:col-span-1">
-                      <label className="block text-xs font-bold text-slate-600 mb-1">CNPJ</label>
-                      <input type="text" value={condoForm.cnpj} onChange={e => setCondoForm({...condoForm, cnpj: maskCnpj(e.target.value)})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-indigo-500 text-sm" placeholder="00.000.000/0000-00"/>
-                    </div>
-                    <div className="md:col-span-3">
-                      <label className="block text-xs font-bold text-slate-600 mb-1">Razão Social / Nome do Condomínio</label>
-                      <input required type="text" value={condoForm.name} onChange={e => setCondoForm({...condoForm, name: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-indigo-500 text-sm" placeholder="Ex: Condomínio Edifício Vale das Cores"/>
-                    </div>
-                    
-                    <div className="md:col-span-1">
-                      <label className="flex items-center gap-2 text-xs font-bold text-slate-600 mb-1">CEP {isFetchingCep && <Loader2 size={12} className="animate-spin text-indigo-500" />}</label>
-                      <input type="text" value={condoForm.cep} onChange={(e) => handleCepChange(e, true)} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-indigo-500 text-sm" placeholder="00000-000" />
-                    </div>
-                    <div className="md:col-span-3">
-                      <label className="block text-xs font-bold text-slate-600 mb-1">Endereço Completo (Rua, Número, Complemento)</label>
-                      <input type="text" value={condoForm.address} onChange={e => setCondoForm({...condoForm, address: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-indigo-500 text-sm" />
-                    </div>
-                    <div className="md:col-span-2">
-                      <label className="block text-xs font-bold text-slate-600 mb-1">Bairro</label>
-                      <input type="text" value={condoForm.neighborhood} onChange={e => setCondoForm({...condoForm, neighborhood: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-indigo-500 text-sm" />
-                    </div>
-                    <div className="md:col-span-1">
-                      <label className="block text-xs font-bold text-slate-600 mb-1">Cidade</label>
-                      <input type="text" value={condoForm.city} onChange={e => setCondoForm({...condoForm, city: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-indigo-500 text-sm" />
-                    </div>
-                    <div className="md:col-span-1">
-                      <label className="block text-xs font-bold text-slate-600 mb-1">Estado (UF)</label>
-                      <input type="text" maxLength={2} value={condoForm.state} onChange={e => setCondoForm({...condoForm, state: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-indigo-500 text-sm uppercase" />
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">2. Administração & Estrutura</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div className="md:col-span-2">
-                      <label className="block text-xs font-bold text-slate-600 mb-1">Nome da Administradora</label>
-                      <input type="text" value={condoForm.adminName} onChange={e => setCondoForm({...condoForm, adminName: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-indigo-500 text-sm" placeholder="Ex: Lello Condomínios"/>
-                    </div>
-                    <div className="md:col-span-2">
-                      <label className="block text-xs font-bold text-slate-600 mb-1">Síndico Atual</label>
-                      <input type="text" value={condoForm.managerName} onChange={e => setCondoForm({...condoForm, managerName: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-indigo-500 text-sm" />
-                    </div>
-                    <div className="md:col-span-2">
-                      <label className="block text-xs font-bold text-slate-600 mb-1">E-mail da Administração</label>
-                      <input type="email" value={condoForm.email} onChange={e => setCondoForm({...condoForm, email: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-indigo-500 text-sm" />
-                    </div>
-                    <div className="md:col-span-2">
-                      <label className="block text-xs font-bold text-slate-600 mb-1">Telefone de Contato</label>
-                      <input type="text" value={condoForm.phone} onChange={e => setCondoForm({...condoForm, phone: maskPhone(e.target.value)})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-indigo-500 text-sm" />
-                    </div>
-                    
-                    <div className="md:col-span-1">
-                      <label className="block text-xs font-bold text-slate-600 mb-1">Disposição</label>
-                      <select value={condoForm.type} onChange={e => setCondoForm({...condoForm, type: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-indigo-500 bg-white text-sm">
-                        <option value="Vertical">Vertical (Prédios)</option>
-                        <option value="Horizontal">Horizontal (Casas)</option>
-                      </select>
-                    </div>
-                    <div className="md:col-span-2">
-                      <label className="block text-xs font-bold text-slate-600 mb-1">Torre, Bloco ou Quadra (Opcional)</label>
-                      <input type="text" value={condoForm.towerOrBlock} onChange={e => setCondoForm({...condoForm, towerOrBlock: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-indigo-500 text-sm" />
-                    </div>
-                    <div className="md:col-span-1">
-                      <label className="block text-xs font-bold text-slate-600 mb-1">Área Privativa (m²)</label>
-                      <input type="number" step="0.01" value={condoForm.privateArea} onChange={e => setCondoForm({...condoForm, privateArea: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:border-indigo-500 text-sm" placeholder="Fração Ideal" />
-                    </div>
-                    
-                    <div className="md:col-span-4 flex gap-8 mt-2 p-3 bg-slate-50 rounded-lg border border-slate-200">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input type="checkbox" checked={condoForm.hasGarage} onChange={e => setCondoForm({...condoForm, hasGarage: e.target.checked})} className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500" />
-                        <span className="text-sm font-bold text-slate-700">Possui Vagas de Garagem</span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input type="checkbox" checked={condoForm.hasCoveredGarage} onChange={e => setCondoForm({...condoForm, hasCoveredGarage: e.target.checked})} className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500" />
-                        <span className="text-sm font-bold text-slate-700">Vagas Cobertas</span>
-                      </label>
-                    </div>
-                  </div>
-                </div>
-              </form>
-            </div>
-
-            <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 shrink-0">
-              <button type="button" onClick={() => setIsCondoModalOpen(false)} className="px-4 py-2 text-slate-600 font-bold hover:bg-slate-100 rounded-lg text-sm transition-colors">Cancelar</button>
-              <button form="condo-form" type="submit" disabled={isSavingCondo} className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg flex items-center gap-2 transition-colors shadow-sm text-sm disabled:opacity-70">
-                {isSavingCondo ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />} 
-                {editingCondoId ? 'Salvar Alterações' : 'Cadastrar Condomínio'}
+              <button type="button" onClick={() => setIsPropertyModalOpen(false)} className="px-5 py-2.5 text-slate-600 font-bold hover:bg-slate-200 rounded-lg text-sm">Cancelar</button>
+              <button form="property-form" type="submit" disabled={isSaving} className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg flex items-center gap-2 shadow-sm text-sm">
+                {isSaving ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />} {editingId ? 'Salvar Alterações' : 'Cadastrar Imóvel'}
               </button>
             </div>
 

@@ -5,34 +5,41 @@ import { api } from '../../../../lib/api';
 import { 
   Users, Plus, Search, Edit, Power, Loader2, UserCircle, Phone, Mail, 
   Briefcase, Percent, FileSpreadsheet, Filter, Download,
-  DollarSign, X, Shield, Shuffle, Building2, CheckCircle2, Settings
+  DollarSign, X, Shield, Shuffle, Building2, CheckCircle2, Settings, FileText, Send
 } from 'lucide-react';
 import { maskCpf, maskPhone } from '@/src/utils/mask';
 
 const initialForm = {
-  name: '', cpf: '', creci: '', phone: '', email: '', password: '', 
+  name: '', cpf: '', cnpj: '', creci: '', phone: '', email: '', password: '', 
   role: 'Corretor',
   saleCommission: '6', 
   rentCommission: '100',
   captureCommission: '10',
   managerCommission: '5',
-  inRoulette: true
+  inRoulette: true,
+  taxRuleId: ''
 };
 
 export default function CorretoresPage() {
   const [activeTab, setActiveTab] = useState<'lista' | 'relatorios'>('lista');
   const [brokers, setBrokers] = useState<any[]>([]);
+  const [taxRules, setTaxRules] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  
+   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState<any>(initialForm);
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  // ===============================================
-  // ESTADOS DO RATEIO (SPLIT) E RELATÓRIO
-  // ===============================================
+  // Estados do Modal de Emissão de Nota de Repasse
+  const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
+  const [invoiceBroker, setInvoiceBroker] = useState<any>(null);
+  const [invoiceAmount, setInvoiceAmount] = useState('');
+  const [invoiceRuleId, setInvoiceRuleId] = useState('');
+  const [isEmittingInvoice, setIsEmittingInvoice] = useState(false);
+
+  // Estados do Rateio (Split) e Relatório
   const [splitSettings, setSplitSettings] = useState({
     agencySplitPercent: 50,
     sellerSplitPercent: 35,
@@ -47,6 +54,7 @@ export default function CorretoresPage() {
 
   useEffect(() => {
     fetchBrokers();
+    fetchTaxRules();
     fetchSplitSettings();
   }, []);
 
@@ -59,6 +67,15 @@ export default function CorretoresPage() {
       console.error('Erro ao listar corretores:', error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchTaxRules = async () => {
+    try {
+      const res = await api.get('/tax-rules');
+      setTaxRules(res.data || []);
+    } catch (error) {
+      console.error('Erro ao carregar regras fiscais:', error);
     }
   };
 
@@ -106,8 +123,10 @@ export default function CorretoresPage() {
       setFormData({
         ...broker,
         password: '',
-        cpf: maskCpf(broker.cpf),
-        phone: maskPhone(broker.phone),
+        cpf: maskCpf(broker.cpf || ''),
+        phone: maskPhone(broker.phone || ''),
+        cnpj: broker.cnpj || '',
+        taxRuleId: broker.taxRuleId || '',
         role: broker.role || 'Corretor',
         saleCommission: broker.saleCommission ?? '6',
         rentCommission: broker.rentCommission ?? '100',
@@ -128,6 +147,7 @@ export default function CorretoresPage() {
     try {
       const payload = { ...formData };
       payload.cpf = payload.cpf.replace(/\D/g, '');
+      if (payload.cnpj) payload.cnpj = payload.cnpj.replace(/\D/g, '');
       payload.phone = payload.phone.replace(/\D/g, '');
 
       if (!editingId && !payload.password) {
@@ -141,7 +161,7 @@ export default function CorretoresPage() {
       } else {
         await api.post('/brokers', payload);
       }
-      
+       
       setIsModalOpen(false);
       fetchBrokers();
     } catch (error: any) {
@@ -170,14 +190,40 @@ export default function CorretoresPage() {
     }
   };
 
-  // ===============================================
-  // FUNÇÕES DO RELATÓRIO DE RATEIO (SPLIT)
-  // ===============================================
+  // Emitir Nota Fiscal de Repasse
+  const handleOpenInvoiceModal = (broker: any) => {
+    setInvoiceBroker(broker);
+    setInvoiceAmount('');
+    setInvoiceRuleId(broker.taxRuleId || (taxRules[0]?.id ?? ''));
+    setIsInvoiceModalOpen(true);
+  };
+
+  const handleEmitBrokerInvoice = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!invoiceBroker || !invoiceAmount) return;
+
+    setIsEmittingInvoice(true);
+    try {
+      const res = await api.post('/broker-invoices/emit', {
+        brokerId: invoiceBroker.id,
+        taxRuleId: invoiceRuleId || undefined,
+        amount: Number(invoiceAmount)
+      });
+      alert(res.data?.message || 'Nota Fiscal de repasse processada com sucesso!');
+      setIsInvoiceModalOpen(false);
+      setInvoiceBroker(null);
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Erro ao emitir nota de repasse.');
+    } finally {
+      setIsEmittingInvoice(false);
+    }
+  };
+
   const generateReport = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     setIsGeneratingReport(true);
     try {
-      const queryParams = new URLSearchParams(reportFilter).toString();
+      const queryParams = new URLSearchParams(reportFilter as any).toString();
       const response = await api.get(`/brokers/reports/commissions?${queryParams}`);
       setReportData(response.data);
     } catch (error) {
@@ -189,14 +235,14 @@ export default function CorretoresPage() {
 
   const exportToCSV = () => {
     if (reportData.length === 0) return;
-    
+     
     const headers = [
       'Data', 'Tipo', 'Imovel', 'Cliente', 'Valor Operacao (R$)', 
       '% Honorarios', 'Comissao Bruta (R$)', 'Imobiliaria (R$)', 
       'Vendedor', 'Valor Vendedor (R$)', 'Captador', 'Valor Captador (R$)', 
       'Gerente', 'Valor Gerente (R$)'
     ];
-    
+     
     const rows = reportData.map(r => [
       new Date(r.date).toLocaleDateString('pt-BR'),
       r.type,
@@ -233,7 +279,7 @@ export default function CorretoresPage() {
 
   const filteredBrokers = brokers.filter(b => 
     b.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    b.cpf.includes(searchTerm.replace(/\D/g, ''))
+    (b.cpf && b.cpf.includes(searchTerm.replace(/\D/g, '')))
   );
 
   const getRoleBadge = (role: string) => {
@@ -256,7 +302,7 @@ export default function CorretoresPage() {
 
   return (
     <div className="p-8 max-w-[1600px] mx-auto font-sans animate-in fade-in duration-300">
-      
+       
       {/* HEADER */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mb-8">
         <div>
@@ -264,7 +310,7 @@ export default function CorretoresPage() {
             <Users className="text-blue-600 bg-blue-50 p-1.5 rounded-lg" size={36} />
             Gestão de Equipe, Hierarquia & Rateio (Split)
           </h1>
-          <p className="text-slate-500 mt-2 text-sm">Configure cargos (Gerente, Captador, Corretor), fila da Roleta de Leads e o Rateio Automático de Comissões.</p>
+          <p className="text-slate-500 mt-2 text-sm">Configure cargos, vínculos fiscais, fila da Roleta de Leads e o Rateio Automático de Comissões.</p>
         </div>
       </div>
 
@@ -314,7 +360,7 @@ export default function CorretoresPage() {
                   <th className="p-4">Base de Honorários</th>
                   <th className="p-4 text-center">Fila da Roleta</th>
                   <th className="p-4 text-center">Status</th>
-                  <th className="p-4 text-right">Ações</th>
+                  <th className="p-4 text-right">Ações Fiscais & Gestão</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-sm">
@@ -335,12 +381,12 @@ export default function CorretoresPage() {
                               <p className="font-bold text-slate-800">{broker.name}</p>
                               {getRoleBadge(broker.role)}
                             </div>
-                            <p className="text-xs text-slate-500 mt-0.5">CRECI: {broker.creci}</p>
+                            <p className="text-xs text-slate-500 mt-0.5">CRECI: {broker.creci} {broker.cnpj ? `| CNPJ: ${broker.cnpj}` : ''}</p>
                           </div>
                         </div>
                       </td>
                       <td className="p-4">
-                        <p className="text-sm text-slate-700 flex items-center gap-2"><Phone size={14} className="text-slate-400"/> {maskPhone(broker.phone)}</p>
+                        <p className="text-sm text-slate-700 flex items-center gap-2"><Phone size={14} className="text-slate-400"/> {maskPhone(broker.phone || '')}</p>
                         <p className="text-xs text-slate-500 flex items-center gap-2 mt-1"><Mail size={14} className="text-slate-400"/> {broker.email}</p>
                       </td>
                       <td className="p-4">
@@ -353,7 +399,6 @@ export default function CorretoresPage() {
                         <button 
                           onClick={() => handleToggleRoulette(broker.id)}
                           className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border transition-all ${broker.inRoulette !== false ? 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100' : 'bg-slate-100 text-slate-400 border-slate-200 hover:bg-slate-200'}`}
-                          title="Clique para ativar ou pausar este corretor na distribuição automática de Leads"
                         >
                           <Shuffle size={12}/>
                           {broker.inRoulette !== false ? 'Na Roleta' : 'Pausado'}
@@ -366,8 +411,11 @@ export default function CorretoresPage() {
                         </span>
                       </td>
                       <td className="p-4 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <button onClick={() => handleOpenModal(broker)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Editar"><Edit size={16} /></button>
+                        <div className="flex items-center justify-end gap-2">
+                          <button onClick={() => handleOpenInvoiceModal(broker)} className="bg-blue-50 hover:bg-blue-100 text-blue-700 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 transition-all" title="Emitir NFS-e de Repasse via Focus NFe">
+                            <FileText size={14} /> Emitir Nota
+                          </button>
+                          <button onClick={() => handleOpenModal(broker)} className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors" title="Editar"><Edit size={16} /></button>
                           <button onClick={() => handleToggleStatus(broker.id)} className={`p-2 rounded-lg transition-colors ${broker.isActive ? 'text-red-500 hover:bg-red-50' : 'text-emerald-600 hover:bg-emerald-50'}`} title={broker.isActive ? 'Desativar' : 'Ativar'}><Power size={16} /></button>
                         </div>
                       </td>
@@ -385,7 +433,7 @@ export default function CorretoresPage() {
       {/* ================================================== */}
       {activeTab === 'relatorios' && (
         <div className="space-y-6 animate-in fade-in duration-300">
-          
+           
           {/* CONFIGURAÇÃO DO RATEIO PADRÃO DA LOJA (SPLIT) */}
           <div className="bg-slate-900 text-white p-6 rounded-2xl shadow-md">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4 border-b border-slate-800 pb-4">
@@ -509,7 +557,7 @@ export default function CorretoresPage() {
                 </button>
               )}
             </div>
-            
+             
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
@@ -536,7 +584,7 @@ export default function CorretoresPage() {
                           <p className="font-bold text-slate-800 line-clamp-1" title={row.propertyTitle}>{row.propertyTitle}</p>
                           <p className="text-xs text-slate-500">Valor Base: {formatCurrency(row.operationValue)}</p>
                         </td>
-                        
+                         
                         <td className="p-4">
                           <p className="font-black text-slate-800">{formatCurrency(row.commissionValue)}</p>
                           <span className="text-xs text-slate-400">({row.commissionPercent}% honorários)</span>
@@ -576,7 +624,7 @@ export default function CorretoresPage() {
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col animate-in zoom-in-95 duration-200">
-            
+             
             <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 rounded-t-2xl shrink-0">
               <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
                 {editingId ? <Edit className="text-blue-600" size={24}/> : <UserCircle className="text-blue-600" size={24}/>}
@@ -587,7 +635,7 @@ export default function CorretoresPage() {
 
             <div className="p-6 overflow-y-auto flex-1">
               <form id="brokerForm" onSubmit={handleSubmit} className="space-y-6">
-                
+                 
                 <section>
                   <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2 border-b border-slate-100 pb-2"><UserCircle size={16} className="text-blue-500"/> Dados & Hierarquia</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -608,8 +656,19 @@ export default function CorretoresPage() {
                       <input required type="text" value={formData.cpf} onChange={e => setFormData({...formData, cpf: maskCpf(e.target.value)})} placeholder="000.000.000-00" className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
                     </div>
                     <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">CNPJ (Opcional - Caso PJ/MEI)</label>
+                      <input type="text" value={formData.cnpj} onChange={e => setFormData({...formData, cnpj: e.target.value})} placeholder="00.000.000/0000-00" className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
+                    </div>
+                    <div>
                       <label className="block text-xs font-bold text-slate-600 mb-1">CRECI *</label>
                       <input required type="text" value={formData.creci} onChange={e => setFormData({...formData, creci: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Regra Fiscal Padrão de Repasse</label>
+                      <select value={formData.taxRuleId} onChange={e => setFormData({...formData, taxRuleId: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white">
+                        <option value="">Selecione a regra fiscal...</option>
+                        {taxRules.map(rule => <option key={rule.id} value={rule.id}>{rule.name} ({rule.serviceCode})</option>)}
+                      </select>
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-slate-600 mb-1">Telefone / WhatsApp *</label>
@@ -659,7 +718,50 @@ export default function CorretoresPage() {
                 {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16}/>} {editingId ? 'Salvar Alterações' : 'Cadastrar Profissional'}
               </button>
             </div>
-            
+             
+          </div>
+        </div>
+      )}
+
+      {/* ================================================== */}
+      {/* MODAL DE EMISSÃO DE NFS-E DE REPASSE (FOCUS NFE)   */}
+      {/* ================================================== */}
+      {isInvoiceModalOpen && invoiceBroker && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col animate-in zoom-in-95 duration-200">
+            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 rounded-t-2xl">
+              <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                <FileText className="text-blue-600" size={20}/> Emitir Nota de Repasse
+              </h2>
+              <button onClick={() => setIsInvoiceModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-600 rounded-lg"><X size={18}/></button>
+            </div>
+
+            <form onSubmit={handleEmitBrokerInvoice} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">Corretor / Tomador</label>
+                <input type="text" disabled value={`${invoiceBroker.name} (${invoiceBroker.cnpj || invoiceBroker.cpf})`} className="w-full p-2.5 border border-slate-200 bg-slate-100 rounded-lg text-xs font-bold text-slate-700" />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">Regra Fiscal</label>
+                <select value={invoiceRuleId} onChange={e => setInvoiceRuleId(e.target.value)} required className="w-full p-2.5 border border-slate-300 rounded-lg text-xs bg-white font-medium">
+                  <option value="">Selecione a regra fiscal...</option>
+                  {taxRules.map(rule => <option key={rule.id} value={rule.id}>{rule.name} ({rule.serviceCode})</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">Valor do Repasse (R$)</label>
+                <input type="number" step="0.01" required value={invoiceAmount} onChange={e => setInvoiceAmount(e.target.value)} placeholder="0.00" className="w-full p-2.5 border border-slate-300 rounded-lg text-xs font-bold text-blue-600 outline-none" />
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2">
+                <button type="button" onClick={() => setIsInvoiceModalOpen(false)} className="px-4 py-2 text-xs font-bold text-slate-600">Cancelar</button>
+                <button type="submit" disabled={isEmittingInvoice} className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md flex items-center gap-2">
+                  {isEmittingInvoice ? <Loader2 size={14} className="animate-spin"/> : <Send size={14}/>} Transmitir via Focus NFe
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

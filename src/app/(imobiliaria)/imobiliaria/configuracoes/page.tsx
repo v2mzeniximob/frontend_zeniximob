@@ -4,11 +4,11 @@ import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { api } from '@/src/lib/api'; // Ajuste o caminho conforme o seu projeto
+import { api } from '@/src/lib/api'; 
 import { 
   Loader2, Save, Store, MapPin, Lock, Globe,
   Image as ImageIcon, Link as LinkIcon, FileText, Building2, FileSignature, DollarSign, Key,
-  ShieldCheck, Plus, Trash2, Power, X, CreditCard, CheckCircle2, Clock
+  ShieldCheck, Plus, Trash2, Power, X, CreditCard, CheckCircle2, Clock, Receipt
 } from 'lucide-react';
 import { maskCep, maskPhone } from '@/src/utils/mask';
 
@@ -18,7 +18,7 @@ const maskCnpj = (value: string) => {
     .replace(/(\d{2})(\d)/, '$1.$2')
     .replace(/(\d{3})(\d)/, '$1.$2')
     .replace(/(\d{3})(\d)/, '$1/$2')
-    .replace(/(\d{4})(\d{1,2})/, '$1-$2')                     .replace(/(-\d{2})\d+?$/, '$1');
+    .replace(/(\d{4})(\d{1,2})/, '$1-$2') .replace(/(-\d{2})\d+?$/, '$1');
 };
 
 const settingsSchema = z.object({
@@ -27,15 +27,15 @@ const settingsSchema = z.object({
   cnpj: z.string().optional(),
   stateRegistration: z.string().optional(),
   municipalRegistration: z.string().optional(),
-  
+   
   phone: z.string().min(14, 'Telefone incompleto'),
   email: z.string().email('E-mail inválido'),
   cep: z.string().min(9, 'CEP incompleto'),
   address: z.string().min(5, 'Endereço obrigatório'),
-  
+   
   slug: z.string().min(3, 'Slug da vitrine obrigatório').regex(/^[a-z0-9-]+$/, 'Use apenas letras minúsculas, números e hifens (sem espaços)'),
   password: z.string().optional(),
-  
+   
   logoUrl: z.string().optional(),
   heroImageUrl: z.string().optional(),
   aboutText: z.string().optional(),
@@ -54,6 +54,10 @@ const settingsSchema = z.object({
 
   mpAccessToken: z.string().optional(),
   mpPublicKey: z.string().optional(),
+
+  // NOVOS CAMPOS: CONTA AZUL
+  contaAzulAccessToken: z.string().optional(),
+  contaAzulRefreshToken: z.string().optional(),
 });
 
 type SettingsForm = z.infer<typeof settingsSchema>;
@@ -62,10 +66,10 @@ export default function ConfiguracoesLojaPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFetchingCep, setIsFetchingCep] = useState(false);
-  
+   
   const [activeTab, setActiveTab] = useState<'dados' | 'aparencia' | 'contratos' | 'financeiro' | 'seguradoras'>('dados');
 
-  const [storeData, setStoreData] = useState<any>(null); // Armazena os dados completos da loja, incluindo Plano e Status
+  const [storeData, setStoreData] = useState<any>(null); 
   const [insuranceCompanies, setInsuranceCompanies] = useState<any[]>([]);
   const [isInsuranceModalOpen, setIsInsuranceModalOpen] = useState(false);
   const [insuranceForm, setInsuranceForm] = useState({ name: '', cnpj: '', contactInfo: '' });
@@ -82,13 +86,15 @@ export default function ConfiguracoesLojaPage() {
   async function fetchData() {
     setIsLoading(true);
     try {
-      const [resStore, resInsurance] = await Promise.all([
+      const [resStore, resInsurance, resContaAzul] = await Promise.all([
         api.get('/my-store'),
-        api.get('/insurance-companies').catch(() => ({ data: [] }))
+        api.get('/insurance-companies').catch(() => ({ data: [] })),
+        api.get('/conta-azul/config').catch(() => ({ data: {} }))
       ]);
-      
+       
       const data = resStore.data;
-      setStoreData(data); // Guarda para mostrar o card do Plano SaaS
+      const contaAzulData = resContaAzul.data || {};
+      setStoreData(data); 
 
       reset({
         tradeName: data.tradeName || '',
@@ -118,6 +124,8 @@ export default function ConfiguracoesLojaPage() {
         financingTemplate: data.financingTemplate || '', 
         mpAccessToken: data.mpAccessToken || '',
         mpPublicKey: data.mpPublicKey || '',
+        contaAzulAccessToken: contaAzulData.accessToken || '',
+        contaAzulRefreshToken: contaAzulData.refreshToken || '',
       });
 
       setInsuranceCompanies(resInsurance.data);
@@ -159,7 +167,17 @@ export default function ConfiguracoesLojaPage() {
       const payload = { ...data };
       if (!payload.password) delete payload.password;
 
+      // Salva os dados gerais da loja
       await api.put('/my-store', payload);
+
+      // Salva as credenciais da Conta Azul separadamente se preenchidas
+      if (payload.contaAzulAccessToken !== undefined) {
+        await api.put('/conta-azul/config', {
+          accessToken: payload.contaAzulAccessToken,
+          refreshToken: payload.contaAzulRefreshToken
+        }).catch(() => {});
+      }
+
       alert('Configurações salvas com sucesso!');
       setValue('password', '');
     } catch (error: any) {
@@ -202,25 +220,22 @@ export default function ConfiguracoesLojaPage() {
     <div className="space-y-6 animate-in fade-in zoom-in duration-300 max-w-5xl pb-12">
       <div>
         <h1 className="text-2xl font-bold text-slate-800">Configurações da Loja</h1>
-        <p className="text-slate-500 text-sm">Atualize os dados cadastrais, a vitrine pública e as seguradoras parceiras.</p>
+        <p className="text-slate-500 text-sm">Atualize os dados cadastrais, a vitrine pública, integrações financeiras e seguradoras parceiras.</p>
       </div>
 
       <div className="flex flex-wrap gap-4 border-b border-slate-200">
         <button type="button" onClick={() => setActiveTab('dados')} className={`pb-4 px-2 font-medium text-sm flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'dados' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><Building2 size={18} /> Dados da Imobiliária</button>
         <button type="button" onClick={() => setActiveTab('aparencia')} className={`pb-4 px-2 font-medium text-sm flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'aparencia' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><ImageIcon size={18} /> Aparência do Site</button>
         <button type="button" onClick={() => setActiveTab('contratos')} className={`pb-4 px-2 font-medium text-sm flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'contratos' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><FileSignature size={18} /> Modelos e Termos</button>
-        <button type="button" onClick={() => setActiveTab('financeiro')} className={`pb-4 px-2 font-medium text-sm flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'financeiro' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><DollarSign size={18} /> Financeiro</button>
+        <button type="button" onClick={() => setActiveTab('financeiro')} className={`pb-4 px-2 font-medium text-sm flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'financeiro' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><DollarSign size={18} /> Financeiro & ERP</button>
         <button type="button" onClick={() => setActiveTab('seguradoras')} className={`pb-4 px-2 font-medium text-sm flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'seguradoras' ? 'border-purple-600 text-purple-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><ShieldCheck size={18} /> Seguradoras</button>
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className={activeTab !== 'seguradoras' ? "space-y-6" : "hidden"}>
-        
+         
         {/* ABA 1: DADOS CADASTRAIS */}
         <div className={activeTab === 'dados' ? 'space-y-6 animate-in fade-in slide-in-from-left-2' : 'hidden'}>
-          
-          {/* ========================================== */}
-          {/* CARD DO PLANO SAAS (NOVO)                  */}
-          {/* ========================================== */}
+           
           <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-2xl shadow-sm border border-blue-100 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
             <div className="flex gap-4 items-start">
               <div className="bg-white p-3 rounded-xl border border-blue-200 shadow-sm text-blue-600">
@@ -250,7 +265,7 @@ export default function ConfiguracoesLojaPage() {
                 </div>
               </div>
             </div>
-            
+             
             <div className="flex flex-col items-end text-sm text-slate-500 font-medium bg-white p-3 rounded-xl border border-blue-100">
               <p>Limites do Plano:</p>
               <p className="text-slate-800 font-bold"><span className="text-blue-600">{storeData?.plan?.maxUsers || 'Ilimitado'}</span> Corretores</p>
@@ -263,7 +278,7 @@ export default function ConfiguracoesLojaPage() {
               <Building2 size={20} />
               <h2 className="font-semibold text-lg">Dados Cadastrais, Contato e Endereço</h2>
             </div>
-            
+             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
               <div><label className="block text-sm font-medium text-slate-700 mb-1">Razão Social</label><input type="text" {...register('corporateName')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />{errors.corporateName && <span className="text-red-500 text-xs">{errors.corporateName.message}</span>}</div>
               <div><label className="block text-sm font-medium text-slate-700 mb-1">Nome Fantasia</label><input type="text" {...register('tradeName')} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />{errors.tradeName && <span className="text-red-500 text-xs">{errors.tradeName.message}</span>}</div>
@@ -291,7 +306,7 @@ export default function ConfiguracoesLojaPage() {
               <Globe size={20} />
               <h2 className="font-semibold text-lg">Perfil e Vitrine</h2>
             </div>
-            
+             
             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
               <label className="flex items-center gap-2 text-sm font-medium text-slate-700 mb-1">Link da sua Vitrine (Slug)</label>
               <div className="flex items-center">
@@ -380,71 +395,60 @@ export default function ConfiguracoesLojaPage() {
               <div className="flex items-center gap-2 text-emerald-700 mb-4 border-b border-emerald-200 pb-2">
                 <FileText size={20} /><h2 className="font-semibold">Modelo do Checklist de Financiamento</h2>
               </div>
-              <p className="text-xs text-emerald-800 mb-2 font-medium">Este é o documento gerado na ficha do cliente comprador. Você pode usar HTML para deixar mais bonito!</p>
               <textarea {...register('financingTemplate')} rows={6} placeholder="Ex: <h1>Checklist do Cliente {{NOME_CLIENTE}}</h1>..." className="w-full px-4 py-3 border border-emerald-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 font-mono text-xs resize-y bg-white"></textarea>
             </div>
 
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-              <div className="flex items-center gap-2 text-blue-600 mb-4 border-b border-slate-100 pb-2">
-                <FileText size={20} /><h2 className="font-semibold">Contrato de Locação</h2>
-              </div>
+              <div className="flex items-center gap-2 text-blue-600 mb-4 border-b border-slate-100 pb-2"><FileText size={20} /><h2 className="font-semibold">Contrato de Locação</h2></div>
               <textarea {...register('tenantContractTemplate')} rows={8} placeholder="Pelo presente instrumento..." className="w-full px-4 py-3 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 font-mono text-xs resize-y"></textarea>
             </div>
 
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-              <div className="flex items-center gap-2 text-indigo-600 mb-4 border-b border-slate-100 pb-2">
-                <FileSignature size={20} /><h2 className="font-semibold">Contrato de Compra e Venda</h2>
-              </div>
-              <textarea {...register('saleContractTemplate')} rows={8} placeholder="Instrumento particular de promessa de compra e venda..." className="w-full px-4 py-3 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 font-mono text-xs resize-y"></textarea>
+              <div className="flex items-center gap-2 text-indigo-600 mb-4 border-b border-slate-100 pb-2"><FileSignature size={20} /><h2 className="font-semibold">Contrato de Compra e Venda</h2></div>
+              <textarea {...register('saleContractTemplate')} rows={8} placeholder="Instrumento particular..." className="w-full px-4 py-3 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 font-mono text-xs resize-y"></textarea>
             </div>
 
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-              <div className="flex items-center gap-2 text-slate-700 mb-4 border-b border-slate-100 pb-2">
-                <FileSignature size={20} /><h2 className="font-semibold">Contrato de Gestão (Dono)</h2>
-              </div>
+              <div className="flex items-center gap-2 text-slate-700 mb-4 border-b border-slate-100 pb-2"><FileSignature size={20} /><h2 className="font-semibold">Contrato de Gestão (Dono)</h2></div>
               <textarea {...register('ownerContractTemplate')} rows={8} placeholder="Autorizo a imobiliária..." className="w-full px-4 py-3 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-slate-500 font-mono text-xs resize-y"></textarea>
             </div>
 
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-              <div className="flex items-center gap-2 text-indigo-500 mb-4 border-b border-slate-100 pb-2">
-                <DollarSign size={20} /><h2 className="font-semibold">Proposta de Venda</h2>
-              </div>
-              <textarea {...register('saleProposalTemplate')} rows={8} placeholder="Proponho a compra do imóvel..." className="w-full px-4 py-3 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 font-mono text-xs resize-y"></textarea>
+              <div className="flex items-center gap-2 text-indigo-500 mb-4 border-b border-slate-100 pb-2"><DollarSign size={20} /><h2 className="font-semibold">Proposta de Venda</h2></div>
+              <textarea {...register('saleProposalTemplate')} rows={8} placeholder="Proponho a compra..." className="w-full px-4 py-3 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 font-mono text-xs resize-y"></textarea>
             </div>
 
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-              <div className="flex items-center gap-2 text-orange-500 mb-4 border-b border-slate-100 pb-2">
-                <FileText size={20} /><h2 className="font-semibold">Proposta de Locação</h2>
-              </div>
-              <textarea {...register('rentProposalTemplate')} rows={8} placeholder="Proponho a locação do imóvel..." className="w-full px-4 py-3 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-orange-500 font-mono text-xs resize-y"></textarea>
+              <div className="flex items-center gap-2 text-orange-500 mb-4 border-b border-slate-100 pb-2"><FileText size={20} /><h2 className="font-semibold">Proposta de Locação</h2></div>
+              <textarea {...register('rentProposalTemplate')} rows={8} placeholder="Proponho a locação..." className="w-full px-4 py-3 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-orange-500 font-mono text-xs resize-y"></textarea>
             </div>
 
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 md:col-span-2">
-              <div className="flex items-center gap-2 text-amber-500 mb-4 border-b border-slate-100 pb-2">
-                <Key size={20} /><h2 className="font-semibold">Termo de Entrega de Chaves</h2>
-              </div>
+              <div className="flex items-center gap-2 text-amber-500 mb-4 border-b border-slate-100 pb-2"><Key size={20} /><h2 className="font-semibold">Termo de Entrega de Chaves</h2></div>
               <textarea {...register('keyTermTemplate')} rows={6} placeholder="Declaro que recebi as chaves..." className="w-full px-4 py-3 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-amber-500 font-mono text-xs resize-y"></textarea>
             </div>
           </div>
         </div>
 
-        {/* ABA 4: FINANCEIRO (MERCADO PAGO) */}
+        {/* ABA 4: FINANCEIRO (MERCADO PAGO & CONTA AZUL) */}
         <div className={activeTab === 'financeiro' ? 'space-y-6 animate-in fade-in slide-in-from-right-2' : 'hidden'}>
+          
+          {/* MERCADO PAGO */}
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
             <div className="flex items-center gap-2 text-blue-600 mb-4 border-b border-slate-100 pb-2">
               <DollarSign size={20} />
               <h2 className="font-semibold text-lg">Integração Mercado Pago</h2>
             </div>
-            
+             
             <div className="mb-6 bg-blue-50 p-4 rounded-xl border border-blue-100 text-sm text-blue-800">
               <p className="font-semibold mb-1">Receba os pagamentos diretamente na sua conta!</p>
-              <p>Para gerar cobranças de PIX e Boletos aos seus inquilinos, aceda ao painel de desenvolvedor do seu Mercado Pago, crie uma aplicação e cole aqui as suas <strong>Credenciais de Produção</strong>.</p>
+              <p>Cole aqui as suas <strong>Credenciais de Produção</strong> para gerar cobranças de PIX e Boletos aos inquilinos.</p>
             </div>
-            
+             
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-1">Access Token (Token de Acesso)</label>
-                <input type="password" {...register('mpAccessToken')} placeholder="APP_USR-123456789..." className="w-full px-4 py-3 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm" />
+                <input type="password" {...register('mpAccessToken')} placeholder="APP_USR-..." className="w-full px-4 py-3 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm" />
               </div>
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-1">Public Key (Chave Pública)</label>
@@ -452,6 +456,31 @@ export default function ConfiguracoesLojaPage() {
               </div>
             </div>
           </div>
+
+          {/* CONTA AZUL (ERP) */}
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+            <div className="flex items-center gap-2 text-indigo-600 mb-4 border-b border-slate-100 pb-2">
+              <Receipt size={20} />
+              <h2 className="font-semibold text-lg">Integração Conta Azul (ERP / Boletos Digitais)</h2>
+            </div>
+             
+            <div className="mb-6 bg-indigo-50 p-4 rounded-xl border border-indigo-100 text-sm text-indigo-800">
+              <p className="font-semibold mb-1">Sincronize suas cobranças com o ERP Conta Azul!</p>
+              <p>Insira abaixo as credenciais OAuth 2.0 (Access Token e Refresh Token) da API da Conta Azul para emitir boletos integrados.</p>
+            </div>
+             
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-1">Conta Azul Access Token</label>
+                <input type="password" {...register('contaAzulAccessToken')} placeholder="Token de acesso OAuth da Conta Azul..." className="w-full px-4 py-3 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 font-mono text-sm" />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-1">Conta Azul Refresh Token</label>
+                <input type="password" {...register('contaAzulRefreshToken')} placeholder="Refresh token para renovação automática..." className="w-full px-4 py-3 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 font-mono text-sm" />
+              </div>
+            </div>
+          </div>
+
         </div>
 
         <div className="flex justify-end pt-2">
