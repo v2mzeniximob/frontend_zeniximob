@@ -71,6 +71,7 @@ export function RealEstateSidebar() {
     { name: 'Fiscal e Contábil', icon: FileSignature, path: '/imobiliaria/fiscal', modules: ['fiscal', 'contabil'] },
     { name: 'Vistorias Mobile-First', icon: Camera, path: '/imobiliaria/vistorias', modules: ['vistorias'] },
     { name: 'Chamados de Manutenção', icon: Wrench, path: '/imobiliaria/manutencao', modules: ['manutencao', 'tickets'] },
+    { name: 'Integração Meta (Facebook)', icon: Wrench, path: '/imobiliaria/meta', modules: ['meta'] },
     { name: 'Configurações', icon: Settings, path: '/imobiliaria/configuracoes', modules: ['always'] },
   ];
 

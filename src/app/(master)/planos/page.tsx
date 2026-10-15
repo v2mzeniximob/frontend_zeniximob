@@ -23,7 +23,8 @@ const AVAILABLE_MODULES = [
   { id: 'portais', label: 'Integração com Portais' },
   { id: 'whatsapp', label: 'Integração WhatsApp & Robô IA' },
   { id: 'temporada', label: 'Alugueis por Temporada' },
-  { id: 'fiscal', label: 'Fiscal & Contábil' }
+  { id: 'fiscal', label: 'Fiscal & Contábil' },
+  { id: 'meta', label: 'Integração Meta (Facebook)' }
 ];
 
 const initialForm = {
