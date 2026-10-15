@@ -11,7 +11,7 @@ export default function ModuloTemporadaPage() {
   const [activeTab, setActiveTab] = useState<'pms' | 'channels' | 'direct_booking' | 'operations' | 'guest_panel' | 'pricing' | 'messaging' | 'app_center' | 'academy'>('pms');
 
   return (
-    <div className="p-6 md:p-8 bg-slate-50 min-h-screen space-y-6 font-sans">
+    <div className="p-6 md:p-8 space-y-6 font-sans">
       
       {/* CABEÇALHO DO MÓDULO */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-3xl border border-slate-200/80 shadow-sm">
@@ -37,8 +37,8 @@ export default function ModuloTemporadaPage() {
         </div>
       </div>
 
-      {/* NAVEGAÇÃO POR ABAS */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none border-b border-slate-200">
+      {/* NAVEGAÇÃO POR ABAS (Ajustado para flex-wrap para evitar scroll lateral forçado) */}
+      <div className="flex flex-wrap items-center gap-2 pb-2 border-b border-slate-200">
         {[
           { id: 'pms', label: 'PMS & Calendário', icon: CalendarIcon },
           { id: 'channels', label: 'Channel Manager', icon: Globe },
@@ -56,7 +56,7 @@ export default function ModuloTemporadaPage() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`flex items-center gap-2 px-4 py-3 rounded-xl font-bold text-xs whitespace-nowrap transition-all shrink-0 ${
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs transition-all ${
                 isActive 
                   ? 'bg-slate-900 text-white shadow-md' 
                   : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/60'
