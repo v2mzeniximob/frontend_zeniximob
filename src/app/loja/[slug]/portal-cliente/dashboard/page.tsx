@@ -22,7 +22,7 @@ export default function PortalDashboardPage() {
   const [tickets, setTickets] = useState<any[]>([]);
   const [properties, setProperties] = useState<any[]>([]);
   
-  // Novos estados para Temporada
+  // Estados para Temporada (Reais)
   const [seasonProperties, setSeasonProperties] = useState<any[]>([]);
   const [seasonBookings, setSeasonBookings] = useState<any[]>([]);
   const [icalForm, setIcalForm] = useState<{ [key: string]: { airbnbIcalUrl: string; bookingIcalUrl: string; vrboIcalUrl: string } }>({});
@@ -65,7 +65,7 @@ export default function PortalDashboardPage() {
       if (response.data.tickets) setTickets(response.data.tickets);
       if (response.data.properties) setProperties(response.data.properties);
       
-      // Carrega dados de temporada se o backend retornar
+      // Dados reais de temporada retornados pelo backend
       if (response.data.seasonProperties) {
         setSeasonProperties(response.data.seasonProperties);
         const initialIcal: any = {};
@@ -113,6 +113,7 @@ export default function PortalDashboardPage() {
     }
   };
 
+  // Salvar Links iCal reais no backend
   const handleSaveIcal = async (propertyId: string) => {
     setIsSavingIcal(propertyId);
     try {
