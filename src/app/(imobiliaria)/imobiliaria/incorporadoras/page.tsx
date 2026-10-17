@@ -83,8 +83,8 @@ export default function IncorporadoraPage() {
     setIsLoading(true);
     try {
       const [resSpes, resLands, resProjects, resContracts, resStore] = await Promise.all([
-        api.get('/incorporadora/spes').catch(() => ({ data: [] })),
-        api.get('/incorporadora/land-bank').catch(() => ({ data: [] })),
+        api.get('/incorporadoras/spes').catch(() => ({ data: [] })),
+        api.get('/incorporadoras/land-bank').catch(() => ({ data: [] })),
         api.get('/incorporadora/projects').catch(() => ({ data: [] })),
         api.get('/contracts').catch(() => ({ data: [] })),
         api.get('/my-store').catch(() => ({ data: {} }))
@@ -148,7 +148,7 @@ export default function IncorporadoraPage() {
   const handleCreateSpe = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await api.post('/incorporadora/spes', speForm);
+      await api.post('/incorporadoras/spes', speForm);
       setSpeForm({ cnpj: '', corporateName: '', tradeName: '', taxRegime: 'RET - Patrimônio de Afetação (4%)', pixKey: '' });
       fetchAllData();
       alert('SPE cadastrada com sucesso!');
@@ -160,7 +160,7 @@ export default function IncorporadoraPage() {
   const handleCreateLandBank = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await api.post('/incorporadora/land-bank', landForm);
+      await api.post('/incorporadoras/land-bank', landForm);
       setLandForm({
         speId: '', title: '', address: '', neighborhood: '', city: '', state: 'SP',
         areaSqm: '', utilizationCoefficient: '4', acquisitionCost: '', swapPercent: '0',
@@ -176,7 +176,7 @@ export default function IncorporadoraPage() {
   const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await api.post('/incorporadora/projects', projectForm);
+      const res = await api.post('/incorporadoras/projects', projectForm);
       setProjectForm({
         speId: '', landBankId: '', name: '', status: 'LANCAMENTO', address: '', neighborhood: '',
         city: '', state: 'SP', deliveryForecast: '', totalUnits: '40', vgvTotal: ''
@@ -218,7 +218,7 @@ export default function IncorporadoraPage() {
           loucas: progressAndSiteForm.memorialLoucas
         }
       };
-      await api.put(`/incorporadora/projects/${selectedProject.id}`, payload);
+      await api.put(`/incorporadoras/projects/${selectedProject.id}`, payload);
       fetchAllData();
       alert('Cronograma Físico e Vitrine Pública atualizados com sucesso!');
     } catch (err) {
@@ -230,7 +230,7 @@ export default function IncorporadoraPage() {
     e.preventDefault();
     if (!selectedProject) return;
     try {
-      await api.post(`/incorporadora/projects/${selectedProject.id}/budget-items`, budgetForm);
+      await api.post(`/incorporadoras/projects/${selectedProject.id}/budget-items`, budgetForm);
       setBudgetForm({ code: '', stageName: 'Estrutura', itemDescription: '', category: 'Material', unit: 'm³', quantity: '', unitCost: '' });
       fetchAllData();
     } catch (err) {
@@ -242,7 +242,7 @@ export default function IncorporadoraPage() {
     e.preventDefault();
     if (!selectedProject) return;
     try {
-      await api.post(`/incorporadora/projects/${selectedProject.id}/measurements`, measurementForm);
+      await api.post(`/incorporadoras/projects/${selectedProject.id}/measurements`, measurementForm);
       setMeasurementForm({ contractorName: '', contractorCnpj: '', serviceDescription: '', periodReference: '', grossAmount: '', retentionPercent: '5', integrateToDre: true });
       fetchAllData();
       alert('Medição registrada! Despesa lançada automaticamente no DRE.');
@@ -255,7 +255,7 @@ export default function IncorporadoraPage() {
     e.preventDefault();
     if (!selectedProject) return;
     try {
-      await api.post(`/incorporadora/projects/${selectedProject.id}/supply-orders`, supplyForm);
+      await api.post(`/incorporadoras/projects/${selectedProject.id}/supply-orders`, supplyForm);
       setSupplyForm({ materialName: '', unit: 'ton', quantityOrdered: '', supplierName: '', totalAmount: '', status: 'ENTREGUE_NO_CANTEIRO' });
       fetchAllData();
     } catch (err) {
@@ -267,7 +267,7 @@ export default function IncorporadoraPage() {
     e.preventDefault();
     if (!selectedProject) return;
     try {
-      await api.post(`/incorporadora/projects/${selectedProject.id}/work-diaries`, {
+      await api.post(`/incorporadoras/projects/${selectedProject.id}/work-diaries`, {
         ...diaryForm,
         photosUrls: diaryForm.photosUrls.split(',').map(s => s.trim()).filter(Boolean)
       });
@@ -283,7 +283,7 @@ export default function IncorporadoraPage() {
     e.preventDefault();
     if (!selectedProject) return;
     try {
-      const res = await api.post(`/incorporadora/projects/${selectedProject.id}/apply-incc`, { inccPercent: inccPercentInput });
+      const res = await api.post(`/incorporadoras/projects/${selectedProject.id}/apply-incc`, { inccPercent: inccPercentInput });
       fetchAllData();
       alert(res.data?.message || 'INCC aplicado com sucesso!');
     } catch (err: any) {
@@ -295,7 +295,7 @@ export default function IncorporadoraPage() {
     e.preventDefault();
     if (!selectedProject) return;
     try {
-      await api.post(`/incorporadora/projects/${selectedProject.id}/bim-files`, bimForm);
+      await api.post(`/incorporadoras/projects/${selectedProject.id}/bim-files`, bimForm);
       setBimForm({
         discipline: 'Fachada / Exterior', fileName: '', fileFormat: 'IFC', fileUrl: '', version: 'R01',
         clashStatus: 'COMPATIBILIZADO', clashDescription: '', responsibleDesigner: ''
@@ -311,7 +311,7 @@ export default function IncorporadoraPage() {
     e.preventDefault();
     if (!selectedProject) return;
     try {
-      await api.post(`/incorporadora/projects/${selectedProject.id}/customization-options`, kitOptionForm);
+      await api.post(`/incorporadoras/projects/${selectedProject.id}/customization-options`, kitOptionForm);
       setKitOptionForm({ category: 'Pisos e Porcelanatos', title: '', specification: '', imageUrl: '', additionalPrice: '', maxStageAllowedPct: '60' });
       fetchAllData();
       alert('Kit de Acabamento adicionado ao catálogo do empreendimento!');
@@ -340,7 +340,7 @@ export default function IncorporadoraPage() {
       return;
     }
     try {
-      await api.post(`/incorporadora/projects/${selectedProject.id}/customization-orders`, customOrderForm);
+      await api.post(`/incorporadoras/projects/${selectedProject.id}/customization-orders`, customOrderForm);
       setCustomOrderForm({ unitNumber: '', buyerName: '', buyerDocument: '', contractId: '', selectedOptionIds: [], approveAndGenerateAddendum: true });
       fetchAllData();
       alert('Personalização registrada! Aditivo financeiro calculado e Ordem de Serviço (OS) enviada para o canteiro de obras.');
@@ -358,7 +358,7 @@ export default function IncorporadoraPage() {
   }
 
   const publicShowcaseUrl = storeInfo?.slug
-    ? `/loja/${storeInfo.slug}/incorporadora`
+    ? `/loja/${storeInfo.slug}/incorporadoras`
     : '#';
 
   return (
@@ -400,7 +400,7 @@ export default function IncorporadoraPage() {
           </div>
 
           <Link
-            href="/imobiliaria/incorporadora/simulador"
+            href="/imobiliaria/incorporadoras/simulador"
             className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-5 py-3.5 rounded-2xl flex items-center justify-center gap-2 shadow-lg transition-all shrink-0"
           >
             <Calculator size={16} /> Simulador de Crédito
@@ -821,7 +821,7 @@ export default function IncorporadoraPage() {
                 <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-6">
                   <div>
                     <h3 className="text-lg font-bold text-slate-800">Medições de Empreiteiros & Retenção Contratual</h3>
-                    <p className="text-xs text-slate-500">Aprove medições de serviços executados, retenha a caução de garantia e envie o valor líquido direto para o DRE da imobiliária/incorporadora.</p>
+                    <p className="text-xs text-slate-500">Aprove medições de serviços executados, retenha a caução de garantia e envie o valor líquido direto para o DRE da imobiliária/incorporadoras.</p>
                   </div>
 
                   <form onSubmit={handleAddMeasurement} className="grid grid-cols-1 sm:grid-cols-5 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200 text-xs items-end">
