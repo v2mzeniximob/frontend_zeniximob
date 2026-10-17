@@ -20,7 +20,9 @@ import {
   Briefcase,
   FileSignature,
   Wrench,
-  MessageSquare
+  MessageSquare,
+  Building2,
+  Share2
 } from 'lucide-react';
 import { destroyCookie } from 'nookies';
 
@@ -31,14 +33,23 @@ export function RealEstateSidebar() {
   const [allowedModules, setAllowedModules] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Busca os módulos permitidos e normaliza para minúsculas
+  // Busca os módulos permitidos priorizando os módulos atualizados do Plano vinculado
   useEffect(() => {
     async function loadStoreData() {
       try {
         const res = await api.get('/my-store');
-        const mods = res.data.modules || [];
-        // Converte tudo para minúsculas para evitar erros (ex: "CRM" vs "crm")
-        const normalizedMods = mods.map((m: string) => m.toLowerCase());
+        
+        // Se a imobiliária tem um Plano vinculado, lê direto dos módulos atuais do Plano;
+        // caso contrário, usa os módulos avulsos da loja.
+        const rawMods: string[] =
+          res.data?.plan?.modules && Array.isArray(res.data.plan.modules) && res.data.plan.modules.length > 0
+            ? res.data.plan.modules
+            : (res.data?.modules || []);
+
+        const normalizedMods = rawMods.map((m: string) =>
+          m.toLowerCase().trim() === 'inocorporadoras' ? 'incorporadoras' : m.toLowerCase().trim()
+        );
+
         setAllowedModules(normalizedMods);
       } catch (error) {
         console.error('Erro ao buscar permissões do plano:', error);
@@ -47,39 +58,38 @@ export function RealEstateSidebar() {
       }
     }
     loadStoreData();
-  }, []);
+  }, [pathname]);
 
   const menuItems = [
     { name: 'Dashboard', icon: LayoutDashboard, path: '/imobiliaria/dashboard', modules: ['always'] },
-    { name: 'Condomínios', icon: Home, path: '/imobiliaria/condominios', modules: ['condominios', 'properties'] },
-    { name: 'Incorporadoras', icon: Home, path: '/imobiliaria/incorporadoras', modules: ['incorporadoras', 'properties'] },
-    { name: 'Imóveis', icon: Home, path: '/imobiliaria/imoveis', modules: ['imoveis', 'properties'] },
-    { name: 'Corretores', icon: Users, path: '/imobiliaria/corretores', modules: ['corretores', 'brokers'] },
+    { name: 'Condomínios', icon: Building2, path: '/imobiliaria/condominios', modules: ['condominios'] },
+    { name: 'Incorporadoras', icon: Building2, path: '/imobiliaria/incorporadoras', modules: ['incorporadoras', 'incorporadora'] },
+    { name: 'Imóveis', icon: Home, path: '/imobiliaria/imoveis', modules: ['imoveis'] },
+    { name: 'Corretores', icon: Users, path: '/imobiliaria/corretores', modules: ['corretores'] },
     { name: 'Clientes (CRM)', icon: UserCircle, path: '/imobiliaria/clientes', modules: ['crm'] },
-    { name: 'Alugueis por Temporada', icon: Home, path: '/imobiliaria/alugueis-temporada', modules: ['temporada', 'properties'] },
+    { name: 'Alugueis por Temporada', icon: Home, path: '/imobiliaria/alugueis-temporada', modules: ['temporada'] },
     { name: 'Leads (CRM)', icon: Briefcase, path: '/imobiliaria/leads', modules: ['crm'] },
     { name: 'Esteira de Negócios', icon: Briefcase, path: '/imobiliaria/esteira', modules: ['crm'] },
     { name: 'WhatsApp & Robô IA', icon: MessageSquare, path: '/imobiliaria/whatsapp', modules: ['whatsapp'] },
-    { name: 'Controle de Chaves', icon: Key, path: '/imobiliaria/chaves', modules: ['chaves', 'keys'] },
-    { name: 'Propostas e Termos', icon: FileSignature, path: '/imobiliaria/propostas', modules: ['contratos', 'contracts'] },
+    { name: 'Controle de Chaves', icon: Key, path: '/imobiliaria/chaves', modules: ['chaves'] },
+    { name: 'Propostas e Termos', icon: FileSignature, path: '/imobiliaria/propostas', modules: ['contratos'] },
     { name: 'Visitas', icon: Calendar, path: '/imobiliaria/visitas', modules: ['crm'] },
-    { name: 'Avaliador (PTAM)', icon: Camera, path: '/imobiliaria/avaliador', modules: ['imoveis', 'crm'] },
-    { name: 'Proprietários', icon: UserCircle, path: '/imobiliaria/proprietarios', modules: ['imoveis', 'properties'] },
-    { name: 'Inquilinos', icon: Users, path: '/imobiliaria/inquilinos', modules: ['contratos', 'contracts'] },
-    { name: 'Contratos', icon: Key, path: '/imobiliaria/contratos', modules: ['contratos', 'contracts'] },
-    { name: 'Financeiro', icon: DollarSign, path: '/imobiliaria/financeiro', modules: ['financeiro', 'financial'] },
+    { name: 'Avaliador (PTAM)', icon: Camera, path: '/imobiliaria/avaliador', modules: ['avaliador'] },
+    { name: 'Proprietários', icon: UserCircle, path: '/imobiliaria/proprietarios', modules: ['imoveis'] },
+    { name: 'Inquilinos', icon: Users, path: '/imobiliaria/inquilinos', modules: ['contratos'] },
+    { name: 'Contratos', icon: Key, path: '/imobiliaria/contratos', modules: ['contratos'] },
+    { name: 'Financeiro', icon: DollarSign, path: '/imobiliaria/financeiro', modules: ['financeiro'] },
     { name: 'Arquivo DIMOB (Fisco)', icon: FileSignature, path: '/imobiliaria/dimob', modules: ['dimob'] },
-    { name: 'Fiscal e Contábil', icon: FileSignature, path: '/imobiliaria/fiscal', modules: ['fiscal', 'contabil'] },
+    { name: 'Fiscal e Contábil', icon: FileSignature, path: '/imobiliaria/fiscal', modules: ['fiscal'] },
     { name: 'Vistorias Mobile-First', icon: Camera, path: '/imobiliaria/vistorias', modules: ['vistorias'] },
-    { name: 'Chamados de Manutenção', icon: Wrench, path: '/imobiliaria/manutencao', modules: ['manutencao', 'tickets'] },
-    { name: 'Integração Meta (Facebook)', icon: Wrench, path: '/imobiliaria/meta', modules: ['meta'] },
+    { name: 'Chamados de Manutenção', icon: Wrench, path: '/imobiliaria/manutencao', modules: ['manutencao'] },
+    { name: 'Integração Meta (Facebook)', icon: Share2, path: '/imobiliaria/meta', modules: ['meta'] },
     { name: 'Configurações', icon: Settings, path: '/imobiliaria/configuracoes', modules: ['always'] },
   ];
 
-  // Verifica se a imobiliária tem permissão para ver este item de menu
+  // Verifica estritamente se a imobiliária tem permissão para ver este item de menu
   const visibleMenuItems = menuItems.filter(item => {
     if (item.modules.includes('always')) return true;
-    // O menu aparece se ALGUM dos módulos exigidos bater com a lista da imobiliária
     return item.modules.some(reqModule => allowedModules.includes(reqModule));
   });
 

@@ -7,9 +7,9 @@ import {
   Layers, ShieldCheck, Loader2
 } from 'lucide-react';
 
-// Lista expandida com IDs normalizados (minúsculas)
+// Lista expandida com todos os IDs 100% padronizados em minúsculas
 const AVAILABLE_MODULES = [
-  { id: 'Inocorporadoras', label: 'Incorporadoras' },
+  { id: 'incorporadoras', label: 'Incorporadoras' },
   { id: 'condominios', label: 'Condomínios' },
   { id: 'imoveis', label: 'Imóveis & Proprietários' },
   { id: 'crm', label: 'CRM, Leads & Visitas' },
@@ -26,8 +26,13 @@ const AVAILABLE_MODULES = [
   { id: 'temporada', label: 'Alugueis por Temporada' },
   { id: 'fiscal', label: 'Fiscal & Contábil' },
   { id: 'meta', label: 'Integração Meta (Facebook)' }
- 
 ];
+
+const normalizeModuleKey = (mod: string) => {
+  const clean = String(mod || '').toLowerCase().trim();
+  if (clean === 'inocorporadoras' || clean === 'incorporadora') return 'incorporadoras';
+  return clean;
+};
 
 const initialForm = {
   name: '',
@@ -67,8 +72,9 @@ export default function GestaoPlanosPage() {
   const handleOpenModal = (plan?: any) => {
     if (plan) {
       setEditingId(plan.id);
-      // Força todos os módulos vindos do banco a ficarem em minúsculas para dar 'match' perfeito com os checkboxes
-      const normalizedModules = (plan.modules || []).map((m: string) => m.toLowerCase());
+      const normalizedModules = Array.from(
+        new Set((plan.modules || []).map((m: string) => normalizeModuleKey(m)))
+      );
       
       setFormData({
         name: plan.name,
@@ -86,12 +92,13 @@ export default function GestaoPlanosPage() {
   };
 
   const handleToggleModule = (moduleId: string) => {
+    const cleanId = normalizeModuleKey(moduleId);
     setFormData((prev: any) => {
       const currentModules = prev.modules || [];
-      if (currentModules.includes(moduleId)) {
-        return { ...prev, modules: currentModules.filter((m: string) => m !== moduleId) };
+      if (currentModules.includes(cleanId)) {
+        return { ...prev, modules: currentModules.filter((m: string) => m !== cleanId) };
       } else {
-        return { ...prev, modules: [...currentModules, moduleId] };
+        return { ...prev, modules: [...currentModules, cleanId] };
       }
     });
   };
@@ -105,10 +112,15 @@ export default function GestaoPlanosPage() {
 
     setIsSaving(true);
     try {
+      const payload = {
+        ...formData,
+        modules: Array.from(new Set(formData.modules.map((m: string) => normalizeModuleKey(m))))
+      };
+
       if (editingId) {
-        await api.put(`/plans/${editingId}`, formData);
+        await api.put(`/plans/${editingId}`, payload);
       } else {
-        await api.post('/plans', formData);
+        await api.post('/plans', payload);
       }
       setIsModalOpen(false);
       fetchPlans();
@@ -165,54 +177,55 @@ export default function GestaoPlanosPage() {
         <div className="flex justify-center p-12 text-slate-400"><Loader2 className="animate-spin" size={40}/></div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {filteredPlans.map(plan => (
-            <div key={plan.id} className={`bg-white rounded-3xl border-2 transition-all duration-300 relative flex flex-col ${plan.isActive ? 'border-indigo-100 hover:border-indigo-300 shadow-sm hover:shadow-xl' : 'border-slate-200 opacity-70 grayscale'}`}>
-              
-              {!plan.isActive && <div className="absolute top-4 right-4 bg-slate-200 text-slate-600 text-xs font-bold px-2 py-1 rounded-md">Inativo</div>}
-              {plan._count?.realEstates > 0 && <div className="absolute -top-3 left-6 bg-emerald-500 text-white text-xs font-bold px-3 py-1 rounded-full shadow-md">{plan._count.realEstates} Clientes Ativos</div>}
+          {filteredPlans.map(plan => {
+            const planMods = (plan.modules || []).map((m: string) => normalizeModuleKey(m));
+            return (
+              <div key={plan.id} className={`bg-white rounded-3xl border-2 transition-all duration-300 relative flex flex-col ${plan.isActive ? 'border-indigo-100 hover:border-indigo-300 shadow-sm hover:shadow-xl' : 'border-slate-200 opacity-70 grayscale'}`}>
+                
+                {!plan.isActive && <div className="absolute top-4 right-4 bg-slate-200 text-slate-600 text-xs font-bold px-2 py-1 rounded-md">Inativo</div>}
+                {plan._count?.realEstates > 0 && <div className="absolute -top-3 left-6 bg-emerald-500 text-white text-xs font-bold px-3 py-1 rounded-full shadow-md">{plan._count.realEstates} Clientes Ativos</div>}
 
-              <div className="p-6 border-b border-slate-100 flex-1">
-                <h3 className="text-xl font-black text-slate-800 mb-2 mt-2">{plan.name}</h3>
-                <div className="flex items-end gap-1 mb-6">
-                  <span className="text-sm font-bold text-slate-400 mb-1">R$</span>
-                  <span className="text-4xl font-black text-indigo-600">{Number(plan.price).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
-                  <span className="text-sm font-bold text-slate-400 mb-1">/mês</span>
-                </div>
-
-                <div className="space-y-3">
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Módulos Inclusos:</p>
-                  {AVAILABLE_MODULES.map(module => {
-                    // Normalização para comparar com planos antigos
-                    const planMods = (plan.modules || []).map((m: string) => m.toLowerCase());
-                    const isIncluded = planMods.includes(module.id);
-                    return (
-                      <div key={module.id} className={`flex items-center gap-2 text-sm ${isIncluded ? 'text-slate-700 font-bold' : 'text-slate-300 line-through'}`}>
-                        {isIncluded ? <CheckCircle2 size={16} className="text-emerald-500"/> : <X size={16} />}
-                        {module.label}
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {plan.hasSupport && (
-                  <div className="mt-6 pt-4 border-t border-slate-100 flex items-center gap-2 text-sm font-bold text-indigo-700 bg-indigo-50 p-3 rounded-xl">
-                    <ShieldCheck size={18}/> 
-                    Suporte Adicional: R$ {Number(plan.supportPrice).toLocaleString('pt-BR', {minimumFractionDigits: 2})}
+                <div className="p-6 border-b border-slate-100 flex-1">
+                  <h3 className="text-xl font-black text-slate-800 mb-2 mt-2">{plan.name}</h3>
+                  <div className="flex items-end gap-1 mb-6">
+                    <span className="text-sm font-bold text-slate-400 mb-1">R$</span>
+                    <span className="text-4xl font-black text-indigo-600">{Number(plan.price).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
+                    <span className="text-sm font-bold text-slate-400 mb-1">/mês</span>
                   </div>
-                )}
-              </div>
 
-              <div className="p-4 bg-slate-50 rounded-b-3xl flex justify-between items-center gap-2 border-t border-slate-100 shrink-0">
-                <button onClick={() => handleOpenModal(plan)} className="flex-1 flex items-center justify-center gap-2 py-2 text-sm font-bold text-slate-600 hover:bg-slate-200 rounded-lg transition-colors">
-                  <Edit size={16}/> Editar
-                </button>
-                <button onClick={() => handleDelete(plan.id)} className="flex items-center justify-center p-2 text-slate-400 hover:bg-red-100 hover:text-red-600 rounded-lg transition-colors" title="Excluir Plano">
-                  <Trash2 size={18}/>
-                </button>
-              </div>
+                  <div className="space-y-3">
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Módulos Inclusos:</p>
+                    {AVAILABLE_MODULES.map(module => {
+                      const isIncluded = planMods.includes(module.id);
+                      return (
+                        <div key={module.id} className={`flex items-center gap-2 text-sm ${isIncluded ? 'text-slate-700 font-bold' : 'text-slate-300 line-through'}`}>
+                          {isIncluded ? <CheckCircle2 size={16} className="text-emerald-500"/> : <X size={16} />}
+                          {module.label}
+                        </div>
+                      );
+                    })}
+                  </div>
 
-            </div>
-          ))}
+                  {plan.hasSupport && (
+                    <div className="mt-6 pt-4 border-t border-slate-100 flex items-center gap-2 text-sm font-bold text-indigo-700 bg-indigo-50 p-3 rounded-xl">
+                      <ShieldCheck size={18}/> 
+                      Suporte Adicional: R$ {Number(plan.supportPrice).toLocaleString('pt-BR', {minimumFractionDigits: 2})}
+                    </div>
+                  )}
+                </div>
+
+                <div className="p-4 bg-slate-50 rounded-b-3xl flex justify-between items-center gap-2 border-t border-slate-100 shrink-0">
+                  <button onClick={() => handleOpenModal(plan)} className="flex-1 flex items-center justify-center gap-2 py-2 text-sm font-bold text-slate-600 hover:bg-slate-200 rounded-lg transition-colors">
+                    <Edit size={16}/> Editar
+                  </button>
+                  <button onClick={() => handleDelete(plan.id)} className="flex items-center justify-center p-2 text-slate-400 hover:bg-red-100 hover:text-red-600 rounded-lg transition-colors" title="Excluir Plano">
+                    <Trash2 size={18}/>
+                  </button>
+                </div>
+
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -256,20 +269,23 @@ export default function GestaoPlanosPage() {
                 </div>
                 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {AVAILABLE_MODULES.map(module => (
-                    <label key={module.id} className={`flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${formData.modules.includes(module.id) ? 'border-indigo-600 bg-indigo-50' : 'border-slate-200 hover:border-slate-300 bg-white'}`}>
-                      <input 
-                        type="checkbox" 
-                        className="hidden" 
-                        checked={formData.modules.includes(module.id)} 
-                        onChange={() => handleToggleModule(module.id)} 
-                      />
-                      <div className={`w-5 h-5 rounded flex items-center justify-center shrink-0 transition-colors ${formData.modules.includes(module.id) ? 'bg-indigo-600 border-indigo-600' : 'border-2 border-slate-300'}`}>
-                        {formData.modules.includes(module.id) && <CheckCircle2 size={14} className="text-white"/>}
-                      </div>
-                      <span className={`text-sm font-bold ${formData.modules.includes(module.id) ? 'text-indigo-900' : 'text-slate-600'}`}>{module.label}</span>
-                    </label>
-                  ))}
+                  {AVAILABLE_MODULES.map(module => {
+                    const isChecked = formData.modules.includes(module.id);
+                    return (
+                      <label key={module.id} className={`flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${isChecked ? 'border-indigo-600 bg-indigo-50' : 'border-slate-200 hover:border-slate-300 bg-white'}`}>
+                        <input 
+                          type="checkbox" 
+                          className="hidden" 
+                          checked={isChecked} 
+                          onChange={() => handleToggleModule(module.id)} 
+                        />
+                        <div className={`w-5 h-5 rounded flex items-center justify-center shrink-0 transition-colors ${isChecked ? 'bg-indigo-600 border-indigo-600' : 'border-2 border-slate-300'}`}>
+                          {isChecked && <CheckCircle2 size={14} className="text-white"/>}
+                        </div>
+                        <span className={`text-sm font-bold ${isChecked ? 'text-indigo-900' : 'text-slate-600'}`}>{module.label}</span>
+                      </label>
+                    );
+                  })}
                 </div>
               </div>
 
