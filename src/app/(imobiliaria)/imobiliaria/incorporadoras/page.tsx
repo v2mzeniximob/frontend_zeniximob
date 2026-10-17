@@ -83,9 +83,9 @@ export default function IncorporadoraPage() {
     setIsLoading(true);
     try {
       const [resSpes, resLands, resProjects, resContracts, resStore] = await Promise.all([
-        api.get('/incorporadoras/spes').catch(() => api.get('/incorporadora/spes')).catch(() => ({ data: [] })),
-        api.get('/incorporadoras/land-bank').catch(() => api.get('/incorporadora/land-bank')).catch(() => ({ data: [] })),
-        api.get('/incorporadoras/projects').catch(() => api.get('/incorporadora/projects')).catch(() => ({ data: [] })),
+        api.get('/incorporadora/spes').catch(() => api.get('/incorporadora/spes')).catch(() => ({ data: [] })),
+        api.get('/incorporadora/land-bank').catch(() => api.get('/incorporadora/land-bank')).catch(() => ({ data: [] })),
+        api.get('/incorporadora/projects').catch(() => api.get('/incorporadora/projects')).catch(() => ({ data: [] })),
         api.get('/contracts').catch(() => ({ data: [] })),
         api.get('/my-store').catch(() => ({ data: {} }))
       ]);
@@ -148,7 +148,7 @@ export default function IncorporadoraPage() {
   const handleCreateSpe = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await api.post('/incorporadoras/spes', speForm).catch(() => api.post('/incorporadora/spes', speForm));
+      await api.post('/incorporadora/spes', speForm).catch(() => api.post('/incorporadora/spes', speForm));
       setSpeForm({ cnpj: '', corporateName: '', tradeName: '', taxRegime: 'RET - Patrimônio de Afetação (4%)', pixKey: '' });
       fetchAllData();
       alert('SPE cadastrada com sucesso!');
@@ -160,7 +160,7 @@ export default function IncorporadoraPage() {
   const handleCreateLandBank = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await api.post('/incorporadoras/land-bank', landForm).catch(() => api.post('/incorporadora/land-bank', landForm));
+      await api.post('/incorporadora/land-bank', landForm).catch(() => api.post('/incorporadora/land-bank', landForm));
       setLandForm({
         speId: '', title: '', address: '', neighborhood: '', city: '', state: 'SP',
         areaSqm: '', utilizationCoefficient: '4', acquisitionCost: '', swapPercent: '0',
@@ -176,7 +176,7 @@ export default function IncorporadoraPage() {
   const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await api.post('/incorporadoras/projects', projectForm).catch(() => api.post('/incorporadora/projects', projectForm));
+      const res = await api.post('/incorporadora/projects', projectForm).catch(() => api.post('/incorporadora/projects', projectForm));
       setProjectForm({
         speId: '', landBankId: '', name: '', status: 'LANCAMENTO', address: '', neighborhood: '',
         city: '', state: 'SP', deliveryForecast: '', totalUnits: '40', vgvTotal: ''
@@ -218,7 +218,7 @@ export default function IncorporadoraPage() {
           loucas: progressAndSiteForm.memorialLoucas
         }
       };
-      await api.put(`/incorporadoras/projects/${selectedProject.id}`, payload).catch(() => api.put(`/incorporadora/projects/${selectedProject.id}`, payload));
+      await api.put(`/incorporadora/projects/${selectedProject.id}`, payload).catch(() => api.put(`/incorporadora/projects/${selectedProject.id}`, payload));
       fetchAllData();
       alert('Cronograma Físico e Vitrine Pública atualizados com sucesso!');
     } catch (err) {
@@ -230,7 +230,7 @@ export default function IncorporadoraPage() {
     e.preventDefault();
     if (!selectedProject) return;
     try {
-      await api.post(`/incorporadoras/projects/${selectedProject.id}/budget-items`, budgetForm).catch(() => api.post(`/incorporadora/projects/${selectedProject.id}/budget-items`, budgetForm));
+      await api.post(`/incorporadora/projects/${selectedProject.id}/budget-items`, budgetForm).catch(() => api.post(`/incorporadora/projects/${selectedProject.id}/budget-items`, budgetForm));
       setBudgetForm({ code: '', stageName: 'Estrutura', itemDescription: '', category: 'Material', unit: 'm³', quantity: '', unitCost: '' });
       fetchAllData();
     } catch (err) {
@@ -242,7 +242,7 @@ export default function IncorporadoraPage() {
     e.preventDefault();
     if (!selectedProject) return;
     try {
-      await api.post(`/incorporadoras/projects/${selectedProject.id}/measurements`, measurementForm).catch(() => api.post(`/incorporadora/projects/${selectedProject.id}/measurements`, measurementForm));
+      await api.post(`/incorporadora/projects/${selectedProject.id}/measurements`, measurementForm).catch(() => api.post(`/incorporadora/projects/${selectedProject.id}/measurements`, measurementForm));
       setMeasurementForm({ contractorName: '', contractorCnpj: '', serviceDescription: '', periodReference: '', grossAmount: '', retentionPercent: '5', integrateToDre: true });
       fetchAllData();
       alert('Medição registrada! Despesa lançada automaticamente no DRE.');
@@ -255,7 +255,7 @@ export default function IncorporadoraPage() {
     e.preventDefault();
     if (!selectedProject) return;
     try {
-      await api.post(`/incorporadoras/projects/${selectedProject.id}/supply-orders`, supplyForm).catch(() => api.post(`/incorporadora/projects/${selectedProject.id}/supply-orders`, supplyForm));
+      await api.post(`/incorporadora/projects/${selectedProject.id}/supply-orders`, supplyForm).catch(() => api.post(`/incorporadora/projects/${selectedProject.id}/supply-orders`, supplyForm));
       setSupplyForm({ materialName: '', unit: 'ton', quantityOrdered: '', supplierName: '', totalAmount: '', status: 'ENTREGUE_NO_CANTEIRO' });
       fetchAllData();
     } catch (err) {
@@ -271,7 +271,7 @@ export default function IncorporadoraPage() {
         ...diaryForm,
         photosUrls: diaryForm.photosUrls.split(',').map(s => s.trim()).filter(Boolean)
       };
-      await api.post(`/incorporadoras/projects/${selectedProject.id}/work-diaries`, payload).catch(() => api.post(`/incorporadora/projects/${selectedProject.id}/work-diaries`, payload));
+      await api.post(`/incorporadora/projects/${selectedProject.id}/work-diaries`, payload).catch(() => api.post(`/incorporadora/projects/${selectedProject.id}/work-diaries`, payload));
       setDiaryForm({ weatherMorning: 'Sol', weatherAfternoon: 'Sol', workforceCount: '25', activitiesExecuted: '', occurrences: '', photosUrls: '', engineerName: '' });
       fetchAllData();
       alert('Diário de Obra (RDO) salvo com sucesso!');
@@ -284,7 +284,7 @@ export default function IncorporadoraPage() {
     e.preventDefault();
     if (!selectedProject) return;
     try {
-      const res = await api.post(`/incorporadoras/projects/${selectedProject.id}/apply-incc`, { inccPercent: inccPercentInput }).catch(() => api.post(`/incorporadora/projects/${selectedProject.id}/apply-incc`, { inccPercent: inccPercentInput }));
+      const res = await api.post(`/incorporadora/projects/${selectedProject.id}/apply-incc`, { inccPercent: inccPercentInput }).catch(() => api.post(`/incorporadora/projects/${selectedProject.id}/apply-incc`, { inccPercent: inccPercentInput }));
       fetchAllData();
       alert(res.data?.message || 'INCC aplicado com sucesso!');
     } catch (err: any) {
@@ -296,7 +296,7 @@ export default function IncorporadoraPage() {
     e.preventDefault();
     if (!selectedProject) return;
     try {
-      await api.post(`/incorporadoras/projects/${selectedProject.id}/bim-files`, bimForm).catch(() => api.post(`/incorporadora/projects/${selectedProject.id}/bim-files`, bimForm));
+      await api.post(`/incorporadora/projects/${selectedProject.id}/bim-files`, bimForm).catch(() => api.post(`/incorporadora/projects/${selectedProject.id}/bim-files`, bimForm));
       setBimForm({
         discipline: 'Fachada / Exterior', fileName: '', fileFormat: 'IFC', fileUrl: '', version: 'R01',
         clashStatus: 'COMPATIBILIZADO', clashDescription: '', responsibleDesigner: ''
@@ -312,7 +312,7 @@ export default function IncorporadoraPage() {
     e.preventDefault();
     if (!selectedProject) return;
     try {
-      await api.post(`/incorporadoras/projects/${selectedProject.id}/customization-options`, kitOptionForm).catch(() => api.post(`/incorporadora/projects/${selectedProject.id}/customization-options`, kitOptionForm));
+      await api.post(`/incorporadora/projects/${selectedProject.id}/customization-options`, kitOptionForm).catch(() => api.post(`/incorporadora/projects/${selectedProject.id}/customization-options`, kitOptionForm));
       setKitOptionForm({ category: 'Pisos e Porcelanatos', title: '', specification: '', imageUrl: '', additionalPrice: '', maxStageAllowedPct: '60' });
       fetchAllData();
       alert('Kit de Acabamento adicionado ao catálogo do empreendimento!');
@@ -341,7 +341,7 @@ export default function IncorporadoraPage() {
       return;
     }
     try {
-      await api.post(`/incorporadoras/projects/${selectedProject.id}/customization-orders`, customOrderForm).catch(() => api.post(`/incorporadora/projects/${selectedProject.id}/customization-orders`, customOrderForm));
+      await api.post(`/incorporadora/projects/${selectedProject.id}/customization-orders`, customOrderForm).catch(() => api.post(`/incorporadora/projects/${selectedProject.id}/customization-orders`, customOrderForm));
       setCustomOrderForm({ unitNumber: '', buyerName: '', buyerDocument: '', contractId: '', selectedOptionIds: [], approveAndGenerateAddendum: true });
       fetchAllData();
       alert('Personalização registrada! Aditivo financeiro calculado e Ordem de Serviço (OS) enviada para o canteiro de obras.');
@@ -359,7 +359,7 @@ export default function IncorporadoraPage() {
   }
 
   const publicShowcaseUrl = storeInfo?.slug
-    ? `/loja/${storeInfo.slug}/incorporadoras`
+    ? `/loja/${storeInfo.slug}/incorporadora`
     : '#';
 
   return (
