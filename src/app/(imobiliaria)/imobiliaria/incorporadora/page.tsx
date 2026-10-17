@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { api } from '@/src/lib/api';
 import {
   Building2, Landmark, Compass, HardHat, FileSpreadsheet, Layers,
@@ -398,6 +399,13 @@ export default function IncorporadoraPage() {
             </select>
           </div>
 
+          <Link
+            href="/imobiliaria/incorporadora/simulador"
+            className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-5 py-3.5 rounded-2xl flex items-center justify-center gap-2 shadow-lg transition-all shrink-0"
+          >
+            <Calculator size={16} /> Simulador de Crédito
+          </Link>
+
           {storeInfo?.slug && (
             <a
               href={publicShowcaseUrl}
@@ -405,7 +413,7 @@ export default function IncorporadoraPage() {
               rel="noreferrer"
               className="bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs px-5 py-3.5 rounded-2xl flex items-center justify-center gap-2 shadow-lg transition-all shrink-0"
             >
-              <Globe size={16} /> Ver Página da Incorporadora no Site <ExternalLink size={14} />
+              <Globe size={16} /> Ver Página da Incorporadora <ExternalLink size={14} />
             </a>
           )}
         </div>

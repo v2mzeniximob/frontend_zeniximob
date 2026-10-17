@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import { api } from '@/src/lib/api';
 import {
   Building2, MapPin, Compass, Layers, CheckCircle2, Sparkles,
-  Calendar, HardHat, Eye, Send, Phone, ArrowLeft, Loader2, ShieldCheck
+  Calendar, HardHat, Eye, Send, Phone, ArrowLeft, Loader2, ShieldCheck, Calculator
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -100,7 +100,7 @@ export default function VitrinePublicaIncorporadoraPage() {
       
       {/* TOPBAR */}
       <header className="border-b border-slate-800 bg-slate-950/90 backdrop-blur-md sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex flex-col sm:flex-row justify-between items-center gap-3">
           <div className="flex items-center gap-3">
             <Building2 className="text-blue-500" size={28} />
             <div>
@@ -108,9 +108,14 @@ export default function VitrinePublicaIncorporadoraPage() {
               <span className="block text-[10px] uppercase tracking-widest text-blue-400 font-bold">Divisão Incorporadora & Projetos</span>
             </div>
           </div>
-          <Link href={`/loja/${slug}`} className="text-xs font-bold text-slate-300 hover:text-white flex items-center gap-2 bg-slate-900 px-4 py-2 rounded-xl border border-slate-800">
-            <ArrowLeft size={14} /> Voltar para a Vitrine de Imóveis
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link href={`/loja/${slug}/simulador-credito`} className="text-xs font-bold text-slate-900 bg-amber-400 hover:bg-amber-300 flex items-center gap-1.5 px-4 py-2 rounded-xl transition-all shadow-md">
+              <Calculator size={14} /> Simular Financiamento
+            </Link>
+            <Link href={`/loja/${slug}`} className="text-xs font-bold text-slate-300 hover:text-white flex items-center gap-2 bg-slate-900 px-4 py-2 rounded-xl border border-slate-800">
+              <ArrowLeft size={14} /> Voltar para a Vitrine
+            </Link>
+          </div>
         </div>
       </header>
 
@@ -159,6 +164,11 @@ export default function VitrinePublicaIncorporadoraPage() {
                   <p className="text-slate-300 text-sm leading-relaxed pt-2">
                     {selectedProject.description || 'Empreendimento projetado com arquitetura autoral, compatibilização BIM integral e plantas personalizáveis pelo comprador.'}
                   </p>
+                  <div className="pt-2">
+                    <Link href={`/loja/${slug}/simulador-credito`} className="inline-flex items-center gap-2 bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs px-5 py-3 rounded-xl shadow-lg transition-all">
+                      <Calculator size={15} /> Simular Financiamento e Subsídio para esta Obra
+                    </Link>
+                  </div>
                 </div>
 
                 <div className="lg:col-span-5 bg-slate-950/80 p-6 rounded-2xl border border-slate-800 space-y-4">
