@@ -63,7 +63,7 @@ export function RealEstateSidebar() {
   const menuItems = [
     { name: 'Dashboard', icon: LayoutDashboard, path: '/imobiliaria/dashboard', modules: ['always'] },
     { name: 'Condomínios', icon: Building2, path: '/imobiliaria/condominios', modules: ['condominios'] },
-    { name: 'Incorporadoras', icon: Building2, path: '/imobiliaria/incorporadora', modules: ['incorporadoras', 'incorporadora'] },
+    { name: 'Incorporadoras', icon: Building2, path: '/imobiliaria/incorporadoras', modules: ['incorporadoras', 'incorporadora'] },
     { name: 'Imóveis', icon: Home, path: '/imobiliaria/imoveis', modules: ['imoveis'] },
     { name: 'Corretores', icon: Users, path: '/imobiliaria/corretores', modules: ['corretores'] },
     { name: 'Clientes (CRM)', icon: UserCircle, path: '/imobiliaria/clientes', modules: ['crm'] },
