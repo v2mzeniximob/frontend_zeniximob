@@ -6,7 +6,8 @@ import { useRouter, useParams } from 'next/navigation';
 import { 
   LogOut, Home, FileText, Wrench, DollarSign, AlertCircle, 
   CheckCircle, Clock, Plus, Building, User, Loader2, X,
-  MapPin, MessageSquare, Send, Globe, Calendar, Key, Sparkles, RefreshCw
+  MapPin, MessageSquare, Send, Globe, Calendar, Key, Sparkles, RefreshCw,
+  HardHat, Layers, Copy, ExternalLink, Compass
 } from 'lucide-react';
 import { api } from '@/src/lib/api';
 
@@ -28,7 +29,15 @@ export default function PortalDashboardPage() {
   const [icalForm, setIcalForm] = useState<{ [key: string]: { airbnbIcalUrl: string; bookingIcalUrl: string; vrboIcalUrl: string } }>({});
   const [isSavingIcal, setIsSavingIcal] = useState<string | null>(null);
 
-  const [activeTab, setActiveTab] = useState<'resumo' | 'boletos' | 'manutencao' | 'temporada'>('resumo');
+  // Estados para Incorporadora (Acompanhamento de Obra & Kit Personalização)
+  const [devProjects, setDevProjects] = useState<any[]>([]);
+  const [selectedDevProject, setSelectedDevProject] = useState<any>(null);
+  const [unitNumber, setUnitNumber] = useState('');
+  const [selectedContractId, setSelectedContractId] = useState('');
+  const [selectedKitIds, setSelectedKitIds] = useState<string[]>([]);
+  const [isSubmittingKit, setIsSubmittingKit] = useState(false);
+
+  const [activeTab, setActiveTab] = useState<'resumo' | 'boletos' | 'manutencao' | 'temporada' | 'incorporadora'>('resumo');
 
   // Modal Novo Chamado
   const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
@@ -60,8 +69,17 @@ export default function PortalDashboardPage() {
   const fetchDashboardData = async () => {
     setIsLoading(true);
     try {
-      const response = await api.get('/portal/dashboard');
-      if (response.data.contracts) setContracts(response.data.contracts);
+      const [response, resIncorp] = await Promise.all([
+        api.get('/portal/dashboard'),
+        api.get('/portal/incorporadora').catch(() => ({ data: { projects: [] } }))
+      ]);
+
+      if (response.data.contracts) {
+        setContracts(response.data.contracts);
+        if (response.data.contracts.length > 0 && !selectedContractId) {
+          setSelectedContractId(response.data.contracts[0].id);
+        }
+      }
       if (response.data.tickets) setTickets(response.data.tickets);
       if (response.data.properties) setProperties(response.data.properties);
       
@@ -86,6 +104,18 @@ export default function PortalDashboardPage() {
       if (response.data.properties && response.data.properties.length === 1) {
         setTicketForm(prev => ({ ...prev, propertyId: response.data.properties[0].id }));
       }
+
+      // Dados reais do Módulo Incorporadora (Obras e Kits de Personalização)
+      const fetchedProjects = resIncorp.data?.projects || [];
+      setDevProjects(fetchedProjects);
+      if (fetchedProjects.length > 0) {
+        if (!selectedDevProject) {
+          setSelectedDevProject(fetchedProjects[0]);
+        } else {
+          const updated = fetchedProjects.find((p: any) => p.id === selectedDevProject.id);
+          if (updated) setSelectedDevProject(updated);
+        }
+      }
     } catch (error) {
       console.error('Erro ao buscar dados do portal', error);
     } finally {
@@ -105,9 +135,12 @@ export default function PortalDashboardPage() {
   };
 
   const handlePayment = (invoice: any) => {
-    const link = invoice.invoiceUrl || invoice.bankSlipUrl || invoice.url;
+    const link = invoice.ticketUrl || invoice.invoiceUrl || invoice.bankSlipUrl || invoice.url;
     if (link) {
       window.open(link, '_blank');
+    } else if (invoice.pixQrCode) {
+      navigator.clipboard.writeText(invoice.pixQrCode);
+      alert('Código PIX Copia e Cola copiado para a área de transferência!');
     } else {
       alert('O link de pagamento ainda não está disponível. Entre em contato com a imobiliária.');
     }
@@ -124,6 +157,39 @@ export default function PortalDashboardPage() {
       alert(error.response?.data?.error || 'Erro ao salvar os links de integração.');
     } finally {
       setIsSavingIcal(null);
+    }
+  };
+
+  // Funções da Incorporadora (Kit Opções / Personalização da Unidade)
+  const toggleKitOption = (id: string) => {
+    setSelectedKitIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+  };
+
+  const handleConfirmCustomization = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedDevProject) return;
+    if (selectedKitIds.length === 0) {
+      alert('Selecione pelo menos um acabamento ou kit para personalizar sua unidade.');
+      return;
+    }
+    if (!confirm('Ao confirmar, o valor adicional será lançado como Aditivo Contratual em seus boletos e a Ordem de Serviço será enviada à Engenharia da obra. Deseja prosseguir?')) {
+      return;
+    }
+
+    setIsSubmittingKit(true);
+    try {
+      const res = await api.post(`/portal/incorporadora/${selectedDevProject.id}/custom-order`, {
+        unitNumber,
+        contractId: selectedContractId || undefined,
+        selectedOptionIds: selectedKitIds
+      });
+      alert(res.data?.message || 'Personalização confirmada com sucesso!');
+      setSelectedKitIds([]);
+      fetchDashboardData();
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Erro ao confirmar personalização da unidade.');
+    } finally {
+      setIsSubmittingKit(false);
     }
   };
 
@@ -173,6 +239,12 @@ export default function PortalDashboardPage() {
     );
   }
 
+  const totalKitSelectedAmount = (selectedDevProject?.customizationOptions || [])
+    .filter((o: any) => selectedKitIds.includes(o.id))
+    .reduce((acc: number, o: any) => acc + Number(o.additionalPrice || 0), 0);
+
+  const memorial = selectedDevProject?.visualMemorialJson || {};
+
   const TicketCard = ({ ticket }: { ticket: any }) => (
     <div 
       onClick={() => setSelectedTicket(ticket)}
@@ -200,6 +272,265 @@ export default function PortalDashboardPage() {
     </div>
   );
 
+  // Componente Reutilizável da Aba Incorporadora (Disponível para Comprador/Inquilino e Proprietário/Investidor)
+  const IncorporadoraPortalSection = () => (
+    <div className="space-y-6">
+      <div className="bg-gradient-to-r from-indigo-700 to-slate-900 p-6 rounded-2xl text-white shadow-md flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <span className="bg-white/20 text-white text-xs font-extrabold px-3 py-1 rounded-full uppercase tracking-wider">
+            Incorporadora & Engenharia
+          </span>
+          <h3 className="text-xl font-bold mt-2">Acompanhamento de Obra & Personalização da Unidade</h3>
+          <p className="text-xs text-indigo-100 mt-1">
+            Acompanhe o cronograma físico da construção, diário de obra, memorial descritivo e escolha seu Kit de Acabamentos.
+          </p>
+        </div>
+        {selectedDevProject && (
+          <div className="bg-white/10 backdrop-blur px-4 py-3 rounded-xl border border-white/15 text-right shrink-0">
+            <span className="text-[10px] uppercase font-bold text-indigo-200 block">Progresso Geral da Obra</span>
+            <span className="text-2xl font-black text-emerald-400">{selectedDevProject.overallProgressPct || 0}%</span>
+          </div>
+        )}
+      </div>
+
+      {devProjects.length === 0 ? (
+        <div className="bg-white p-8 rounded-2xl text-center border border-slate-200 shadow-sm">
+          <HardHat size={40} className="mx-auto text-slate-300 mb-3" />
+          <h3 className="font-bold text-slate-700">Nenhum empreendimento em obras disponível no momento</h3>
+          <p className="text-xs text-slate-400 mt-1">Assim que a incorporadora liberar o acompanhamento do seu empreendimento, ele aparecerá aqui.</p>
+        </div>
+      ) : (
+        <>
+          {/* Seletor de Empreendimento */}
+          {devProjects.length > 1 && (
+            <div className="flex flex-wrap gap-2">
+              {devProjects.map((proj: any) => (
+                <button
+                  key={proj.id}
+                  onClick={() => {
+                    setSelectedDevProject(proj);
+                    setSelectedKitIds([]);
+                  }}
+                  className={`px-4 py-2.5 rounded-xl text-xs font-bold border transition-all ${
+                    selectedDevProject?.id === proj.id
+                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  🏗️ {proj.name} ({proj.overallProgressPct || 0}%)
+                </button>
+              ))}
+            </div>
+          )}
+
+          {selectedDevProject && (
+            <>
+              {/* 1. Avanço Físico por Etapa + Links Tour 360° */}
+              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-6">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-100 pb-4">
+                  <div>
+                    <h4 className="text-lg font-black text-slate-800">{selectedDevProject.name}</h4>
+                    <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
+                      <MapPin size={13}/> {selectedDevProject.address} — {selectedDevProject.city}/{selectedDevProject.state}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedDevProject.tour360ExteriorUrl && (
+                      <a href={selectedDevProject.tour360ExteriorUrl} target="_blank" rel="noreferrer" className="bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold px-3 py-2 rounded-xl border border-blue-200 flex items-center gap-1.5">
+                        <Compass size={14}/> Tour 360° Fachada
+                      </a>
+                    )}
+                    {selectedDevProject.tour360DecoratedUrl && (
+                      <a href={selectedDevProject.tour360DecoratedUrl} target="_blank" rel="noreferrer" className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold px-3 py-2 rounded-xl border border-indigo-200 flex items-center gap-1.5">
+                        <Sparkles size={14}/> Tour 360° Decorado
+                      </a>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                  {[
+                    { label: '1. Fundação & Terraplenagem', pct: selectedDevProject.foundationPct || 0 },
+                    { label: '2. Supraestrutura / Concreto', pct: selectedDevProject.structurePct || 0 },
+                    { label: '3. Alvenaria & Vedação', pct: selectedDevProject.masonryPct || 0 },
+                    { label: '4. Instalações Elétricas / Hidr.', pct: selectedDevProject.installationsPct || 0 },
+                    { label: '5. Fachada & Design Exterior', pct: selectedDevProject.facadePct || 0 },
+                    { label: '6. Acabamentos & Interiores', pct: selectedDevProject.finishingPct || 0 },
+                  ].map(stage => (
+                    <div key={stage.label} className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                      <div className="flex justify-between text-xs font-bold text-slate-700">
+                        <span>{stage.label}</span>
+                        <span className="text-indigo-600">{stage.pct}%</span>
+                      </div>
+                      <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+                        <div style={{ width: `${stage.pct}%` }} className="h-full bg-indigo-600 rounded-full transition-all duration-700" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Diário de Obra Recente */}
+                {(selectedDevProject.workDiaries || []).length > 0 && (
+                  <div className="pt-4 border-t border-slate-100 space-y-3">
+                    <h5 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                      <Calendar size={14} className="text-indigo-600"/> Boletins Recentes do Diário de Obra (RDO)
+                    </h5>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {selectedDevProject.workDiaries.slice(0, 4).map((d: any) => (
+                        <div key={d.id} className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-1">
+                          <div className="flex justify-between">
+                            <span className="font-bold text-slate-800">{new Date(d.date).toLocaleDateString('pt-BR')}</span>
+                            <span className="text-slate-400">{d.engineerName || 'Engenharia'}</span>
+                          </div>
+                          <p className="text-slate-600">{d.activitiesExecuted}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 2. Kit de Personalização de Unidades (My Home Design) + Memorial Descritivo */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                <div className="lg:col-span-7 bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-5">
+                  <div>
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full">
+                      Kit Opções & Customização
+                    </span>
+                    <h4 className="text-base font-black text-slate-800 mt-1">
+                      Personalize o Interior da sua Unidade
+                    </h4>
+                    <p className="text-xs text-slate-500">
+                      Selecione acabamentos superiores antes da entrega das chaves. O sistema calcula o aditivo contratual e emite a Ordem de Serviço (OS) direto para o canteiro de obras.
+                    </p>
+                  </div>
+
+                  <form onSubmit={handleConfirmCustomization} className="space-y-4 text-xs">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block font-bold text-slate-700 mb-1">Número da sua Unidade / Apto *</label>
+                        <input
+                          required
+                          type="text"
+                          placeholder="Ex: Apto 1204 - Torre A"
+                          value={unitNumber}
+                          onChange={e => setUnitNumber(e.target.value)}
+                          className="w-full p-3 border border-slate-300 rounded-xl outline-none focus:border-indigo-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-bold text-slate-700 mb-1">Vincular ao Contrato (Gera Boleto do Aditivo)</label>
+                        <select
+                          value={selectedContractId}
+                          onChange={e => setSelectedContractId(e.target.value)}
+                          className="w-full p-3 border border-slate-300 rounded-xl bg-white outline-none focus:border-indigo-500"
+                        >
+                          <option value="">Selecione seu contrato...</option>
+                          {contracts.map((c: any) => (
+                            <option key={c.id} value={c.id}>{c.property?.title || 'Contrato Ativo'} ({formatCurrency(c.rentValue)})</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2.5">
+                      {(selectedDevProject.customizationOptions || []).length === 0 ? (
+                        <p className="text-slate-400 text-xs py-4 text-center">Nenhum kit opcional cadastrado para este empreendimento no momento.</p>
+                      ) : (
+                        selectedDevProject.customizationOptions.map((opt: any) => {
+                          const isSelected = selectedKitIds.includes(opt.id);
+                          const isExpired = (selectedDevProject.overallProgressPct || 0) > (opt.maxStageAllowedPct || 100);
+
+                          return (
+                            <div
+                              key={opt.id}
+                              onClick={() => !isExpired && toggleKitOption(opt.id)}
+                              className={`p-4 rounded-xl border transition-all flex justify-between items-center ${
+                                isExpired
+                                  ? 'bg-slate-100 border-slate-200 opacity-60 cursor-not-allowed'
+                                  : isSelected
+                                  ? 'bg-indigo-50 border-indigo-600 shadow-sm cursor-pointer'
+                                  : 'bg-white border-slate-200 hover:border-indigo-300 cursor-pointer'
+                              }`}
+                            >
+                              <div>
+                                <span className="text-[10px] font-bold uppercase text-indigo-600">{opt.category}</span>
+                                <p className="font-bold text-slate-800 text-sm">{opt.title}</p>
+                                <p className="text-slate-500 text-xs mt-0.5">{opt.specification}</p>
+                                {isExpired && (
+                                  <span className="text-[10px] font-bold text-red-600 block mt-1">
+                                    Prazo encerrado (permitido até {opt.maxStageAllowedPct}% da obra)
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-right shrink-0 ml-4">
+                                <span className="font-black text-emerald-700 text-sm block">+ {formatCurrency(opt.additionalPrice)}</span>
+                                <span className="text-[10px] text-slate-400">Limite: {opt.maxStageAllowedPct}% obra</span>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+
+                    <div className="p-4 bg-slate-900 text-white rounded-xl flex flex-col sm:flex-row justify-between items-center gap-4">
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-slate-400 block">Valor do Aditivo de Personalização</span>
+                        <span className="text-xl font-black text-emerald-400">{formatCurrency(totalKitSelectedAmount)}</span>
+                      </div>
+                      <button
+                        type="submit"
+                        disabled={isSubmittingKit}
+                        className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-5 py-3 rounded-xl shadow-md flex items-center justify-center gap-2 disabled:opacity-50"
+                      >
+                        {isSubmittingKit ? <Loader2 size={16} className="animate-spin"/> : <Sparkles size={16}/>}
+                        Confirmar Personalização & Gerar OS
+                      </button>
+                    </div>
+                  </form>
+                </div>
+
+                <div className="lg:col-span-5 space-y-6">
+                  {/* Memorial Descritivo Visual */}
+                  <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-3 text-xs">
+                    <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                      <Layers size={16} className="text-indigo-600"/> Memorial Descritivo Padrão
+                    </h4>
+                    <p className="text-slate-600"><strong className="text-slate-800">Fachada (Exterior):</strong> {memorial.fachada || 'Conforme projeto executivo da incorporadora.'}</p>
+                    <p className="text-slate-600"><strong className="text-slate-800">Pisos e Revestimentos:</strong> {memorial.piso || 'Porcelanato e revestimentos cerâmicos de 1ª linha.'}</p>
+                    <p className="text-slate-600"><strong className="text-slate-800">Esquadrias:</strong> {memorial.esquadrias || 'Alumínio com pintura eletrostática.'}</p>
+                    <p className="text-slate-600"><strong className="text-slate-800">Louças e Metais:</strong> {memorial.loucas || 'Louças e metais de alto padrão.'}</p>
+                  </div>
+
+                  {/* Ordens de Serviço (OS) de Personalização Emitidas */}
+                  <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-3">
+                    <h4 className="text-sm font-bold text-slate-800">Minhas Ordens de Personalização (Canteiro)</h4>
+                    {(selectedDevProject.customizationOrders || []).length === 0 ? (
+                      <p className="text-xs text-slate-400">Nenhum pedido de personalização emitido.</p>
+                    ) : (
+                      selectedDevProject.customizationOrders.map((ord: any) => (
+                        <div key={ord.id} className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-1.5">
+                          <div className="flex justify-between items-center">
+                            <span className="font-bold text-slate-800">{ord.unitNumber}</span>
+                            <span className="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold text-[10px]">
+                              {ord.engineeringOsCode} • {ord.engineeringOsStatus}
+                            </span>
+                          </div>
+                          <p className="text-slate-600 whitespace-pre-line text-[11px]">{ord.engineeringInstructions}</p>
+                          <p className="font-black text-indigo-600 text-right">Aditivo: {formatCurrency(ord.totalAdditionalAmount)}</p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+        </>
+      )}
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-slate-50 font-sans pb-20">
       
@@ -212,7 +543,7 @@ export default function PortalDashboardPage() {
                 {user?.name?.charAt(0).toUpperCase()}
               </div>
               <div>
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">{user?.role === 'CLIENT' ? 'Área do Inquilino' : 'Área do Proprietário'}</p>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">{user?.role === 'CLIENT' ? 'Área do Inquilino / Comprador' : 'Área do Proprietário / Investidor'}</p>
                 <p className="font-bold text-slate-800 line-clamp-1">Olá, {user?.name}</p>
               </div>
             </div>
@@ -225,15 +556,18 @@ export default function PortalDashboardPage() {
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 mt-8 animate-in fade-in duration-500">
         
-        {/* ======================= VISÃO DO INQUILINO ======================= */}
+        {/* ======================= VISÃO DO INQUILINO / COMPRADOR ======================= */}
         {user?.role === 'CLIENT' && (
           <div className="space-y-6">
             <div className="flex bg-white rounded-xl shadow-sm border border-slate-200 p-1 overflow-x-auto">
               <button onClick={() => setActiveTab('resumo')} className={`flex-1 py-2.5 px-3 text-xs sm:text-sm font-bold rounded-lg transition-colors flex items-center justify-center gap-2 whitespace-nowrap ${activeTab === 'resumo' ? 'bg-blue-50 text-blue-700' : 'text-slate-500 hover:text-slate-700'}`}>
-                <Home size={16}/> Meu Aluguel
+                <Home size={16}/> Meu Contrato
               </button>
               <button onClick={() => setActiveTab('boletos')} className={`flex-1 py-2.5 px-3 text-xs sm:text-sm font-bold rounded-lg transition-colors flex items-center justify-center gap-2 whitespace-nowrap ${activeTab === 'boletos' ? 'bg-blue-50 text-blue-700' : 'text-slate-500 hover:text-slate-700'}`}>
                 <DollarSign size={16}/> Boletos
+              </button>
+              <button onClick={() => setActiveTab('incorporadora')} className={`flex-1 py-2.5 px-3 text-xs sm:text-sm font-bold rounded-lg transition-colors flex items-center justify-center gap-2 whitespace-nowrap ${activeTab === 'incorporadora' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:text-slate-700'}`}>
+                <HardHat size={16}/> Obra & Personalização
               </button>
               <button onClick={() => setActiveTab('temporada')} className={`flex-1 py-2.5 px-3 text-xs sm:text-sm font-bold rounded-lg transition-colors flex items-center justify-center gap-2 whitespace-nowrap ${activeTab === 'temporada' ? 'bg-blue-50 text-blue-700' : 'text-slate-500 hover:text-slate-700'}`}>
                 <Calendar size={16}/> Temporada / Estadias
@@ -251,14 +585,14 @@ export default function PortalDashboardPage() {
                   contracts.map(contract => (
                     <div key={contract.id} className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                       <div className="h-32 bg-slate-200 relative">
-                        {contract.property.coverImage ? ( <img src={contract.property.coverImage} alt="Imóvel" className="w-full h-full object-cover" /> ) : ( <div className="w-full h-full bg-blue-100 flex items-center justify-center text-blue-300"><Building size={40}/></div> )}
+                        {contract.property?.coverImage ? ( <img src={contract.property.coverImage} alt="Imóvel" className="w-full h-full object-cover" /> ) : ( <div className="w-full h-full bg-blue-100 flex items-center justify-center text-blue-300"><Building size={40}/></div> )}
                         <div className="absolute top-4 left-4 bg-white/90 backdrop-blur px-3 py-1 rounded-full text-xs font-bold text-slate-700 shadow-sm">Contrato Ativo</div>
                       </div>
                       <div className="p-6">
-                        <h2 className="text-lg font-black text-slate-800">{contract.property.title}</h2>
-                        <p className="text-sm text-slate-500 flex items-center gap-1.5 mt-1"><MapPin size={14}/> {contract.property.address}</p>
+                        <h2 className="text-lg font-black text-slate-800">{contract.property?.title}</h2>
+                        <p className="text-sm text-slate-500 flex items-center gap-1.5 mt-1"><MapPin size={14}/> {contract.property?.address}</p>
                         <div className="mt-6 grid grid-cols-2 gap-4 border-t border-slate-100 pt-6">
-                          <div><p className="text-xs font-bold text-slate-400 uppercase">Valor do Aluguel</p><p className="text-lg font-black text-blue-600">{formatCurrency(contract.rentValue)}</p></div>
+                          <div><p className="text-xs font-bold text-slate-400 uppercase">Valor Mensal / Parcela</p><p className="text-lg font-black text-blue-600">{formatCurrency(contract.rentValue)}</p></div>
                           <div><p className="text-xs font-bold text-slate-400 uppercase">Vencimento</p><p className="text-lg font-black text-slate-700">Dia {contract.dueDate || '10'}</p></div>
                         </div>
                       </div>
@@ -270,11 +604,11 @@ export default function PortalDashboardPage() {
 
             {activeTab === 'boletos' && (
               <div className="space-y-4">
-                <h3 className="font-bold text-slate-800">Meus Boletos</h3>
-                {contracts.flatMap(c => c.invoices).length === 0 ? (
+                <h3 className="font-bold text-slate-800">Meus Boletos e Aditivos</h3>
+                {contracts.flatMap(c => c.invoices || []).length === 0 ? (
                   <p className="text-sm text-slate-500">Nenhum boleto gerado no momento.</p>
                 ) : (
-                  contracts.flatMap(c => c.invoices).map((invoice: any) => {
+                  contracts.flatMap(c => c.invoices || []).map((invoice: any) => {
                     const isPaid = invoice.status === 'Pago';
                     const isLate = invoice.status === 'Atrasado';
                     return (
@@ -285,11 +619,11 @@ export default function PortalDashboardPage() {
                           </div>
                           <div>
                             <p className="font-bold text-slate-800">Vencimento: {new Date(invoice.dueDate).toLocaleDateString('pt-BR')}</p>
-                            <p className="text-sm text-slate-500">{invoice.description || 'Aluguel Mensal'}</p>
+                            <p className="text-sm text-slate-500">{invoice.description || 'Parcela Mensal'}</p>
                           </div>
                         </div>
                         <div className="flex items-center justify-between w-full sm:w-auto gap-4">
-                          <p className="font-black text-lg text-slate-800">{formatCurrency(invoice.value || invoice.amount)}</p>
+                          <p className="font-black text-lg text-slate-800">{formatCurrency(invoice.totalAmount || invoice.value || invoice.amount)}</p>
                           {!isPaid && (
                             <button onClick={() => handlePayment(invoice)} className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-4 py-2 rounded-lg shadow-sm transition-colors flex items-center gap-1.5"><DollarSign size={14}/> Pagar</button>
                           )}
@@ -300,6 +634,8 @@ export default function PortalDashboardPage() {
                 )}
               </div>
             )}
+
+            {activeTab === 'incorporadora' && <IncorporadoraPortalSection />}
 
             {activeTab === 'temporada' && (
               <div className="space-y-4">
@@ -368,6 +704,9 @@ export default function PortalDashboardPage() {
               <button onClick={() => setActiveTab('resumo')} className={`flex-1 py-2.5 px-3 text-xs sm:text-sm font-bold rounded-lg transition-colors flex items-center justify-center gap-2 whitespace-nowrap ${activeTab === 'resumo' ? 'bg-emerald-50 text-emerald-700' : 'text-slate-500 hover:text-slate-700'}`}>
                 <Home size={16}/> Meus Imóveis (Longo Prazo)
               </button>
+              <button onClick={() => setActiveTab('incorporadora')} className={`flex-1 py-2.5 px-3 text-xs sm:text-sm font-bold rounded-lg transition-colors flex items-center justify-center gap-2 whitespace-nowrap ${activeTab === 'incorporadora' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:text-slate-700'}`}>
+                <HardHat size={16}/> Obras & Incorporadora
+              </button>
               <button onClick={() => setActiveTab('temporada')} className={`flex-1 py-2.5 px-3 text-xs sm:text-sm font-bold rounded-lg transition-colors flex items-center justify-center gap-2 whitespace-nowrap ${activeTab === 'temporada' ? 'bg-emerald-50 text-emerald-700' : 'text-slate-500 hover:text-slate-700'}`}>
                 <Sparkles size={16}/> Imóveis de Temporada & OTAs
               </button>
@@ -401,7 +740,7 @@ export default function PortalDashboardPage() {
                                       <div className={`w-8 h-8 rounded-full flex items-center justify-center ${invoice.status === 'Pago' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>{invoice.status === 'Pago' ? <CheckCircle size={16}/> : <Clock size={16}/>}</div>
                                       <div><p className="text-sm font-bold text-slate-700">Ref. {new Date(invoice.dueDate).toLocaleDateString('pt-BR', { month: 'short', year: 'numeric'})}</p><p className="text-[10px] font-bold text-slate-400 uppercase">{invoice.status === 'Pago' ? 'Repasse Realizado' : 'Aguardando Pagamento'}</p></div>
                                     </div>
-                                    <p className="font-bold text-slate-800">{formatCurrency(invoice.value || invoice.amount)}</p>
+                                    <p className="font-bold text-slate-800">{formatCurrency(invoice.ownerAmount || invoice.value || invoice.amount)}</p>
                                   </div>
                                 ))}
                               </div>
@@ -414,6 +753,8 @@ export default function PortalDashboardPage() {
                 )}
               </>
             )}
+
+            {activeTab === 'incorporadora' && <IncorporadoraPortalSection />}
 
             {/* ABA DE TEMPORADA & INTEGRAÇÃO DE PLATAFORMAS (PROPRIETÁRIO) */}
             {activeTab === 'temporada' && (
@@ -560,13 +901,13 @@ export default function PortalDashboardPage() {
             </div>
             <form onSubmit={handleCreateTicket} className="p-6 space-y-4">
               {user?.role === 'CLIENT' && contracts.length > 1 && (
-                <div><label className="block text-xs font-bold text-slate-600 mb-1">Qual Imóvel?</label><select required value={ticketForm.propertyId} onChange={e => setTicketForm({...ticketForm, propertyId: e.target.value})} className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white"><option value="">Selecione o imóvel...</option>{contracts.map(c => <option key={c.propertyId} value={c.propertyId}>{c.property.title}</option>)}</select></div>
+                <div><label className="block text-xs font-bold text-slate-600 mb-1">Qual Imóvel?</label><select required value={ticketForm.propertyId} onChange={e => setTicketForm({...ticketForm, propertyId: e.target.value})} className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white"><option value="">Selecione o imóvel...</option>{contracts.map(c => <option key={c.propertyId} value={c.propertyId}>{c.property?.title}</option>)}</select></div>
               )}
               {user?.role === 'OWNER' && properties.length > 1 && (
                 <div><label className="block text-xs font-bold text-slate-600 mb-1">Qual Imóvel?</label><select required value={ticketForm.propertyId} onChange={e => setTicketForm({...ticketForm, propertyId: e.target.value})} className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm bg-white"><option value="">Selecione o imóvel...</option>{properties.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}</select></div>
               )}
 
-              <div><label className="block text-xs font-bold text-slate-600 mb-1">Resumo do Problema (Título)</label><input required type="text" value={ticketForm.title} onChange={e => setTicketForm({...ticketForm, title: e.target.value})} placeholder="Ex: Infiltração no teto" className={`w-full p-3 border border-slate-300 rounded-xl focus:ring-2 outline-none text-sm ${user?.role === 'CLIENT' ? 'focus:ring-blue-500' : 'focus:ring-emerald-500'}`} /></div>
+              <div><label className="block text-xs font-bold text-slate-600 mb-1">Resumo do Problema (Título)</label><input required type="text" value={ticketForm.title} onChange={e => setTicketForm({...ticketForm, title: e.target.value})} placeholder="Ex: Infiltração no teto / Dúvida de Obra" className={`w-full p-3 border border-slate-300 rounded-xl focus:ring-2 outline-none text-sm ${user?.role === 'CLIENT' ? 'focus:ring-blue-500' : 'focus:ring-emerald-500'}`} /></div>
               <div><label className="block text-xs font-bold text-slate-600 mb-1">Descrição Detalhada</label><textarea required rows={4} value={ticketForm.description} onChange={e => setTicketForm({...ticketForm, description: e.target.value})} placeholder="Descreva o que está acontecendo..." className={`w-full p-3 border border-slate-300 rounded-xl focus:ring-2 outline-none text-sm resize-none ${user?.role === 'CLIENT' ? 'focus:ring-blue-500' : 'focus:ring-emerald-500'}`} /></div>
               <div>
                 <label className="block text-xs font-bold text-slate-600 mb-1">Urgência</label>
