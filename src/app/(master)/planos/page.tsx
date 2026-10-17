@@ -9,6 +9,7 @@ import {
 
 // Lista expandida com IDs normalizados (minúsculas)
 const AVAILABLE_MODULES = [
+  { id: 'Inocorporadoras', label: 'Incorporadoras' },
   { id: 'condominios', label: 'Condomínios' },
   { id: 'imoveis', label: 'Imóveis & Proprietários' },
   { id: 'crm', label: 'CRM, Leads & Visitas' },
@@ -25,6 +26,7 @@ const AVAILABLE_MODULES = [
   { id: 'temporada', label: 'Alugueis por Temporada' },
   { id: 'fiscal', label: 'Fiscal & Contábil' },
   { id: 'meta', label: 'Integração Meta (Facebook)' }
+ 
 ];
 
 const initialForm = {

@@ -4,7 +4,7 @@ import { useState, useEffect, use } from 'react';
 import { api } from '../../../lib/api';
 import { 
   MapPin, Phone, Mail, Home, Loader2, BedDouble, Bath, Car, 
-  Search, Heart, UserCheck
+  Search, Heart, UserCheck, Building2
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -175,10 +175,20 @@ export default function VitrineLojaPage(props: { params: Promise<{ slug: string 
             )}
           </button>
 
-          <nav className="hidden lg:flex items-center gap-6 text-sm font-semibold text-slate-600">
+          <nav className="hidden lg:flex items-center gap-5 text-sm font-semibold text-slate-600">
             <button onClick={clearSearch} className={`${searchResults === null ? 'text-blue-600' : 'hover:text-blue-600 transition-colors'}`}>Início</button>
             <button onClick={() => triggerCategorySearch('Locação')} className="hover:text-blue-600 transition-colors">Locação</button>
             <button onClick={() => triggerCategorySearch('Venda')} className="hover:text-blue-600 transition-colors">Venda</button>
+            
+            {/* BOTÃO DA INCORPORADORA & LANÇAMENTOS */}
+            <Link 
+              href={`/loja/${slug}/incorporadora`} 
+              className="hover:bg-indigo-100 transition-colors font-bold text-indigo-700 bg-indigo-50 px-3.5 py-1.5 rounded-lg border border-indigo-200 flex items-center gap-1.5 shadow-sm"
+            >
+              <Building2 size={15} className="text-indigo-600" />
+              Incorporadora & Lançamentos
+            </Link>
+
             <Link href={`/loja/${slug}/simule-seu-financiamento`} className="hover:text-amber-700 transition-colors font-bold text-amber-600 bg-amber-50 px-3 py-1.5 rounded-lg border border-amber-200">Simular Financiamento</Link>
             <Link href={`/loja/${slug}/cadastre-seu-imovel`} className="hover:text-blue-700 transition-colors font-bold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100">Cadastre seu Imóvel</Link>
             <Link href={`/loja/${slug}/sobre`} className="hover:text-blue-600 transition-colors">Sobre Nós</Link>
@@ -366,6 +376,7 @@ export default function VitrineLojaPage(props: { params: Promise<{ slug: string 
               <li><button onClick={clearSearch} className="hover:text-white transition-colors">Home</button></li>
               <li><button onClick={() => triggerCategorySearch('Locação')} className="hover:text-white transition-colors">Imóveis para Locação</button></li>
               <li><button onClick={() => triggerCategorySearch('Venda')} className="hover:text-white transition-colors">Imóveis à Venda</button></li>
+              <li><Link href={`/loja/${slug}/incorporadora`} className="hover:text-white transition-colors font-semibold text-indigo-400">Incorporadora & Lançamentos</Link></li>
               <li><Link href={`/loja/${slug}/cadastre-seu-imovel`} className="hover:text-white transition-colors">Cadastre seu Imóvel</Link></li>
               <li><Link href={`/loja/${slug}/simule-seu-financiamento`} className="hover:text-white transition-colors">Simule seu Financiamento</Link></li>
               <li><Link href={`/loja/${slug}/sobre`} className="hover:text-white transition-colors">Quem Somos</Link></li>
