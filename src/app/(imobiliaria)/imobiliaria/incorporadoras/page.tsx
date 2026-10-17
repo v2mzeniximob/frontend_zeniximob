@@ -7,7 +7,7 @@ import {
   Building2, Landmark, Compass, HardHat, FileSpreadsheet, Layers,
   Sparkles, Globe, Plus, CheckCircle2, AlertTriangle, Loader2,
   TrendingUp, DollarSign, Wrench, Package, ClipboardList, Eye,
-  ExternalLink, Calculator, Percent, ShieldCheck, Box, Home, Send
+  ExternalLink, Calculator, Percent, ShieldCheck, Box, Home, Send, Edit, Power, X, Save
 } from 'lucide-react';
 
 export default function IncorporadoraPage() {
@@ -22,6 +22,11 @@ export default function IncorporadoraPage() {
   const [storeInfo, setStoreInfo] = useState<any>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
 
+  // Estados de Edição do Terreno (Land Bank Modal)
+  const [isLandModalOpen, setIsLandModalOpen] = useState(false);
+  const [editingLandId, setEditingLandId] = useState<string | null>(null);
+  const [isSavingLand, setIsSavingLand] = useState(false);
+
   // Sub-abas de Engenharia e Design
   const [engSubTab, setEngSubTab] = useState<'cronograma' | 'curva_abc' | 'medicoes' | 'suprimentos' | 'diario' | 'incc'>('cronograma');
   const [designSubTab, setDesignSubTab] = useState<'personalizacao' | 'bim'>('personalizacao');
@@ -31,7 +36,7 @@ export default function IncorporadoraPage() {
   const [landForm, setLandForm] = useState({
     speId: '', title: '', address: '', neighborhood: '', city: '', state: 'SP',
     areaSqm: '', utilizationCoefficient: '4', acquisitionCost: '', swapPercent: '0',
-    estimatedVgv: '', estimatedConstructionCost: '', taxEstimatePercent: '4.0', defaultRiskPercent: '3.0', notes: ''
+    estimatedVgv: '', estimatedConstructionCost: '', taxEstimatePercent: '4.0', defaultRiskPercent: '3.0', status: 'EM_ESTUDO', notes: ''
   });
   const [projectForm, setProjectForm] = useState({
     speId: '', landBankId: '', name: '', status: 'LANCAMENTO', address: '', neighborhood: '',
@@ -83,9 +88,9 @@ export default function IncorporadoraPage() {
     setIsLoading(true);
     try {
       const [resSpes, resLands, resProjects, resContracts, resStore] = await Promise.all([
-        api.get('/incorporadora/spes').catch(() => api.get('/incorporadora/spes')).catch(() => ({ data: [] })),
-        api.get('/incorporadora/land-bank').catch(() => api.get('/incorporadora/land-bank')).catch(() => ({ data: [] })),
-        api.get('/incorporadora/projects').catch(() => api.get('/incorporadora/projects')).catch(() => ({ data: [] })),
+        api.get('/incorporadoras/spes').catch(() => api.get('/incorporadora/spes')).catch(() => ({ data: [] })),
+        api.get('/incorporadoras/land-bank').catch(() => api.get('/incorporadora/land-bank')).catch(() => ({ data: [] })),
+        api.get('/incorporadoras/projects').catch(() => api.get('/incorporadora/projects')).catch(() => ({ data: [] })),
         api.get('/contracts').catch(() => ({ data: [] })),
         api.get('/my-store').catch(() => ({ data: {} }))
       ]);
@@ -143,12 +148,12 @@ export default function IncorporadoraPage() {
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
 
   // =========================================================================
-  // HANDLERS DE SUBMISSÃO
+  // HANDLERS DE SUBMISSÃO & LAND BANK (EDITAR / HABILITAR / DESABILITAR)
   // =========================================================================
   const handleCreateSpe = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await api.post('/incorporadora/spes', speForm).catch(() => api.post('/incorporadora/spes', speForm));
+      await api.post('/incorporadoras/spes', speForm).catch(() => api.post('/incorporadora/spes', speForm));
       setSpeForm({ cnpj: '', corporateName: '', tradeName: '', taxRegime: 'RET - Patrimônio de Afetação (4%)', pixKey: '' });
       fetchAllData();
       alert('SPE cadastrada com sucesso!');
@@ -157,26 +162,73 @@ export default function IncorporadoraPage() {
     }
   };
 
-  const handleCreateLandBank = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      await api.post('/incorporadora/land-bank', landForm).catch(() => api.post('/incorporadora/land-bank', landForm));
+  const handleOpenLandModal = (land?: any) => {
+    if (land) {
+      setEditingLandId(land.id);
+      setLandForm({
+        speId: land.speId || '',
+        title: land.title || '',
+        address: land.address || '',
+        neighborhood: land.neighborhood || '',
+        city: land.city || '',
+        state: land.state || 'SP',
+        areaSqm: land.areaSqm || '',
+        utilizationCoefficient: land.utilizationCoefficient || '4',
+        acquisitionCost: land.acquisitionCost || '',
+        swapPercent: land.swapPercent || '0',
+        estimatedVgv: land.estimatedVgv || '',
+        estimatedConstructionCost: land.estimatedConstructionCost || '',
+        taxEstimatePercent: land.taxEstimatePercent || '4.0',
+        defaultRiskPercent: land.defaultRiskPercent || '3.0',
+        status: land.status || 'EM_ESTUDO',
+        notes: land.notes || ''
+      });
+    } else {
+      setEditingLandId(null);
       setLandForm({
         speId: '', title: '', address: '', neighborhood: '', city: '', state: 'SP',
         areaSqm: '', utilizationCoefficient: '4', acquisitionCost: '', swapPercent: '0',
-        estimatedVgv: '', estimatedConstructionCost: '', taxEstimatePercent: '4.0', defaultRiskPercent: '3.0', notes: ''
+        estimatedVgv: '', estimatedConstructionCost: '', taxEstimatePercent: '4.0', defaultRiskPercent: '3.0', status: 'EM_ESTUDO', notes: ''
       });
+    }
+    setIsLandModalOpen(true);
+  };
+
+  const handleSaveLandBank = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSavingLand(true);
+    try {
+      if (editingLandId) {
+        await api.put(`/incorporadoras/land-bank/${editingLandId}`, landForm).catch(() => api.put(`/incorporadora/land-bank/${editingLandId}`, landForm));
+        alert('Terreno atualizado com sucesso!');
+      } else {
+        await api.post('/incorporadoras/land-bank', landForm).catch(() => api.post('/incorporadora/land-bank', landForm));
+        alert('Terreno e Estudo de Viabilidade registrados com sucesso!');
+      }
+      setIsLandModalOpen(false);
       fetchAllData();
-      alert('Terreno e Estudo de Viabilidade registrados com sucesso!');
     } catch (err) {
-      alert('Erro ao cadastrar terreno no Land Bank.');
+      alert('Erro ao salvar terreno no Land Bank.');
+    } finally {
+      setIsSavingLand(false);
+    }
+  };
+
+  const handleToggleLandStatus = async (id: string, currentStatus: string) => {
+    const newStatus = currentStatus === 'APROVADO' ? 'EM_ESTUDO' : 'APROVADO';
+    if (!confirm(`Deseja alterar o status deste terreno para ${newStatus}?`)) return;
+    try {
+      await api.patch(`/incorporadoras/land-bank/${id}/status`, { status: newStatus }).catch(() => api.put(`/incorporadora/land-bank/${id}`, { status: newStatus }));
+      fetchAllData();
+    } catch (err) {
+      alert('Erro ao atualizar status do terreno.');
     }
   };
 
   const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await api.post('/incorporadora/projects', projectForm).catch(() => api.post('/incorporadora/projects', projectForm));
+      const res = await api.post('/incorporadoras/projects', projectForm).catch(() => api.post('/incorporadora/projects', projectForm));
       setProjectForm({
         speId: '', landBankId: '', name: '', status: 'LANCAMENTO', address: '', neighborhood: '',
         city: '', state: 'SP', deliveryForecast: '', totalUnits: '40', vgvTotal: ''
@@ -218,7 +270,7 @@ export default function IncorporadoraPage() {
           loucas: progressAndSiteForm.memorialLoucas
         }
       };
-      await api.put(`/incorporadora/projects/${selectedProject.id}`, payload).catch(() => api.put(`/incorporadora/projects/${selectedProject.id}`, payload));
+      await api.put(`/incorporadoras/projects/${selectedProject.id}`, payload).catch(() => api.put(`/incorporadora/projects/${selectedProject.id}`, payload));
       fetchAllData();
       alert('Cronograma Físico e Vitrine Pública atualizados com sucesso!');
     } catch (err) {
@@ -230,7 +282,7 @@ export default function IncorporadoraPage() {
     e.preventDefault();
     if (!selectedProject) return;
     try {
-      await api.post(`/incorporadora/projects/${selectedProject.id}/budget-items`, budgetForm).catch(() => api.post(`/incorporadora/projects/${selectedProject.id}/budget-items`, budgetForm));
+      await api.post(`/incorporadoras/projects/${selectedProject.id}/budget-items`, budgetForm).catch(() => api.post(`/incorporadora/projects/${selectedProject.id}/budget-items`, budgetForm));
       setBudgetForm({ code: '', stageName: 'Estrutura', itemDescription: '', category: 'Material', unit: 'm³', quantity: '', unitCost: '' });
       fetchAllData();
     } catch (err) {
@@ -242,7 +294,7 @@ export default function IncorporadoraPage() {
     e.preventDefault();
     if (!selectedProject) return;
     try {
-      await api.post(`/incorporadora/projects/${selectedProject.id}/measurements`, measurementForm).catch(() => api.post(`/incorporadora/projects/${selectedProject.id}/measurements`, measurementForm));
+      await api.post(`/incorporadoras/projects/${selectedProject.id}/measurements`, measurementForm).catch(() => api.post(`/incorporadora/projects/${selectedProject.id}/measurements`, measurementForm));
       setMeasurementForm({ contractorName: '', contractorCnpj: '', serviceDescription: '', periodReference: '', grossAmount: '', retentionPercent: '5', integrateToDre: true });
       fetchAllData();
       alert('Medição registrada! Despesa lançada automaticamente no DRE.');
@@ -255,7 +307,7 @@ export default function IncorporadoraPage() {
     e.preventDefault();
     if (!selectedProject) return;
     try {
-      await api.post(`/incorporadora/projects/${selectedProject.id}/supply-orders`, supplyForm).catch(() => api.post(`/incorporadora/projects/${selectedProject.id}/supply-orders`, supplyForm));
+      await api.post(`/incorporadoras/projects/${selectedProject.id}/supply-orders`, supplyForm).catch(() => api.post(`/incorporadora/projects/${selectedProject.id}/supply-orders`, supplyForm));
       setSupplyForm({ materialName: '', unit: 'ton', quantityOrdered: '', supplierName: '', totalAmount: '', status: 'ENTREGUE_NO_CANTEIRO' });
       fetchAllData();
     } catch (err) {
@@ -271,7 +323,7 @@ export default function IncorporadoraPage() {
         ...diaryForm,
         photosUrls: diaryForm.photosUrls.split(',').map(s => s.trim()).filter(Boolean)
       };
-      await api.post(`/incorporadora/projects/${selectedProject.id}/work-diaries`, payload).catch(() => api.post(`/incorporadora/projects/${selectedProject.id}/work-diaries`, payload));
+      await api.post(`/incorporadoras/projects/${selectedProject.id}/work-diaries`, payload).catch(() => api.post(`/incorporadora/projects/${selectedProject.id}/work-diaries`, payload));
       setDiaryForm({ weatherMorning: 'Sol', weatherAfternoon: 'Sol', workforceCount: '25', activitiesExecuted: '', occurrences: '', photosUrls: '', engineerName: '' });
       fetchAllData();
       alert('Diário de Obra (RDO) salvo com sucesso!');
@@ -284,7 +336,7 @@ export default function IncorporadoraPage() {
     e.preventDefault();
     if (!selectedProject) return;
     try {
-      const res = await api.post(`/incorporadora/projects/${selectedProject.id}/apply-incc`, { inccPercent: inccPercentInput }).catch(() => api.post(`/incorporadora/projects/${selectedProject.id}/apply-incc`, { inccPercent: inccPercentInput }));
+      const res = await api.post(`/incorporadoras/projects/${selectedProject.id}/apply-incc`, { inccPercent: inccPercentInput }).catch(() => api.post(`/incorporadora/projects/${selectedProject.id}/apply-incc`, { inccPercent: inccPercentInput }));
       fetchAllData();
       alert(res.data?.message || 'INCC aplicado com sucesso!');
     } catch (err: any) {
@@ -296,7 +348,7 @@ export default function IncorporadoraPage() {
     e.preventDefault();
     if (!selectedProject) return;
     try {
-      await api.post(`/incorporadora/projects/${selectedProject.id}/bim-files`, bimForm).catch(() => api.post(`/incorporadora/projects/${selectedProject.id}/bim-files`, bimForm));
+      await api.post(`/incorporadoras/projects/${selectedProject.id}/bim-files`, bimForm).catch(() => api.post(`/incorporadora/projects/${selectedProject.id}/bim-files`, bimForm));
       setBimForm({
         discipline: 'Fachada / Exterior', fileName: '', fileFormat: 'IFC', fileUrl: '', version: 'R01',
         clashStatus: 'COMPATIBILIZADO', clashDescription: '', responsibleDesigner: ''
@@ -312,7 +364,7 @@ export default function IncorporadoraPage() {
     e.preventDefault();
     if (!selectedProject) return;
     try {
-      await api.post(`/incorporadora/projects/${selectedProject.id}/customization-options`, kitOptionForm).catch(() => api.post(`/incorporadora/projects/${selectedProject.id}/customization-options`, kitOptionForm));
+      await api.post(`/incorporadoras/projects/${selectedProject.id}/customization-options`, kitOptionForm).catch(() => api.post(`/incorporadora/projects/${selectedProject.id}/customization-options`, kitOptionForm));
       setKitOptionForm({ category: 'Pisos e Porcelanatos', title: '', specification: '', imageUrl: '', additionalPrice: '', maxStageAllowedPct: '60' });
       fetchAllData();
       alert('Kit de Acabamento adicionado ao catálogo do empreendimento!');
@@ -341,7 +393,7 @@ export default function IncorporadoraPage() {
       return;
     }
     try {
-      await api.post(`/incorporadora/projects/${selectedProject.id}/customization-orders`, customOrderForm).catch(() => api.post(`/incorporadora/projects/${selectedProject.id}/customization-orders`, customOrderForm));
+      await api.post(`/incorporadoras/projects/${selectedProject.id}/customization-orders`, customOrderForm).catch(() => api.post(`/incorporadora/projects/${selectedProject.id}/customization-orders`, customOrderForm));
       setCustomOrderForm({ unitNumber: '', buyerName: '', buyerDocument: '', contractId: '', selectedOptionIds: [], approveAndGenerateAddendum: true });
       fetchAllData();
       alert('Personalização registrada! Aditivo financeiro calculado e Ordem de Serviço (OS) enviada para o canteiro de obras.');
@@ -552,74 +604,24 @@ export default function IncorporadoraPage() {
 
           {/* BLOCO B: LAND BANK & SIMULADOR DE VIABILIDADE ECONÔMICA */}
           <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-6">
-            <div>
-              <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                <Compass className="text-emerald-600" size={22} /> Banco de Terrenos (Land Bank) & Simulador de Viabilidade Econômica
-              </h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Simule o potencial construtivo (Coeficiente de Aproveitamento), permuta, VGV, impostos RET e provisão de inadimplência antes de comprar o terreno.
-              </p>
+            <div className="flex justify-between items-center">
+              <div>
+                <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                  <Compass className="text-emerald-600" size={22} /> Banco de Terrenos (Land Bank) & Simulador de Viabilidade Econômica
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Simule o potencial construtivo, permuta, VGV e margem antes de comprar o terreno.
+                </p>
+              </div>
+              <button
+                onClick={() => handleOpenLandModal()}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl flex items-center gap-1.5 shadow-sm transition-all"
+              >
+                <Plus size={16} /> Novo Terreno
+              </button>
             </div>
 
-            <form onSubmit={handleCreateLandBank} className="grid grid-cols-1 sm:grid-cols-4 gap-4 bg-slate-50 p-5 rounded-2xl border border-slate-200 text-xs">
-              <div className="sm:col-span-2">
-                <label className="block font-bold text-slate-700 mb-1">Identificação da Área / Terreno *</label>
-                <input required type="text" placeholder="Ex: Terreno Esquina Quadra 14 - Zona Sul" value={landForm.title} onChange={e => setLandForm({ ...landForm, title: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white" />
-              </div>
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Cidade / Bairro *</label>
-                <input required type="text" placeholder="São Paulo - Moema" value={landForm.city} onChange={e => setLandForm({ ...landForm, city: e.target.value, neighborhood: e.target.value, address: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white" />
-              </div>
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">SPE Vinculada</label>
-                <select value={landForm.speId} onChange={e => setLandForm({ ...landForm, speId: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white">
-                  <option value="">Sem SPE definida</option>
-                  {spes.map(s => <option key={s.id} value={s.id}>{s.tradeName}</option>)}
-                </select>
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Área do Terreno (m²) *</label>
-                <input required type="number" step="0.01" placeholder="1200" value={landForm.areaSqm} onChange={e => setLandForm({ ...landForm, areaSqm: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white" />
-              </div>
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Coef. Aproveitamento (CA)</label>
-                <input required type="number" step="0.1" value={landForm.utilizationCoefficient} onChange={e => setLandForm({ ...landForm, utilizationCoefficient: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white" />
-              </div>
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Custo Aquisição Terreno (R$)</label>
-                <input required type="number" step="0.01" placeholder="4500000" value={landForm.acquisitionCost} onChange={e => setLandForm({ ...landForm, acquisitionCost: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white" />
-              </div>
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Permuta c/ Terreneiro (%)</label>
-                <input type="number" step="0.5" value={landForm.swapPercent} onChange={e => setLandForm({ ...landForm, swapPercent: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white" />
-              </div>
-
-              <div>
-                <label className="block font-bold text-emerald-700 mb-1">VGV Projetado (R$) *</label>
-                <input required type="number" step="0.01" placeholder="32000000" value={landForm.estimatedVgv} onChange={e => setLandForm({ ...landForm, estimatedVgv: e.target.value })} className="w-full p-2.5 border border-emerald-400 rounded-xl bg-white font-bold" />
-              </div>
-              <div>
-                <label className="block font-bold text-rose-700 mb-1">Custo Estimado de Obra (R$) *</label>
-                <input required type="number" step="0.01" placeholder="16500000" value={landForm.estimatedConstructionCost} onChange={e => setLandForm({ ...landForm, estimatedConstructionCost: e.target.value })} className="w-full p-2.5 border border-rose-300 rounded-xl bg-white" />
-              </div>
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Impostos Projetados (%)</label>
-                <input type="number" step="0.1" value={landForm.taxEstimatePercent} onChange={e => setLandForm({ ...landForm, taxEstimatePercent: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white" />
-              </div>
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Provisão Inadimplência (%)</label>
-                <input type="number" step="0.1" value={landForm.defaultRiskPercent} onChange={e => setLandForm({ ...landForm, defaultRiskPercent: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white" />
-              </div>
-
-              <div className="sm:col-span-4 flex justify-end">
-                <button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-6 py-3 rounded-xl shadow-sm flex items-center gap-2">
-                  <Calculator size={16} /> Calcular Viabilidade & Salvar no Land Bank
-                </button>
-              </div>
-            </form>
-
-            {/* Tabela de Terrenos e Viabilidade */}
+            {/* Tabela de Terrenos com Ações de Editar, Habilitar e Desabilitar */}
             <div className="border border-slate-200 rounded-2xl overflow-hidden">
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-50 text-slate-600 font-bold uppercase border-b border-slate-200">
@@ -628,13 +630,14 @@ export default function IncorporadoraPage() {
                     <th className="p-3.5">Potencial Construtivo</th>
                     <th className="p-3.5">VGV Projetado</th>
                     <th className="p-3.5">Aquisição + Obra</th>
-                    <th className="p-3.5">Impostos & Risco</th>
+                    <th className="p-3.5 text-center">Status</th>
                     <th className="p-3.5">Margem Líquida</th>
+                    <th className="p-3.5 text-right">Ações</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
                   {landBanks.length === 0 ? (
-                    <tr><td colSpan={6} className="p-8 text-center text-slate-400">Nenhum terreno cadastrado no Land Bank.</td></tr>
+                    <tr><td colSpan={7} className="p-8 text-center text-slate-400">Nenhum terreno cadastrado no Land Bank.</td></tr>
                   ) : (
                     landBanks.map(l => (
                       <tr key={l.id} className="hover:bg-slate-50">
@@ -648,11 +651,36 @@ export default function IncorporadoraPage() {
                         </td>
                         <td className="p-3.5 font-black text-emerald-700">{formatCurrency(l.estimatedVgv)}</td>
                         <td className="p-3.5 text-rose-600 font-bold">{formatCurrency(l.acquisitionCost + l.estimatedConstructionCost)}</td>
-                        <td className="p-3.5">RET {l.taxEstimatePercent}% | Inadimp. {l.defaultRiskPercent}%</td>
+                        <td className="p-3.5 text-center">
+                          <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${
+                            l.status === 'APROVADO' ? 'bg-emerald-100 text-emerald-800' :
+                            l.status === 'DESCARTADO' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'
+                          }`}>
+                            {l.status || 'EM_ESTUDO'}
+                          </span>
+                        </td>
                         <td className="p-3.5">
                           <span className={`px-3 py-1 rounded-full font-black text-xs ${l.projectedMarginPercent >= 20 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
                             {l.projectedMarginPercent}% Margem
                           </span>
+                        </td>
+                        <td className="p-3.5 text-right space-x-2 whitespace-nowrap">
+                          <button
+                            onClick={() => handleOpenLandModal(l)}
+                            className="bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold px-3 py-1.5 rounded-lg transition-colors inline-flex items-center gap-1"
+                            title="Editar Terreno"
+                          >
+                            <Edit size={14} /> Editar
+                          </button>
+                          <button
+                            onClick={() => handleToggleLandStatus(l.id, l.status)}
+                            className={`px-3 py-1.5 rounded-lg transition-colors font-bold inline-flex items-center gap-1 ${
+                              l.status === 'APROVADO' ? 'bg-amber-50 hover:bg-amber-100 text-amber-700' : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700'
+                            }`}
+                            title={l.status === 'APROVADO' ? 'Desativar / Colocar em Estudo' : 'Aprovar / Habilitar Terreno'}
+                          >
+                            <Power size={14} /> {l.status === 'APROVADO' ? 'Desativar' : 'Habilitar'}
+                          </button>
                         </td>
                       </tr>
                     ))
@@ -660,6 +688,82 @@ export default function IncorporadoraPage() {
                 </tbody>
               </table>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL DE CADASTRO / EDIÇÃO DE TERRENO (LAND BANK)                         */}
+      {/* ========================================================================= */}
+      {isLandModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
+              <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                <Compass className="text-emerald-600" size={20} /> {editingLandId ? 'Editar Terreno (Land Bank)' : 'Novo Terreno & Viabilidade'}
+              </h2>
+              <button onClick={() => setIsLandModalOpen(false)} className="text-slate-400 hover:text-slate-600 p-2"><X size={20}/></button>
+            </div>
+
+            <form onSubmit={handleSaveLandBank} className="p-6 space-y-4 overflow-y-auto flex-1 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="sm:col-span-2">
+                  <label className="block font-bold text-slate-700 mb-1">Identificação da Área / Terreno *</label>
+                  <input required type="text" placeholder="Ex: Terreno Esquina Quadra 14 - Zona Sul" value={landForm.title} onChange={e => setLandForm({ ...landForm, title: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white" />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Cidade / Bairro *</label>
+                  <input required type="text" placeholder="São Paulo - Moema" value={landForm.city} onChange={e => setLandForm({ ...landForm, city: e.target.value, neighborhood: e.target.value, address: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white" />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">SPE Vinculada</label>
+                  <select value={landForm.speId} onChange={e => setLandForm({ ...landForm, speId: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white">
+                    <option value="">Sem SPE definida</option>
+                    {spes.map(s => <option key={s.id} value={s.id}>{s.tradeName}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Área do Terreno (m²) *</label>
+                  <input required type="number" step="0.01" value={landForm.areaSqm} onChange={e => setLandForm({ ...landForm, areaSqm: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white" />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Coef. Aproveitamento (CA)</label>
+                  <input required type="number" step="0.1" value={landForm.utilizationCoefficient} onChange={e => setLandForm({ ...landForm, utilizationCoefficient: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white" />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Custo Aquisição Terreno (R$)</label>
+                  <input required type="number" step="0.01" value={landForm.acquisitionCost} onChange={e => setLandForm({ ...landForm, acquisitionCost: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white" />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Permuta c/ Terreneiro (%)</label>
+                  <input type="number" step="0.5" value={landForm.swapPercent} onChange={e => setLandForm({ ...landForm, swapPercent: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white" />
+                </div>
+                <div>
+                  <label className="block font-bold text-emerald-700 mb-1">VGV Projetado (R$) *</label>
+                  <input required type="number" step="0.01" value={landForm.estimatedVgv} onChange={e => setLandForm({ ...landForm, estimatedVgv: e.target.value })} className="w-full p-2.5 border border-emerald-400 rounded-xl bg-white font-bold" />
+                </div>
+                <div>
+                  <label className="block font-bold text-rose-700 mb-1">Custo Estimado de Obra (R$) *</label>
+                  <input required type="number" step="0.01" value={landForm.estimatedConstructionCost} onChange={e => setLandForm({ ...landForm, estimatedConstructionCost: e.target.value })} className="w-full p-2.5 border border-rose-300 rounded-xl bg-white" />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Status da Área</label>
+                  <select value={landForm.status} onChange={e => setLandForm({ ...landForm, status: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white font-bold">
+                    <option value="EM_ESTUDO">Em Estudo</option>
+                    <option value="APROVADO">Aprovado / Habilitado</option>
+                    <option value="CONVERTIDO_EM_OBRA">Convertido em Obra</option>
+                    <option value="DESCARTADO">Descartado</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-slate-100 flex justify-end gap-3 shrink-0">
+                <button type="button" onClick={() => setIsLandModalOpen(false)} className="px-4 py-2 text-slate-600 font-bold hover:bg-slate-100 rounded-lg">Cancelar</button>
+                <button type="submit" disabled={isSavingLand} className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-sm flex items-center gap-2">
+                  {isSavingLand ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Salvar Terreno
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -1009,7 +1113,7 @@ export default function IncorporadoraPage() {
                       <label className="block text-xs font-bold text-slate-700 mb-1">Índice INCC do Mês (%)</label>
                       <input required type="number" step="0.01" value={inccPercentInput} onChange={e => setInccPercentInput(e.target.value)} className="w-full p-3 border border-slate-300 rounded-xl text-sm font-bold" />
                     </div>
-                    <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-6 py-3.5 rounded-xl shadow-sm">
+                    <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-6 py-3.5 rounded-xl shadow-md">
                       Aplicar Reajuste INCC na Carteira
                     </button>
                   </form>
@@ -1370,7 +1474,7 @@ export default function IncorporadoraPage() {
                     <input type="text" value={progressAndSiteForm.memorialEsquadrias} onChange={e => setProgressAndSiteForm({ ...progressAndSiteForm, memorialEsquadrias: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white" />
                   </div>
                   <div>
-                    <label className="block font-bold text-slate-600 mb-1">Louças, Metais & Automação</label>
+                    <label className="block font-bold text-slate-600 mmb-1">Louças, Metais & Automação</label>
                     <input type="text" value={progressAndSiteForm.memorialLoucas} onChange={e => setProgressAndSiteForm({ ...progressAndSiteForm, memorialLoucas: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white" />
                   </div>
                 </div>
