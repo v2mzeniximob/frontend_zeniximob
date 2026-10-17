@@ -7,7 +7,8 @@ import {
   Building2, Landmark, Compass, HardHat, FileSpreadsheet, Layers,
   Sparkles, Globe, Plus, CheckCircle2, AlertTriangle, Loader2,
   TrendingUp, DollarSign, Wrench, Package, ClipboardList, Eye,
-  ExternalLink, Calculator, Percent, ShieldCheck, Box, Home, Send, Edit, Power, X, Save
+  ExternalLink, Calculator, Percent, ShieldCheck, Box, Home, Send,
+  Edit, Power, X, Save, PauseCircle, PlayCircle
 } from 'lucide-react';
 
 export default function IncorporadoraPage() {
@@ -22,7 +23,9 @@ export default function IncorporadoraPage() {
   const [storeInfo, setStoreInfo] = useState<any>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
 
-  // Estados de Edição do Terreno (Land Bank Modal)
+  // Estados de Edição: SPE, Empreendimento e Terreno (Land Bank)
+  const [editingSpeId, setEditingSpeId] = useState<string | null>(null);
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [isLandModalOpen, setIsLandModalOpen] = useState(false);
   const [editingLandId, setEditingLandId] = useState<string | null>(null);
   const [isSavingLand, setIsSavingLand] = useState(false);
@@ -31,13 +34,17 @@ export default function IncorporadoraPage() {
   const [engSubTab, setEngSubTab] = useState<'cronograma' | 'curva_abc' | 'medicoes' | 'suprimentos' | 'diario' | 'incc'>('cronograma');
   const [designSubTab, setDesignSubTab] = useState<'personalizacao' | 'bim'>('personalizacao');
 
-  // Formulários: 1. SPE, Terreno (Land Bank) e Novo Empreendimento
-  const [speForm, setSpeForm] = useState({ cnpj: '', corporateName: '', tradeName: '', taxRegime: 'RET - Patrimônio de Afetação (4%)', pixKey: '' });
+  // Formulários: 1. SPE, Terreno (Land Bank) e Empreendimento
+  const [speForm, setSpeForm] = useState({
+    cnpj: '', corporateName: '', tradeName: '', taxRegime: 'RET - Patrimônio de Afetação (4%)', pixKey: '', isActive: true
+  });
+
   const [landForm, setLandForm] = useState({
     speId: '', title: '', address: '', neighborhood: '', city: '', state: 'SP',
     areaSqm: '', utilizationCoefficient: '4', acquisitionCost: '', swapPercent: '0',
     estimatedVgv: '', estimatedConstructionCost: '', taxEstimatePercent: '4.0', defaultRiskPercent: '3.0', status: 'EM_ESTUDO', notes: ''
   });
+
   const [projectForm, setProjectForm] = useState({
     speId: '', landBankId: '', name: '', status: 'LANCAMENTO', address: '', neighborhood: '',
     city: '', state: 'SP', deliveryForecast: '', totalUnits: '40', vgvTotal: ''
@@ -148,20 +155,155 @@ export default function IncorporadoraPage() {
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
 
   // =========================================================================
-  // HANDLERS DE SUBMISSÃO & LAND BANK (EDITAR / HABILITAR / DESABILITAR)
+  // 1. HANDLERS DE SPE (CRIAR, EDITAR, HABILITAR / DESABILITAR)
   // =========================================================================
-  const handleCreateSpe = async (e: React.FormEvent) => {
+  const handleSaveSpe = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await api.post('/incorporadoras/spes', speForm).catch(() => api.post('/incorporadora/spes', speForm));
-      setSpeForm({ cnpj: '', corporateName: '', tradeName: '', taxRegime: 'RET - Patrimônio de Afetação (4%)', pixKey: '' });
+      if (editingSpeId) {
+        await api
+          .put(`/incorporadoras/spes/${editingSpeId}`, speForm)
+          .catch(() => api.put(`/incorporadora/spes/${editingSpeId}`, speForm));
+        alert('SPE atualizada com sucesso!');
+      } else {
+        await api
+          .post('/incorporadoras/spes', speForm)
+          .catch(() => api.post('/incorporadora/spes', speForm));
+        alert('SPE cadastrada com sucesso!');
+      }
+      setEditingSpeId(null);
+      setSpeForm({ cnpj: '', corporateName: '', tradeName: '', taxRegime: 'RET - Patrimônio de Afetação (4%)', pixKey: '', isActive: true });
       fetchAllData();
-      alert('SPE cadastrada com sucesso!');
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Erro ao criar SPE.');
+      alert(err.response?.data?.error || 'Erro ao salvar SPE.');
     }
   };
 
+  const handleStartEditSpe = (spe: any) => {
+    setEditingSpeId(spe.id);
+    setSpeForm({
+      cnpj: spe.cnpj || '',
+      corporateName: spe.corporateName || '',
+      tradeName: spe.tradeName || '',
+      taxRegime: spe.taxRegime || 'RET - Patrimônio de Afetação (4%)',
+      pixKey: spe.pixKey || '',
+      isActive: spe.isActive !== false
+    });
+  };
+
+  const handleCancelEditSpe = () => {
+    setEditingSpeId(null);
+    setSpeForm({ cnpj: '', corporateName: '', tradeName: '', taxRegime: 'RET - Patrimônio de Afetação (4%)', pixKey: '', isActive: true });
+  };
+
+  const handleToggleSpeStatus = async (spe: any) => {
+    const nextStatus = spe.isActive === false ? true : false;
+    if (!confirm(`Deseja ${nextStatus ? 'habilitar' : 'desabilitar'} a SPE "${spe.tradeName}"?`)) return;
+    try {
+      await api
+        .patch(`/incorporadoras/spes/${spe.id}/status`, { isActive: nextStatus })
+        .catch(() => api.put(`/incorporadora/spes/${spe.id}`, { ...spe, isActive: nextStatus }));
+      fetchAllData();
+    } catch (err) {
+      alert('Erro ao alterar status da SPE.');
+    }
+  };
+
+  // =========================================================================
+  // 2. HANDLERS DE EMPREENDIMENTO / OBRA (CRIAR, EDITAR, PARALISAR, VITRINE)
+  // =========================================================================
+  const handleSaveProject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const payload = {
+        ...projectForm,
+        totalUnits: Number(projectForm.totalUnits || 1),
+        vgvTotal: Number(projectForm.vgvTotal || 0),
+        deliveryForecast: projectForm.deliveryForecast ? new Date(projectForm.deliveryForecast).toISOString() : null
+      };
+
+      if (editingProjectId) {
+        await api
+          .put(`/incorporadoras/projects/${editingProjectId}`, payload)
+          .catch(() => api.put(`/incorporadora/projects/${editingProjectId}`, payload));
+        alert('Dados do Empreendimento atualizados com sucesso!');
+      } else {
+        const res = await api
+          .post('/incorporadoras/projects', payload)
+          .catch(() => api.post('/incorporadora/projects', payload));
+        if (res.data?.id) setSelectedProjectId(res.data.id);
+        alert('Empreendimento criado com sucesso!');
+      }
+
+      setEditingProjectId(null);
+      setProjectForm({
+        speId: '', landBankId: '', name: '', status: 'LANCAMENTO', address: '', neighborhood: '',
+        city: '', state: 'SP', deliveryForecast: '', totalUnits: '40', vgvTotal: ''
+      });
+      await fetchAllData();
+    } catch (err) {
+      alert('Erro ao salvar empreendimento.');
+    }
+  };
+
+  const handleStartEditProject = (proj: any) => {
+    setEditingProjectId(proj.id);
+    setProjectForm({
+      speId: proj.speId || '',
+      landBankId: proj.landBankId || '',
+      name: proj.name || '',
+      status: proj.status || 'LANCAMENTO',
+      address: proj.address || '',
+      neighborhood: proj.neighborhood || proj.address || '',
+      city: proj.city || '',
+      state: proj.state || 'SP',
+      deliveryForecast: proj.deliveryForecast ? new Date(proj.deliveryForecast).toISOString().split('T')[0] : '',
+      totalUnits: String(proj.totalUnits ?? '40'),
+      vgvTotal: String(proj.vgvTotal ?? '')
+    });
+    window.scrollTo({ top: 180, behavior: 'smooth' });
+  };
+
+  const handleCancelEditProject = () => {
+    setEditingProjectId(null);
+    setProjectForm({
+      speId: '', landBankId: '', name: '', status: 'LANCAMENTO', address: '', neighborhood: '',
+      city: '', state: 'SP', deliveryForecast: '', totalUnits: '40', vgvTotal: ''
+    });
+  };
+
+  const handleTogglePauseProject = async (proj: any) => {
+    const isPaused = proj.status === 'PARALISADA';
+    const nextStatus = isPaused ? 'EM_OBRAS' : 'PARALISADA';
+    if (!confirm(isPaused ? `Deseja retomar a obra "${proj.name}"?` : `Deseja marcar a obra "${proj.name}" como PARALISADA?`)) return;
+
+    try {
+      await api
+        .put(`/incorporadoras/projects/${proj.id}`, { status: nextStatus })
+        .catch(() => api.put(`/incorporadora/projects/${proj.id}`, { status: nextStatus }));
+      fetchAllData();
+    } catch (err) {
+      alert('Erro ao alterar status da obra.');
+    }
+  };
+
+  const handleToggleProjectPublicSite = async (proj: any) => {
+    const nextVisibility = proj.showOnPublicSite === false ? true : false;
+    if (!confirm(`Deseja ${nextVisibility ? 'habilitar' : 'ocultar'} o empreendimento "${proj.name}" no site público?`)) return;
+
+    try {
+      await api
+        .put(`/incorporadoras/projects/${proj.id}`, { showOnPublicSite: nextVisibility })
+        .catch(() => api.put(`/incorporadora/projects/${proj.id}`, { showOnPublicSite: nextVisibility }));
+      fetchAllData();
+    } catch (err) {
+      alert('Erro ao alterar visibilidade do empreendimento.');
+    }
+  };
+
+  // =========================================================================
+  // 3. HANDLERS DO LAND BANK (EDITAR, HABILITAR / DESABILITAR)
+  // =========================================================================
   const handleOpenLandModal = (land?: any) => {
     if (land) {
       setEditingLandId(land.id);
@@ -225,22 +367,9 @@ export default function IncorporadoraPage() {
     }
   };
 
-  const handleCreateProject = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const res = await api.post('/incorporadoras/projects', projectForm).catch(() => api.post('/incorporadora/projects', projectForm));
-      setProjectForm({
-        speId: '', landBankId: '', name: '', status: 'LANCAMENTO', address: '', neighborhood: '',
-        city: '', state: 'SP', deliveryForecast: '', totalUnits: '40', vgvTotal: ''
-      });
-      await fetchAllData();
-      if (res.data?.id) setSelectedProjectId(res.data.id);
-      alert('Empreendimento criado com sucesso!');
-    } catch (err) {
-      alert('Erro ao criar empreendimento.');
-    }
-  };
-
+  // =========================================================================
+  // 4. HANDLERS DE ENGENHARIA, BIM & VITRINE
+  // =========================================================================
   const handleSaveProgressAndSite = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedProject) return;
@@ -475,7 +604,7 @@ export default function IncorporadoraPage() {
       {/* NAVEGAÇÃO PRINCIPAL DO MÓDULO */}
       <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-3">
         {[
-          { id: 'viabilidade', label: '1. SPEs, Land Bank & Viabilidade', icon: Landmark },
+          { id: 'viabilidade', label: '1. SPEs, Empreendimentos & Land Bank', icon: Landmark },
           { id: 'engenharia', label: '2. Engenharia, Curva ABC & Obra', icon: HardHat },
           { id: 'design_bim', label: '3. Design Exterior/Interior, BIM & Kit Opções', icon: Layers },
           { id: 'vitrine', label: '4. CRM Visual, Tour 360° & Página do Site', icon: Sparkles },
@@ -499,75 +628,149 @@ export default function IncorporadoraPage() {
       </div>
 
       {/* ========================================================================= */}
-      {/* ABA 1: SPEs, LAND BANK & ESTUDO DE VIABILIDADE ECONÔMICA                   */}
+      {/* ABA 1: SPEs, EMPREENDIMENTOS & LAND BANK (VIABILIDADE ECONÔMICA)           */}
       {/* ========================================================================= */}
       {activeTab === 'viabilidade' && (
         <div className="space-y-8 animate-in fade-in duration-300">
           
-          {/* BLOCO A: MÚLTIPLAS EMPRESAS (SPEs) E LANÇAMENTO DE EMPREENDIMENTO */}
+          {/* BLOCO A: MÚLTIPLAS EMPRESAS (SPEs) E LANÇAMENTO/EDIÇÃO DE EMPREENDIMENTO */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             
-            {/* Cadastro de SPE */}
-            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-              <h2 className="text-base font-bold text-slate-800 flex items-center gap-2 border-b border-slate-100 pb-3">
-                <ShieldCheck className="text-blue-600" size={20} /> Suporte a Múltiplas Empresas (SPEs / Patrimônio de Afetação)
-              </h2>
-              <form onSubmit={handleCreateSpe} className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                <div>
-                  <label className="block font-bold text-slate-600 mb-1">CNPJ Isolado da SPE *</label>
-                  <input required type="text" placeholder="00.000.000/0001-00" value={speForm.cnpj} onChange={e => setSpeForm({ ...speForm, cnpj: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl" />
+            {/* 1. Cadastro & Edição de SPE */}
+            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4 flex flex-col justify-between">
+              <div className="space-y-4">
+                <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                  <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
+                    <ShieldCheck className="text-blue-600" size={20} />
+                    {editingSpeId ? 'Editar SPE Selecionada' : 'Suporte a Múltiplas Empresas (SPEs / Patrimônio de Afetação)'}
+                  </h2>
+                  {editingSpeId && (
+                    <button
+                      type="button"
+                      onClick={handleCancelEditSpe}
+                      className="text-xs font-bold text-slate-500 hover:text-slate-800 bg-slate-100 px-3 py-1 rounded-lg"
+                    >
+                      Cancelar Edição
+                    </button>
+                  )}
                 </div>
-                <div>
-                  <label className="block font-bold text-slate-600 mb-1">Nome Fantasia da SPE *</label>
-                  <input required type="text" placeholder="Ex: SPE Residencial Aurora" value={speForm.tradeName} onChange={e => setSpeForm({ ...speForm, tradeName: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl" />
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-600 mb-1">Razão Social *</label>
-                  <input required type="text" placeholder="Aurora Incorporações SPE Ltda" value={speForm.corporateName} onChange={e => setSpeForm({ ...speForm, corporateName: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl" />
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-600 mb-1">Regime Tributário</label>
-                  <select value={speForm.taxRegime} onChange={e => setSpeForm({ ...speForm, taxRegime: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white">
-                    <option value="RET - Patrimônio de Afetação (4%)">RET - Patrimônio de Afetação (4%)</option>
-                    <option value="RET - Minha Casa Minha Vida (1%)">RET - Habitação Popular (1%)</option>
-                    <option value="Lucro Presumido">Lucro Presumido</option>
-                  </select>
-                </div>
-                <div className="sm:col-span-2 flex justify-end">
-                  <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-2.5 rounded-xl flex items-center gap-2 shadow-sm">
-                    <Plus size={15} /> Cadastrar CNPJ de SPE
-                  </button>
-                </div>
-              </form>
 
-              <div className="pt-2 space-y-2 max-h-40 overflow-y-auto">
-                {spes.map(s => (
-                  <div key={s.id} className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex justify-between items-center text-xs">
-                    <div>
-                      <p className="font-bold text-slate-800">{s.tradeName}</p>
-                      <p className="text-slate-500">CNPJ: {s.cnpj} • {s.taxRegime}</p>
-                    </div>
-                    <span className="bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded-full font-bold text-[10px]">SPE Ativa</span>
+                <form onSubmit={handleSaveSpe} className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <label className="block font-bold text-slate-600 mb-1">CNPJ Isolado da SPE *</label>
+                    <input required type="text" placeholder="00.000.000/0001-00" value={speForm.cnpj} onChange={e => setSpeForm({ ...speForm, cnpj: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl" />
                   </div>
-                ))}
+                  <div>
+                    <label className="block font-bold text-slate-600 mb-1">Nome Fantasia da SPE *</label>
+                    <input required type="text" placeholder="Ex: SPE Residencial Aurora" value={speForm.tradeName} onChange={e => setSpeForm({ ...speForm, tradeName: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl" />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-slate-600 mb-1">Razão Social *</label>
+                    <input required type="text" placeholder="Aurora Incorporações SPE Ltda" value={speForm.corporateName} onChange={e => setSpeForm({ ...speForm, corporateName: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl" />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-slate-600 mb-1">Regime Tributário</label>
+                    <select value={speForm.taxRegime} onChange={e => setSpeForm({ ...speForm, taxRegime: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white">
+                      <option value="RET - Patrimônio de Afetação (4%)">RET - Patrimônio de Afetação (4%)</option>
+                      <option value="RET - Minha Casa Minha Vida (1%)">RET - Habitação Popular (1%)</option>
+                      <option value="Lucro Presumido">Lucro Presumido</option>
+                    </select>
+                  </div>
+                  <div className="sm:col-span-2 flex justify-end">
+                    <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-2.5 rounded-xl flex items-center gap-2 shadow-sm">
+                      {editingSpeId ? <><Save size={15} /> Salvar Alterações da SPE</> : <><Plus size={15} /> Cadastrar CNPJ de SPE</>}
+                    </button>
+                  </div>
+                </form>
+              </div>
+
+              {/* Lista de SPEs com Editar, Habilitar e Desabilitar */}
+              <div className="pt-3 border-t border-slate-100 space-y-2 max-h-56 overflow-y-auto">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">SPEs Cadastradas ({spes.length})</p>
+                {spes.length === 0 ? (
+                  <p className="text-xs text-slate-400 py-3 text-center">Nenhuma SPE cadastrada ainda.</p>
+                ) : (
+                  spes.map(s => {
+                    const isActive = s.isActive !== false;
+                    return (
+                      <div key={s.id} className={`p-3 rounded-xl border flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 text-xs transition-all ${isActive ? 'bg-slate-50 border-slate-200' : 'bg-slate-100/70 border-slate-200 opacity-70'}`}>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="font-bold text-slate-800">{s.tradeName}</p>
+                            <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
+                              {isActive ? 'SPE Ativa' : 'Desabilitada'}
+                            </span>
+                          </div>
+                          <p className="text-slate-500 mt-0.5">CNPJ: {s.cnpj} • {s.taxRegime}</p>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 self-end sm:self-center shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => handleStartEditSpe(s)}
+                            className="bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold px-2.5 py-1.5 rounded-lg inline-flex items-center gap-1 transition-colors"
+                            title="Editar dados desta SPE"
+                          >
+                            <Edit size={13} /> Editar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleSpeStatus(s)}
+                            className={`font-bold px-2.5 py-1.5 rounded-lg inline-flex items-center gap-1 transition-colors ${
+                              isActive ? 'bg-amber-50 hover:bg-amber-100 text-amber-700' : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700'
+                            }`}
+                            title={isActive ? 'Desabilitar SPE' : 'Habilitar SPE'}
+                          >
+                            <Power size={13} /> {isActive ? 'Desabilitar' : 'Habilitar'}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
               </div>
             </div>
 
-            {/* Criar Novo Empreendimento / Obra */}
+            {/* 2. Lançar ou Editar Empreendimento / Obra */}
             <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-              <h2 className="text-base font-bold text-slate-800 flex items-center gap-2 border-b border-slate-100 pb-3">
-                <Building2 className="text-indigo-600" size={20} /> Lançar Novo Empreendimento / Obra
-              </h2>
-              <form onSubmit={handleCreateProject} className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                <div className="sm:col-span-2">
+              <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
+                  <Building2 className="text-indigo-600" size={20} />
+                  {editingProjectId ? 'Editar Empreendimento / Obra (Valores, Unidades e Status)' : 'Lançar Novo Empreendimento / Obra'}
+                </h2>
+                {editingProjectId && (
+                  <button
+                    type="button"
+                    onClick={handleCancelEditProject}
+                    className="text-xs font-bold text-slate-500 hover:text-slate-800 bg-slate-100 px-3 py-1 rounded-lg"
+                  >
+                    Cancelar Edição
+                  </button>
+                )}
+              </div>
+
+              <form onSubmit={handleSaveProject} className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div>
                   <label className="block font-bold text-slate-600 mb-1">Nome Comercial do Empreendimento *</label>
                   <input required type="text" placeholder="Ex: Infinity Tower Residence" value={projectForm.name} onChange={e => setProjectForm({ ...projectForm, name: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl" />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-600 mb-1">Status da Obra / Empreendimento</label>
+                  <select value={projectForm.status} onChange={e => setProjectForm({ ...projectForm, status: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white font-bold">
+                    <option value="PRE_LANCAMENTO">Pré-Lançamento</option>
+                    <option value="LANCAMENTO">Em Lançamento</option>
+                    <option value="EM_OBRAS">Em Obras (Ativa)</option>
+                    <option value="PARALISADA">⏸️ Obra Paralisada / Suspensa</option>
+                    <option value="PRONTO">Pronto para Morar / Entregue</option>
+                  </select>
                 </div>
                 <div>
                   <label className="block font-bold text-slate-600 mb-1">Vincular à SPE</label>
                   <select value={projectForm.speId} onChange={e => setProjectForm({ ...projectForm, speId: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white">
                     <option value="">Selecione a SPE...</option>
-                    {spes.map(s => <option key={s.id} value={s.id}>{s.tradeName}</option>)}
+                    {spes.filter(s => s.isActive !== false || s.id === projectForm.speId).map(s => (
+                      <option key={s.id} value={s.id}>{s.tradeName}</option>
+                    ))}
                   </select>
                 </div>
                 <div>
@@ -578,31 +781,167 @@ export default function IncorporadoraPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-600 mb-1">Total de Unidades (Aptos/Lotes)</label>
-                  <input required type="number" value={projectForm.totalUnits} onChange={e => setProjectForm({ ...projectForm, totalUnits: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl" />
+                  <label className="block font-bold text-slate-600 mb-1">Quantidade Total de Unidades (Aptos/Lotes) *</label>
+                  <input required type="number" min="1" value={projectForm.totalUnits} onChange={e => setProjectForm({ ...projectForm, totalUnits: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl font-bold" />
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-600 mb-1">VGV Total Projetado (R$)</label>
-                  <input required type="number" placeholder="25000000" value={projectForm.vgvTotal} onChange={e => setProjectForm({ ...projectForm, vgvTotal: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl" />
+                  <label className="block font-bold text-slate-600 mb-1">VGV Total Projetado (R$) *</label>
+                  <input required type="number" step="0.01" placeholder="25000000" value={projectForm.vgvTotal} onChange={e => setProjectForm({ ...projectForm, vgvTotal: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl font-bold text-emerald-700" />
                 </div>
                 <div>
                   <label className="block font-bold text-slate-600 mb-1">Endereço / Bairro *</label>
                   <input required type="text" placeholder="Av. Principal, 1000 - Jardins" value={projectForm.address} onChange={e => setProjectForm({ ...projectForm, address: e.target.value, neighborhood: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl" />
                 </div>
-                <div>
-                  <label className="block font-bold text-slate-600 mb-1">Cidade *</label>
-                  <input required type="text" placeholder="São Paulo" value={projectForm.city} onChange={e => setProjectForm({ ...projectForm, city: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl" />
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block font-bold text-slate-600 mb-1">Cidade *</label>
+                    <input required type="text" placeholder="São Paulo" value={projectForm.city} onChange={e => setProjectForm({ ...projectForm, city: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl" />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-slate-600 mb-1">Previsão Entrega</label>
+                    <input type="date" value={projectForm.deliveryForecast} onChange={e => setProjectForm({ ...projectForm, deliveryForecast: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl" />
+                  </div>
                 </div>
-                <div className="sm:col-span-2 flex justify-end">
+                <div className="sm:col-span-2 flex justify-end pt-1">
                   <button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-5 py-2.5 rounded-xl flex items-center gap-2 shadow-sm">
-                    <Plus size={15} /> Criar Empreendimento
+                    {editingProjectId ? <><Save size={15} /> Salvar Alterações do Empreendimento</> : <><Plus size={15} /> Criar Empreendimento</>}
                   </button>
                 </div>
               </form>
             </div>
           </div>
 
-          {/* BLOCO B: LAND BANK & SIMULADOR DE VIABILIDADE ECONÔMICA */}
+          {/* BLOCO B: LISTA COMPLETA DE EMPREENDIMENTOS & OBRAS CADASTRADAS (EDITAR, PARALISAR, VITRINE) */}
+          <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+              <div>
+                <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                  <Building2 className="text-indigo-600" size={22} /> Empreendimentos & Obras Cadastradas ({projects.length})
+                </h2>
+                <p className="text-xs text-slate-500">
+                  Gerencie todos os empreendimentos lançados: edite unidades e VGV, paralise ou retome obras e controle a exibição no site.
+                </p>
+              </div>
+            </div>
+
+            <div className="border border-slate-200 rounded-2xl overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 text-slate-600 font-bold uppercase border-b border-slate-200">
+                  <tr>
+                    <th className="p-3.5">Empreendimento / Local</th>
+                    <th className="p-3.5">SPE / Terreno</th>
+                    <th className="p-3.5">Unidades</th>
+                    <th className="p-3.5">VGV Projetado</th>
+                    <th className="p-3.5">Avanço Físico</th>
+                    <th className="p-3.5 text-center">Status da Obra</th>
+                    <th className="p-3.5 text-center">Site Público</th>
+                    <th className="p-3.5 text-right">Ações</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+                  {projects.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="p-8 text-center text-slate-400">
+                        Nenhum empreendimento cadastrado ainda. Utilize o formulário acima para lançar o primeiro.
+                      </td>
+                    </tr>
+                  ) : (
+                    projects.map((proj: any) => {
+                      const isPaused = proj.status === 'PARALISADA';
+                      const isVisibleOnSite = proj.showOnPublicSite !== false;
+                      const isSelected = proj.id === selectedProjectId;
+
+                      return (
+                        <tr key={proj.id} className={`hover:bg-slate-50 transition-colors ${isSelected ? 'bg-blue-50/40' : ''}`}>
+                          <td className="p-3.5">
+                            <div className="flex items-center gap-2">
+                              <p className="font-bold text-slate-900 text-sm">{proj.name}</p>
+                              {isSelected && (
+                                <span className="bg-blue-600 text-white text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase">
+                                  Selecionado
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-slate-400 mt-0.5">{proj.address} • {proj.city}/{proj.state}</p>
+                          </td>
+                          <td className="p-3.5">
+                            <p className="font-bold text-slate-700">{proj.spe?.tradeName || 'Sem SPE'}</p>
+                            <p className="text-slate-400">{proj.landBank?.title || 'Sem Terreno vinculado'}</p>
+                          </td>
+                          <td className="p-3.5 font-bold text-slate-800">{proj.totalUnits} unid.</td>
+                          <td className="p-3.5 font-black text-emerald-700">{formatCurrency(proj.vgvTotal)}</td>
+                          <td className="p-3.5">
+                            <div className="flex items-center gap-2">
+                              <div className="w-20 h-2 bg-slate-200 rounded-full overflow-hidden">
+                                <div style={{ width: `${proj.overallProgressPct || 0}%` }} className="h-full bg-blue-600 rounded-full" />
+                              </div>
+                              <span className="font-bold text-blue-600">{proj.overallProgressPct || 0}%</span>
+                            </div>
+                          </td>
+                          <td className="p-3.5 text-center">
+                            <span className={`px-2.5 py-1 rounded-full font-bold text-[10px] uppercase ${
+                              isPaused
+                                ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                                : proj.status === 'PRONTO'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-indigo-100 text-indigo-800'
+                            }`}>
+                              {proj.status}
+                            </span>
+                          </td>
+                          <td className="p-3.5 text-center">
+                            <span className={`px-2.5 py-1 rounded-full font-bold text-[10px] uppercase ${
+                              isVisibleOnSite ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'
+                            }`}>
+                              {isVisibleOnSite ? 'Habilitado' : 'Desabilitado'}
+                            </span>
+                          </td>
+                          <td className="p-3.5 text-right space-x-1.5 whitespace-nowrap">
+                            <button
+                              type="button"
+                              onClick={() => handleStartEditProject(proj)}
+                              className="bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold px-2.5 py-1.5 rounded-lg inline-flex items-center gap-1 transition-colors"
+                              title="Editar nome, unidades, VGV, SPE ou endereço"
+                            >
+                              <Edit size={13} /> Editar
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleTogglePauseProject(proj)}
+                              className={`font-bold px-2.5 py-1.5 rounded-lg inline-flex items-center gap-1 transition-colors ${
+                                isPaused
+                                  ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700'
+                                  : 'bg-rose-50 hover:bg-rose-100 text-rose-700'
+                              }`}
+                              title={isPaused ? 'Retomar andamento da obra' : 'Paralisar obra temporariamente'}
+                            >
+                              {isPaused ? <><PlayCircle size={13} /> Retomar</> : <><PauseCircle size={13} /> Paralisar</>}
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleToggleProjectPublicSite(proj)}
+                              className={`font-bold px-2.5 py-1.5 rounded-lg inline-flex items-center gap-1 transition-colors ${
+                                isVisibleOnSite
+                                  ? 'bg-amber-50 hover:bg-amber-100 text-amber-700'
+                                  : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700'
+                              }`}
+                              title={isVisibleOnSite ? 'Desabilitar exibição no site' : 'Habilitar exibição no site'}
+                            >
+                              <Power size={13} /> {isVisibleOnSite ? 'Ocultar Site' : 'Ativar Site'}
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* BLOCO C: LAND BANK & SIMULADOR DE VIABILIDADE ECONÔMICA */}
           <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-6">
             <div className="flex justify-between items-center">
               <div>
@@ -622,7 +961,7 @@ export default function IncorporadoraPage() {
             </div>
 
             {/* Tabela de Terrenos com Ações de Editar, Habilitar e Desabilitar */}
-            <div className="border border-slate-200 rounded-2xl overflow-hidden">
+            <div className="border border-slate-200 rounded-2xl overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-50 text-slate-600 font-bold uppercase border-b border-slate-200">
                   <tr>
@@ -1113,7 +1452,7 @@ export default function IncorporadoraPage() {
                       <label className="block text-xs font-bold text-slate-700 mb-1">Índice INCC do Mês (%)</label>
                       <input required type="number" step="0.01" value={inccPercentInput} onChange={e => setInccPercentInput(e.target.value)} className="w-full p-3 border border-slate-300 rounded-xl text-sm font-bold" />
                     </div>
-                    <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-6 py-3.5 rounded-xl shadow-md">
+                    <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-6 py-3.5 rounded-xl shadow-sm">
                       Aplicar Reajuste INCC na Carteira
                     </button>
                   </form>
@@ -1474,7 +1813,7 @@ export default function IncorporadoraPage() {
                     <input type="text" value={progressAndSiteForm.memorialEsquadrias} onChange={e => setProgressAndSiteForm({ ...progressAndSiteForm, memorialEsquadrias: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white" />
                   </div>
                   <div>
-                    <label className="block font-bold text-slate-600 mmb-1">Louças, Metais & Automação</label>
+                    <label className="block font-bold text-slate-600 mb-1">Louças, Metais & Automação</label>
                     <input type="text" value={progressAndSiteForm.memorialLoucas} onChange={e => setProgressAndSiteForm({ ...progressAndSiteForm, memorialLoucas: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white" />
                   </div>
                 </div>
