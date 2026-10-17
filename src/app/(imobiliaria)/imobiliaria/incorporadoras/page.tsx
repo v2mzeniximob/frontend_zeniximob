@@ -83,9 +83,9 @@ export default function IncorporadoraPage() {
     setIsLoading(true);
     try {
       const [resSpes, resLands, resProjects, resContracts, resStore] = await Promise.all([
-        api.get('/incorporadoras/spes').catch(() => ({ data: [] })),
-        api.get('/incorporadoras/land-bank').catch(() => ({ data: [] })),
-        api.get('/incorporadora/projects').catch(() => ({ data: [] })),
+        api.get('/incorporadoras/spes').catch(() => api.get('/incorporadora/spes')).catch(() => ({ data: [] })),
+        api.get('/incorporadoras/land-bank').catch(() => api.get('/incorporadora/land-bank')).catch(() => ({ data: [] })),
+        api.get('/incorporadoras/projects').catch(() => api.get('/incorporadora/projects')).catch(() => ({ data: [] })),
         api.get('/contracts').catch(() => ({ data: [] })),
         api.get('/my-store').catch(() => ({ data: {} }))
       ]);
@@ -148,7 +148,7 @@ export default function IncorporadoraPage() {
   const handleCreateSpe = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await api.post('/incorporadoras/spes', speForm);
+      await api.post('/incorporadoras/spes', speForm).catch(() => api.post('/incorporadora/spes', speForm));
       setSpeForm({ cnpj: '', corporateName: '', tradeName: '', taxRegime: 'RET - Patrimônio de Afetação (4%)', pixKey: '' });
       fetchAllData();
       alert('SPE cadastrada com sucesso!');
@@ -160,7 +160,7 @@ export default function IncorporadoraPage() {
   const handleCreateLandBank = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await api.post('/incorporadoras/land-bank', landForm);
+      await api.post('/incorporadoras/land-bank', landForm).catch(() => api.post('/incorporadora/land-bank', landForm));
       setLandForm({
         speId: '', title: '', address: '', neighborhood: '', city: '', state: 'SP',
         areaSqm: '', utilizationCoefficient: '4', acquisitionCost: '', swapPercent: '0',
@@ -176,7 +176,7 @@ export default function IncorporadoraPage() {
   const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await api.post('/incorporadoras/projects', projectForm);
+      const res = await api.post('/incorporadoras/projects', projectForm).catch(() => api.post('/incorporadora/projects', projectForm));
       setProjectForm({
         speId: '', landBankId: '', name: '', status: 'LANCAMENTO', address: '', neighborhood: '',
         city: '', state: 'SP', deliveryForecast: '', totalUnits: '40', vgvTotal: ''
@@ -218,7 +218,7 @@ export default function IncorporadoraPage() {
           loucas: progressAndSiteForm.memorialLoucas
         }
       };
-      await api.put(`/incorporadoras/projects/${selectedProject.id}`, payload);
+      await api.put(`/incorporadoras/projects/${selectedProject.id}`, payload).catch(() => api.put(`/incorporadora/projects/${selectedProject.id}`, payload));
       fetchAllData();
       alert('Cronograma Físico e Vitrine Pública atualizados com sucesso!');
     } catch (err) {
@@ -230,7 +230,7 @@ export default function IncorporadoraPage() {
     e.preventDefault();
     if (!selectedProject) return;
     try {
-      await api.post(`/incorporadoras/projects/${selectedProject.id}/budget-items`, budgetForm);
+      await api.post(`/incorporadoras/projects/${selectedProject.id}/budget-items`, budgetForm).catch(() => api.post(`/incorporadora/projects/${selectedProject.id}/budget-items`, budgetForm));
       setBudgetForm({ code: '', stageName: 'Estrutura', itemDescription: '', category: 'Material', unit: 'm³', quantity: '', unitCost: '' });
       fetchAllData();
     } catch (err) {
@@ -242,7 +242,7 @@ export default function IncorporadoraPage() {
     e.preventDefault();
     if (!selectedProject) return;
     try {
-      await api.post(`/incorporadoras/projects/${selectedProject.id}/measurements`, measurementForm);
+      await api.post(`/incorporadoras/projects/${selectedProject.id}/measurements`, measurementForm).catch(() => api.post(`/incorporadora/projects/${selectedProject.id}/measurements`, measurementForm));
       setMeasurementForm({ contractorName: '', contractorCnpj: '', serviceDescription: '', periodReference: '', grossAmount: '', retentionPercent: '5', integrateToDre: true });
       fetchAllData();
       alert('Medição registrada! Despesa lançada automaticamente no DRE.');
@@ -255,7 +255,7 @@ export default function IncorporadoraPage() {
     e.preventDefault();
     if (!selectedProject) return;
     try {
-      await api.post(`/incorporadoras/projects/${selectedProject.id}/supply-orders`, supplyForm);
+      await api.post(`/incorporadoras/projects/${selectedProject.id}/supply-orders`, supplyForm).catch(() => api.post(`/incorporadora/projects/${selectedProject.id}/supply-orders`, supplyForm));
       setSupplyForm({ materialName: '', unit: 'ton', quantityOrdered: '', supplierName: '', totalAmount: '', status: 'ENTREGUE_NO_CANTEIRO' });
       fetchAllData();
     } catch (err) {
@@ -267,10 +267,11 @@ export default function IncorporadoraPage() {
     e.preventDefault();
     if (!selectedProject) return;
     try {
-      await api.post(`/incorporadoras/projects/${selectedProject.id}/work-diaries`, {
+      const payload = {
         ...diaryForm,
         photosUrls: diaryForm.photosUrls.split(',').map(s => s.trim()).filter(Boolean)
-      });
+      };
+      await api.post(`/incorporadoras/projects/${selectedProject.id}/work-diaries`, payload).catch(() => api.post(`/incorporadora/projects/${selectedProject.id}/work-diaries`, payload));
       setDiaryForm({ weatherMorning: 'Sol', weatherAfternoon: 'Sol', workforceCount: '25', activitiesExecuted: '', occurrences: '', photosUrls: '', engineerName: '' });
       fetchAllData();
       alert('Diário de Obra (RDO) salvo com sucesso!');
@@ -283,7 +284,7 @@ export default function IncorporadoraPage() {
     e.preventDefault();
     if (!selectedProject) return;
     try {
-      const res = await api.post(`/incorporadoras/projects/${selectedProject.id}/apply-incc`, { inccPercent: inccPercentInput });
+      const res = await api.post(`/incorporadoras/projects/${selectedProject.id}/apply-incc`, { inccPercent: inccPercentInput }).catch(() => api.post(`/incorporadora/projects/${selectedProject.id}/apply-incc`, { inccPercent: inccPercentInput }));
       fetchAllData();
       alert(res.data?.message || 'INCC aplicado com sucesso!');
     } catch (err: any) {
@@ -295,7 +296,7 @@ export default function IncorporadoraPage() {
     e.preventDefault();
     if (!selectedProject) return;
     try {
-      await api.post(`/incorporadoras/projects/${selectedProject.id}/bim-files`, bimForm);
+      await api.post(`/incorporadoras/projects/${selectedProject.id}/bim-files`, bimForm).catch(() => api.post(`/incorporadora/projects/${selectedProject.id}/bim-files`, bimForm));
       setBimForm({
         discipline: 'Fachada / Exterior', fileName: '', fileFormat: 'IFC', fileUrl: '', version: 'R01',
         clashStatus: 'COMPATIBILIZADO', clashDescription: '', responsibleDesigner: ''
@@ -311,7 +312,7 @@ export default function IncorporadoraPage() {
     e.preventDefault();
     if (!selectedProject) return;
     try {
-      await api.post(`/incorporadoras/projects/${selectedProject.id}/customization-options`, kitOptionForm);
+      await api.post(`/incorporadoras/projects/${selectedProject.id}/customization-options`, kitOptionForm).catch(() => api.post(`/incorporadora/projects/${selectedProject.id}/customization-options`, kitOptionForm));
       setKitOptionForm({ category: 'Pisos e Porcelanatos', title: '', specification: '', imageUrl: '', additionalPrice: '', maxStageAllowedPct: '60' });
       fetchAllData();
       alert('Kit de Acabamento adicionado ao catálogo do empreendimento!');
@@ -340,7 +341,7 @@ export default function IncorporadoraPage() {
       return;
     }
     try {
-      await api.post(`/incorporadoras/projects/${selectedProject.id}/customization-orders`, customOrderForm);
+      await api.post(`/incorporadoras/projects/${selectedProject.id}/customization-orders`, customOrderForm).catch(() => api.post(`/incorporadora/projects/${selectedProject.id}/customization-orders`, customOrderForm));
       setCustomOrderForm({ unitNumber: '', buyerName: '', buyerDocument: '', contractId: '', selectedOptionIds: [], approveAndGenerateAddendum: true });
       fetchAllData();
       alert('Personalização registrada! Aditivo financeiro calculado e Ordem de Serviço (OS) enviada para o canteiro de obras.');
@@ -364,23 +365,23 @@ export default function IncorporadoraPage() {
   return (
     <div className="p-6 md:p-8 max-w-[1600px] mx-auto font-sans space-y-6 pb-20">
       
-      {/* CABEÇALHO PRINCIPAL + SELETOR DE EMPREENDIMENTO ATIVO */}
-      <div className="bg-slate-900 text-white p-6 md:p-8 rounded-3xl shadow-xl flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
-        <div>
-          <span className="bg-blue-500/20 text-blue-300 border border-blue-400/30 text-xs font-extrabold px-3 py-1 rounded-full uppercase tracking-wider">
+      {/* CABEÇALHO PRINCIPAL CLARO + CONTROLES ALINHADOS DENTRO DO CARD */}
+      <div className="bg-white text-slate-800 p-6 md:p-8 rounded-3xl border border-slate-200 shadow-sm flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6">
+        <div className="max-w-2xl">
+          <span className="bg-blue-50 text-blue-700 border border-blue-200 text-xs font-extrabold px-3 py-1 rounded-full uppercase tracking-wider inline-block">
             ERP Incorporação & Construção Civil
           </span>
-          <h1 className="text-2xl md:text-3xl font-black mt-2 flex items-center gap-3">
-            <Building2 className="text-blue-400" size={34} />
+          <h1 className="text-2xl md:text-3xl font-black mt-3 flex items-center gap-3 text-slate-800">
+            <Building2 className="text-blue-600 bg-blue-50 p-2 rounded-xl shrink-0" size={40} />
             Módulo Incorporadora, Engenharia & BIM
           </h1>
-          <p className="text-slate-400 text-sm mt-1">
+          <p className="text-slate-500 text-sm mt-1.5">
             Land Bank, Viabilidade Econômica, Múltiplas SPEs, Curva ABC, Diário de Obra, Personalização de Unidades e Vitrine 360°.
           </p>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
-          <div className="bg-slate-800 border border-slate-700 rounded-2xl px-4 py-2">
+        <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto justify-start xl:justify-end">
+          <div className="bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2 min-w-[220px] flex-1 sm:flex-none">
             <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Empreendimento Ativo</label>
             <select
               value={selectedProjectId}
@@ -388,11 +389,11 @@ export default function IncorporadoraPage() {
                 const found = projects.find(p => p.id === e.target.value);
                 if (found) selectProject(found);
               }}
-              className="bg-transparent text-white font-bold text-sm outline-none pr-4 py-1 w-full"
+              className="bg-transparent text-slate-800 font-bold text-sm outline-none pr-2 py-0.5 w-full cursor-pointer"
             >
-              {projects.length === 0 && <option value="" className="text-slate-900">Nenhum empreendimento</option>}
+              {projects.length === 0 && <option value="">Nenhum empreendimento</option>}
               {projects.map(p => (
-                <option key={p.id} value={p.id} className="text-slate-900">
+                <option key={p.id} value={p.id}>
                   🏗️ {p.name} ({p.overallProgressPct || 0}% concluído)
                 </option>
               ))}
@@ -401,7 +402,7 @@ export default function IncorporadoraPage() {
 
           <Link
             href="/imobiliaria/incorporadoras/simulador"
-            className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-5 py-3.5 rounded-2xl flex items-center justify-center gap-2 shadow-lg transition-all shrink-0"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-5 py-3.5 rounded-2xl flex items-center justify-center gap-2 shadow-sm transition-all whitespace-nowrap"
           >
             <Calculator size={16} /> Simulador de Crédito
           </Link>
@@ -411,7 +412,7 @@ export default function IncorporadoraPage() {
               href={publicShowcaseUrl}
               target="_blank"
               rel="noreferrer"
-              className="bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs px-5 py-3.5 rounded-2xl flex items-center justify-center gap-2 shadow-lg transition-all shrink-0"
+              className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-5 py-3.5 rounded-2xl flex items-center justify-center gap-2 shadow-sm transition-all whitespace-nowrap"
             >
               <Globe size={16} /> Ver Página da Incorporadora <ExternalLink size={14} />
             </a>
@@ -435,7 +436,7 @@ export default function IncorporadoraPage() {
               onClick={() => setActiveTab(tab.id as any)}
               className={`flex items-center gap-2 px-5 py-3 rounded-2xl font-bold text-xs transition-all ${
                 active
-                  ? 'bg-blue-600 text-white shadow-md'
+                  ? 'bg-blue-600 text-white shadow-sm'
                   : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
               }`}
             >
@@ -481,7 +482,7 @@ export default function IncorporadoraPage() {
                   </select>
                 </div>
                 <div className="sm:col-span-2 flex justify-end">
-                  <button type="submit" className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-5 py-2.5 rounded-xl flex items-center gap-2">
+                  <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-2.5 rounded-xl flex items-center gap-2 shadow-sm">
                     <Plus size={15} /> Cadastrar CNPJ de SPE
                   </button>
                 </div>
@@ -541,7 +542,7 @@ export default function IncorporadoraPage() {
                   <input required type="text" placeholder="São Paulo" value={projectForm.city} onChange={e => setProjectForm({ ...projectForm, city: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl" />
                 </div>
                 <div className="sm:col-span-2 flex justify-end">
-                  <button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-5 py-2.5 rounded-xl flex items-center gap-2">
+                  <button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-5 py-2.5 rounded-xl flex items-center gap-2 shadow-sm">
                     <Plus size={15} /> Criar Empreendimento
                   </button>
                 </div>
@@ -612,7 +613,7 @@ export default function IncorporadoraPage() {
               </div>
 
               <div className="sm:col-span-4 flex justify-end">
-                <button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-6 py-3 rounded-xl shadow-md flex items-center gap-2">
+                <button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-6 py-3 rounded-xl shadow-sm flex items-center gap-2">
                   <Calculator size={16} /> Calcular Viabilidade & Salvar no Land Bank
                 </button>
               </div>
@@ -621,7 +622,7 @@ export default function IncorporadoraPage() {
             {/* Tabela de Terrenos e Viabilidade */}
             <div className="border border-slate-200 rounded-2xl overflow-hidden">
               <table className="w-full text-left text-xs">
-                <thead className="bg-slate-100 text-slate-600 font-bold uppercase">
+                <thead className="bg-slate-50 text-slate-600 font-bold uppercase border-b border-slate-200">
                   <tr>
                     <th className="p-3.5">Terreno / SPE</th>
                     <th className="p-3.5">Potencial Construtivo</th>
@@ -688,7 +689,7 @@ export default function IncorporadoraPage() {
                     key={st.id}
                     onClick={() => setEngSubTab(st.id as any)}
                     className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                      engSubTab === st.id ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'
+                      engSubTab === st.id ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'
                     }`}
                   >
                     {st.label}
@@ -737,7 +738,7 @@ export default function IncorporadoraPage() {
                   </div>
 
                   <div className="flex justify-end">
-                    <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-6 py-3 rounded-xl shadow-md">
+                    <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-6 py-3 rounded-xl shadow-sm">
                       Salvar Avanço Físico da Obra
                     </button>
                   </div>
@@ -776,14 +777,14 @@ export default function IncorporadoraPage() {
                       <label className="block font-bold text-slate-600 mb-1">Custo Unit. (R$)</label>
                       <input required type="number" step="0.01" value={budgetForm.unitCost} onChange={e => setBudgetForm({ ...budgetForm, unitCost: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white" />
                     </div>
-                    <button type="submit" className="bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 px-4 rounded-xl">
+                    <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-xl shadow-sm">
                       + Insumo ABC
                     </button>
                   </form>
 
                   <div className="border border-slate-200 rounded-2xl overflow-hidden">
                     <table className="w-full text-left text-xs">
-                      <thead className="bg-slate-100 text-slate-600 font-bold uppercase">
+                      <thead className="bg-slate-50 text-slate-600 font-bold uppercase border-b border-slate-200">
                         <tr>
                           <th className="p-3.5">Curva ABC</th>
                           <th className="p-3.5">Etapa</th>
@@ -821,7 +822,7 @@ export default function IncorporadoraPage() {
                 <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-6">
                   <div>
                     <h3 className="text-lg font-bold text-slate-800">Medições de Empreiteiros & Retenção Contratual</h3>
-                    <p className="text-xs text-slate-500">Aprove medições de serviços executados, retenha a caução de garantia e envie o valor líquido direto para o DRE da imobiliária/incorporadoras.</p>
+                    <p className="text-xs text-slate-500">Aprove medições de serviços executados, retenha a caução de garantia e envie o valor líquido direto para o DRE da imobiliária/incorporadora.</p>
                   </div>
 
                   <form onSubmit={handleAddMeasurement} className="grid grid-cols-1 sm:grid-cols-5 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200 text-xs items-end">
@@ -846,7 +847,7 @@ export default function IncorporadoraPage() {
                         <input type="checkbox" checked={measurementForm.integrateToDre} onChange={e => setMeasurementForm({ ...measurementForm, integrateToDre: e.target.checked })} className="w-4 h-4 accent-blue-600" />
                         Lançar automaticamente como Despesa Paga no DRE da Empresa
                       </label>
-                      <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-2.5 rounded-xl">
+                      <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-2.5 rounded-xl shadow-sm">
                         Aprovar Medição
                       </button>
                     </div>
@@ -854,7 +855,7 @@ export default function IncorporadoraPage() {
 
                   <div className="border border-slate-200 rounded-2xl overflow-hidden">
                     <table className="w-full text-left text-xs">
-                      <thead className="bg-slate-100 text-slate-600 font-bold uppercase">
+                      <thead className="bg-slate-50 text-slate-600 font-bold uppercase border-b border-slate-200">
                         <tr>
                           <th className="p-3.5">Empreiteiro</th>
                           <th className="p-3.5">Serviço Executado</th>
@@ -901,14 +902,14 @@ export default function IncorporadoraPage() {
                         <input required type="number" placeholder="R$" value={supplyForm.totalAmount} onChange={e => setSupplyForm({ ...supplyForm, totalAmount: e.target.value })} className="w-1/2 p-2.5 border border-slate-300 rounded-xl bg-white" />
                       </div>
                     </div>
-                    <button type="submit" className="bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 px-4 rounded-xl">
+                    <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-xl shadow-sm">
                       Emitir OC / Estoque
                     </button>
                   </form>
 
                   <div className="border border-slate-200 rounded-2xl overflow-hidden">
                     <table className="w-full text-left text-xs">
-                      <thead className="bg-slate-100 text-slate-600 font-bold uppercase">
+                      <thead className="bg-slate-50 text-slate-600 font-bold uppercase border-b border-slate-200">
                         <tr>
                           <th className="p-3.5">Material</th>
                           <th className="p-3.5">Fornecedor</th>
@@ -970,7 +971,7 @@ export default function IncorporadoraPage() {
                       <input type="text" placeholder="https://foto1.jpg, https://foto2.jpg" value={diaryForm.photosUrls} onChange={e => setDiaryForm({ ...diaryForm, photosUrls: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white" />
                     </div>
                     <div className="sm:col-span-4 flex justify-end">
-                      <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-2.5 rounded-xl">
+                      <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-2.5 rounded-xl shadow-sm">
                         Registrar Diário de Obra
                       </button>
                     </div>
@@ -1008,7 +1009,7 @@ export default function IncorporadoraPage() {
                       <label className="block text-xs font-bold text-slate-700 mb-1">Índice INCC do Mês (%)</label>
                       <input required type="number" step="0.01" value={inccPercentInput} onChange={e => setInccPercentInput(e.target.value)} className="w-full p-3 border border-slate-300 rounded-xl text-sm font-bold" />
                     </div>
-                    <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-6 py-3.5 rounded-xl shadow-md">
+                    <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-6 py-3.5 rounded-xl shadow-sm">
                       Aplicar Reajuste INCC na Carteira
                     </button>
                   </form>
@@ -1030,11 +1031,11 @@ export default function IncorporadoraPage() {
             </div>
           ) : (
             <>
-              <div className="flex gap-2 bg-white p-2 rounded-2xl border border-slate-200 w-fit">
+              <div className="flex flex-wrap gap-2 bg-white p-2 rounded-2xl border border-slate-200 w-fit">
                 <button
                   onClick={() => setDesignSubTab('personalizacao')}
                   className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                    designSubTab === 'personalizacao' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'
+                    designSubTab === 'personalizacao' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'
                   }`}
                 >
                   1. Personalização de Unidades (Kit Opções + Aditivo + OS Obra)
@@ -1042,7 +1043,7 @@ export default function IncorporadoraPage() {
                 <button
                   onClick={() => setDesignSubTab('bim')}
                   className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                    designSubTab === 'bim' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'
+                    designSubTab === 'bim' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'
                   }`}
                 >
                   2. Repositório BIM, Fachada/Interiores & Compatibilização ({selectedProject.bimFiles?.length || 0})
@@ -1088,14 +1089,14 @@ export default function IncorporadoraPage() {
                         <label className="block font-bold text-slate-600 mb-1">URL da Imagem / Render do Acabamento</label>
                         <input type="text" placeholder="https://..." value={kitOptionForm.imageUrl} onChange={e => setKitOptionForm({ ...kitOptionForm, imageUrl: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white" />
                       </div>
-                      <button type="submit" className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 rounded-xl">
+                      <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl shadow-sm">
                         + Cadastrar Kit de Personalização
                       </button>
                     </form>
 
                     <div className="space-y-2 max-h-80 overflow-y-auto">
                       {(selectedProject.customizationOptions || []).map((opt: any) => (
-                        <div key={opt.id} className="p-3 border border-slate-200 rounded-xl flex justify-between items-center text-xs">
+                        <div key={opt.id} className="p-3 border border-slate-200 rounded-xl flex justify-between items-center text-xs bg-slate-50/50">
                           <div>
                             <span className="text-[10px] font-bold uppercase text-blue-600">{opt.category}</span>
                             <p className="font-bold text-slate-800">{opt.title}</p>
@@ -1165,7 +1166,7 @@ export default function IncorporadoraPage() {
                               .reduce((acc: number, o: any) => acc + Number(o.additionalPrice), 0)
                           )}
                         </span>
-                        <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-3 rounded-xl shadow-md">
+                        <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-3 rounded-xl shadow-sm">
                           Gerar Aditivo Financeiro & Emitir OS p/ Engenharia
                         </button>
                       </div>
@@ -1242,14 +1243,14 @@ export default function IncorporadoraPage() {
                       <label className="block font-bold text-slate-600 mb-1">Link do Arquivo / Nuvem *</label>
                       <input required type="url" placeholder="https://drive..." value={bimForm.fileUrl} onChange={e => setBimForm({ ...bimForm, fileUrl: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white" />
                     </div>
-                    <button type="submit" className="bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 px-4 rounded-xl">
+                    <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-xl shadow-sm">
                       Publicar Revisão
                     </button>
                   </form>
 
                   <div className="border border-slate-200 rounded-2xl overflow-hidden">
                     <table className="w-full text-left text-xs">
-                      <thead className="bg-slate-100 text-slate-600 font-bold uppercase">
+                      <thead className="bg-slate-50 text-slate-600 font-bold uppercase border-b border-slate-200">
                         <tr>
                           <th className="p-3.5">Disciplina</th>
                           <th className="p-3.5">Arquivo / Formato</th>
@@ -1376,7 +1377,7 @@ export default function IncorporadoraPage() {
               </div>
 
               <div className="flex justify-end">
-                <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-8 py-3.5 rounded-xl shadow-md">
+                <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-8 py-3.5 rounded-xl shadow-sm">
                   Publicar Alterações na Vitrine da Incorporadora
                 </button>
               </div>
