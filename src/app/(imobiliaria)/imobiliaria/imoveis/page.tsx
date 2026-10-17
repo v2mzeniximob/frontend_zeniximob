@@ -363,7 +363,7 @@ export default function ImoveisPage() {
         state: property.state || '', description: property.description || '', imageUrls: property.imageUrls ? property.imageUrls.join(', ') : '',
         brokerId: property.brokerId || '', ownerId: property.ownerId || '', inspectionUrl: property.inspectionUrl || '',
         rentProposalUrl: property.rentProposalUrl || '', saleProposalUrl: property.saleProposalUrl || '',
-        keyTermUrl: property.keyTermUrl || '', exportToPortals: property.exportToPortals || false,
+        keyTermUrl: property.keyTermUrl || '', exportToPortals: property.exportToPortals ?? false,
         condominiumId: property.condominiumId || '', iptuRegistration: property.iptuRegistration || '', 
          
         acceptsFinancing: property.acceptsFinancing || false,
@@ -897,8 +897,8 @@ export default function ImoveisPage() {
                   </div>
                 </div>
 
-                <div className="bg-blue-50 p-6 rounded-xl border border-blue-200">
-                  <h3 className="text-sm font-bold text-blue-800 uppercase tracking-wider mb-4 border-b border-blue-200 pb-2 flex items-center gap-2">
+                <div className="bg-blue-50 p-6 rounded-xl border border-blue-200 space-y-6">
+                  <h3 className="text-sm font-bold text-blue-800 uppercase tracking-wider border-b border-blue-200 pb-2 flex items-center gap-2">
                     <UserCheck size={18}/> 5. Equipe, Captação & Portais
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -916,6 +916,23 @@ export default function ImoveisPage() {
                         {brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                       </select>
                     </div>
+                  </div>
+
+                  {/* CHECKBOX DE EXPORTAÇÃO PARA O FEED XML DE PORTAIS */}
+                  <div className="pt-2">
+                    <label className="flex items-center gap-3 cursor-pointer bg-orange-50 border border-orange-200 px-4 py-3 rounded-xl transition-colors hover:bg-orange-100">
+                      <input 
+                        type="checkbox" 
+                        checked={form.exportToPortals} 
+                        onChange={(e) => setForm({...form, exportToPortals: e.target.checked})} 
+                        className="w-5 h-5 text-orange-600 rounded border-orange-300 focus:ring-orange-500 cursor-pointer" 
+                      />
+                      <Rss size={22} className="text-orange-600 shrink-0"/>
+                      <div className="flex flex-col">
+                        <span className="text-sm font-bold text-orange-900">Exportar para o Feed XML (Portais Imobiliários / Zap / VivaReal)</span>
+                        <span className="text-xs text-orange-700">Inclui este imóvel no link de feed XML público da sua loja.</span>
+                      </div>
+                    </label>
                   </div>
                 </div>
 

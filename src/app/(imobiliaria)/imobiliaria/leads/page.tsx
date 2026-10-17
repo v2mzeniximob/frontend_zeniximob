@@ -5,7 +5,8 @@ import { api } from '../../../../lib/api';
 import { 
   Plus, X, Loader2, User, Phone, MessageCircle, Mail, Calendar, 
   Clock, Briefcase, Search, Sparkles, MapPin, DollarSign, Home, 
-  Shuffle, AlertTriangle, CheckCircle2, Settings, RefreshCw
+  Shuffle, AlertTriangle, CheckCircle2, Settings, RefreshCw,
+  Video, ExternalLink, Copy, Send
 } from 'lucide-react';
 import { maskPhone } from '@/src/utils/mask';
 
@@ -38,6 +39,14 @@ export default function CRMPage() {
     searchNeighborhoods: '', searchMinBedrooms: '', searchMinGarage: ''
   });
   const [historyForm, setHistoryForm] = useState({ actionType: 'WhatsApp', description: '' });
+
+  // Estado da Automação do Google Meet no Card do Lead
+  const [meetForm, setMeetForm] = useState({
+    meetingUrl: '',
+    meetingDate: '',
+    meetingTime: '15:00'
+  });
+  const [isSavingMeet, setIsSavingMeet] = useState(false);
   
   // Estados de Carregamento
   const [isSaving, setIsSaving] = useState(false);
@@ -75,6 +84,23 @@ export default function CRMPage() {
     } finally {
       if (showSpinner) setIsLoading(false);
     }
+  };
+
+  // Extrai o link do Google Meet salvo no Lead ou no histórico mais recente
+  const getLeadMeetInfo = (lead: any) => {
+    if (!lead) return null;
+    if (lead.meetingUrl) {
+      return { url: lead.meetingUrl, info: lead.meetingDate || 'Reunião agendada' };
+    }
+    const meetEvent = (lead.history || []).find((h: any) => h.actionType === 'Google Meet' || (h.description && h.description.includes('meet.google.com')));
+    if (meetEvent) {
+      const urlMatch = meetEvent.description.match(/https?:\/\/meet\.google\.com\/[a-zA-Z0-9-]+/);
+      return {
+        url: urlMatch ? urlMatch[0] : '',
+        info: meetEvent.description
+      };
+    }
+    return null;
   };
 
   const handleSaveRouletteSettings = async (e: React.FormEvent) => {
@@ -119,10 +145,103 @@ export default function CRMPage() {
       searchMinBedrooms: lead.searchMinBedrooms || '', searchMinGarage: lead.searchMinGarage || ''
     });
 
+    const existingMeet = getLeadMeetInfo(lead);
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    setMeetForm({
+      meetingUrl: existingMeet?.url || '',
+      meetingDate: tomorrow.toISOString().split('T')[0],
+      meetingTime: '15:00'
+    });
+
     if (lead.searchMaxPrice || lead.searchTransaction || lead.searchType) {
       fetchMatches(lead.id);
     } else {
       setMatches([]);
+    }
+  };
+
+  // =========================================================
+  // AUTOMAÇÕES GOOGLE MEET (CRIAR SALA, AGENDA E ENVIAR)
+  // =========================================================
+  const handleCreateInstantMeetRoom = () => {
+    window.open('https://meet.google.com/new', '_blank', 'noopener,noreferrer');
+  };
+
+  const handleOpenGoogleCalendarWithMeet = () => {
+    if (!selectedLead) return;
+    const datePart = meetForm.meetingDate || new Date().toISOString().split('T')[0];
+    const timePart = meetForm.meetingTime || '15:00';
+
+    const startObj = new Date(`${datePart}T${timePart}:00`);
+    const endObj = new Date(startObj.getTime() + 45 * 60000); // 45 minutos de duração
+
+    const formatCalDate = (d: Date) => d.toISOString().replace(/-|:|\.\d+/g, '');
+    const title = encodeURIComponent(`Reunião Online: Apresentação de Imóveis - ${selectedLead.name}`);
+    const details = encodeURIComponent(
+      `Reunião de atendimento imobiliário com ${selectedLead.name}.\nInteresse: ${selectedLead.interest}\nTelefone: ${maskPhone(selectedLead.phone)}`
+    );
+    const guestEmail = selectedLead.email ? `&add=${encodeURIComponent(selectedLead.email)}` : '';
+
+    const calUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${formatCalDate(startObj)}/${formatCalDate(endObj)}&details=${details}${guestEmail}`;
+    window.open(calUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleSaveAndSendMeet = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedLead) return;
+
+    if (!meetForm.meetingUrl.trim()) {
+      alert('Cole o link da sala do Google Meet (ou clique em "⚡ Criar Sala" para gerar uma agora).');
+      return;
+    }
+
+    setIsSavingMeet(true);
+    const formattedDate = meetForm.meetingDate
+      ? new Date(`${meetForm.meetingDate}T12:00:00`).toLocaleDateString('pt-BR')
+      : 'Hoje';
+    const formattedTime = meetForm.meetingTime || 'Horário combinado';
+
+    const descriptionText = `📹 Reunião por Vídeo (Google Meet) agendada para ${formattedDate} às ${formattedTime}.\nLink da sala: ${meetForm.meetingUrl.trim()}`;
+
+    try {
+      // 1. Registra na Linha do Tempo (e já valida SLA da Roleta)
+      await api.post(`/leads/${selectedLead.id}/history`, {
+        actionType: 'Google Meet',
+        description: descriptionText
+      });
+
+      // 2. Se estava em 'Novo', avança automaticamente para 'Atendimento'
+      if (selectedLead.stage === 'Novo') {
+        await api.put(`/leads/${selectedLead.id}`, { stage: 'Atendimento' }).catch(() => {});
+      }
+
+      // 3. Abre o WhatsApp do cliente já com o convite pronto e link clicável
+      if (selectedLead.phone) {
+        const cleanPhone = selectedLead.phone.replace(/\D/g, '');
+        const firstName = selectedLead.name.split(' ')[0];
+        const brokerName = selectedLead.broker?.name ? ` (${selectedLead.broker.name})` : '';
+        const whatsappMsg = encodeURIComponent(
+          `Olá, *${firstName}*! Tudo bem? Aqui é da equipe de consultoria imobiliária${brokerName}.\n\n` +
+          `Conforme combinamos, segue o link da nossa *Reunião Online por Vídeo (Google Meet)*:\n` +
+          `📅 *Data:* ${formattedDate}\n` +
+          `⏰ *Horário:* ${formattedTime}\n` +
+          `🔗 *Clique para entrar na sala:* ${meetForm.meetingUrl.trim()}\n\n` +
+          `Qualquer dúvida, estou à disposição por aqui!`
+        );
+        window.open(`https://wa.me/55${cleanPhone.replace(/^55/, '')}?text=${whatsappMsg}`, '_blank');
+      }
+
+      // 4. Atualiza os dados na tela
+      const response = await api.get('/leads');
+      setLeads(response.data);
+      const updatedLead = response.data.find((l: any) => l.id === selectedLead.id);
+      if (updatedLead) setSelectedLead(updatedLead);
+    } catch (error) {
+      alert('Erro ao registrar e enviar reunião do Google Meet.');
+    } finally {
+      setIsSavingMeet(false);
     }
   };
 
@@ -200,10 +319,10 @@ export default function CRMPage() {
     try {
       await api.post(`/leads/${selectedLead.id}/history`, historyForm);
       
-      if (currentAction === 'WhatsApp' && selectedLead.phone) {
+      if ((currentAction === 'WhatsApp' || currentAction === 'Google Meet') && selectedLead.phone) {
         const cleanPhone = selectedLead.phone.replace(/\D/g, '');
         const message = encodeURIComponent(currentDescription);
-        window.open(`https://wa.me/${cleanPhone}?text=${message}`, '_blank');
+        window.open(`https://wa.me/55${cleanPhone.replace(/^55/, '')}?text=${message}`, '_blank');
       } 
       else if (currentAction === 'E-mail' && selectedLead.email) {
         const subject = encodeURIComponent(`Contato sobre Imóveis - Zenix`);
@@ -265,6 +384,7 @@ export default function CRMPage() {
   if (isLoading) return <div className="p-8 flex justify-center text-slate-500"><Loader2 className="animate-spin" /></div>;
 
   const nextBrokerInLine = rouletteConfig.queue?.[0];
+  const selectedLeadMeet = getLeadMeetInfo(selectedLead);
 
   return (
     <div className="p-8 max-w-[1600px] mx-auto font-sans h-[calc(100vh-4rem)] flex flex-col animate-in fade-in duration-300">
@@ -276,7 +396,7 @@ export default function CRMPage() {
             <MessageCircle className="text-blue-600 bg-blue-50 p-1.5 rounded-lg" size={36} />
             CRM & Funil de Vendas
           </h1>
-          <p className="text-slate-500 mt-1 text-sm">Gira os seus clientes, roleta de distribuição automática e radar de imóveis.</p>
+          <p className="text-slate-500 mt-1 text-sm">Gira os seus clientes, reuniões por vídeo no Google Meet, roleta automática e radar de imóveis.</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
@@ -324,68 +444,83 @@ export default function CRMPage() {
                 </div>
 
                 <div className="p-3 flex-1 overflow-y-auto space-y-3 scrollbar-thin scrollbar-thumb-slate-300">
-                  {stageLeads.map(lead => (
-                    <div key={lead.id} className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 hover:shadow-md hover:border-blue-300 transition-all cursor-pointer flex flex-col gap-3 group relative" onClick={() => handleOpenLeadDetails(lead)}>
-                      
-                      {(lead.searchMaxPrice || lead.searchNeighborhoods?.length > 0) && (
-                        <div className="absolute -top-2 -right-2 bg-gradient-to-r from-amber-400 to-orange-500 text-white rounded-full p-1.5 shadow-md" title="Perfil de Busca Preenchido / Radar Ativo">
-                          <Sparkles size={14} className="animate-pulse" />
-                        </div>
-                      )}
-
-                      <div className="flex gap-3">
-                        <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-lg shrink-0">
-                          {lead.name.charAt(0).toUpperCase()}
-                        </div>
-                        <div className="flex-1 overflow-hidden">
-                          <h4 className="font-bold text-slate-800 group-hover:text-blue-600 transition-colors truncate">{lead.name}</h4>
-                          <p className="text-[11px] font-semibold text-slate-500 mt-1 uppercase tracking-wider truncate">
-                            {lead.interest}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* BADGES DE SLA / REPESCAGEM */}
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        {renderSlaBadge(lead)}
-                        {lead.reassignedCount > 0 && (
-                          <span className="text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded-full flex items-center gap-1" title="Este lead já mudou de corretor automaticamente por falta de atendimento no prazo">
-                            <RefreshCw size={10}/> Repescado {lead.reassignedCount}x
-                          </span>
-                        )}
-                      </div>
-                      
-                      <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100 space-y-1.5">
-                        <p className="text-xs text-slate-600 flex items-center gap-1.5"><Phone size={12} className="text-slate-400 shrink-0"/> {maskPhone(lead.phone)}</p>
-                        {lead.email && (
-                          <p className="text-xs text-slate-600 flex items-center gap-1.5 truncate"><Mail size={12} className="text-slate-400 shrink-0"/> <span className="truncate">{lead.email}</span></p>
-                        )}
-                        {lead.property && (
-                          <div className="mt-1 pt-1.5 border-t border-slate-200">
-                            <p className="text-xs text-indigo-700 font-semibold flex items-center gap-1.5 truncate">
-                              <Home size={12} className="shrink-0"/> <span className="truncate">{lead.property.title}</span>
-                            </p>
+                  {stageLeads.map(lead => {
+                    const meetInfo = getLeadMeetInfo(lead);
+                    return (
+                      <div key={lead.id} className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 hover:shadow-md hover:border-blue-300 transition-all cursor-pointer flex flex-col gap-3 group relative" onClick={() => handleOpenLeadDetails(lead)}>
+                        
+                        {(lead.searchMaxPrice || lead.searchNeighborhoods?.length > 0) && (
+                          <div className="absolute -top-2 -right-2 bg-gradient-to-r from-amber-400 to-orange-500 text-white rounded-full p-1.5 shadow-md" title="Perfil de Busca Preenchido / Radar Ativo">
+                            <Sparkles size={14} className="animate-pulse" />
                           </div>
                         )}
-                        <p className="text-[10px] text-slate-500 font-semibold flex items-center gap-1.5 pt-1">
-                          <Briefcase size={10} className="shrink-0 text-blue-500"/> {lead.broker?.name || 'S/ Corretor'}
-                        </p>
-                      </div>
 
-                      <div className="flex items-center justify-between mt-1" onClick={e => e.stopPropagation()}>
-                        <select 
-                          value={lead.stage} 
-                          onChange={(e) => handleChangeStage(lead.id, e.target.value)}
-                          className="text-xs font-semibold bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-slate-600 outline-none focus:ring-2 focus:ring-blue-500 hover:border-blue-300 transition-colors"
-                        >
-                          {STAGES.map(s => <option key={s} value={s}>{s}</option>)}
-                        </select>
-                        <span className="text-[10px] text-slate-400 flex items-center gap-1 font-medium">
-                          <Clock size={12}/> {new Date(lead.updatedAt).toLocaleDateString()}
-                        </span>
+                        <div className="flex gap-3">
+                          <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-lg shrink-0">
+                            {lead.name.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="flex-1 overflow-hidden">
+                            <h4 className="font-bold text-slate-800 group-hover:text-blue-600 transition-colors truncate">{lead.name}</h4>
+                            <p className="text-[11px] font-semibold text-slate-500 mt-1 uppercase tracking-wider truncate">
+                              {lead.interest}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* BADGES DE SLA / REPESCAGEM / GOOGLE MEET */}
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {renderSlaBadge(lead)}
+                          {lead.reassignedCount > 0 && (
+                            <span className="text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded-full flex items-center gap-1" title="Este lead já mudou de corretor automaticamente por falta de atendimento no prazo">
+                              <RefreshCw size={10}/> Repescado {lead.reassignedCount}x
+                            </span>
+                          )}
+                          {meetInfo?.url && (
+                            <a
+                              href={meetInfo.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              onClick={e => e.stopPropagation()}
+                              className="text-[10px] font-bold bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 px-2 py-0.5 rounded-full flex items-center gap-1 transition-colors"
+                              title="Clique para entrar direto na sala do Google Meet"
+                            >
+                              <Video size={10} /> Sala Meet Ativa
+                            </a>
+                          )}
+                        </div>
+                        
+                        <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100 space-y-1.5">
+                          <p className="text-xs text-slate-600 flex items-center gap-1.5"><Phone size={12} className="text-slate-400 shrink-0"/> {maskPhone(lead.phone)}</p>
+                          {lead.email && (
+                            <p className="text-xs text-slate-600 flex items-center gap-1.5 truncate"><Mail size={12} className="text-slate-400 shrink-0"/> <span className="truncate">{lead.email}</span></p>
+                          )}
+                          {lead.property && (
+                            <div className="mt-1 pt-1.5 border-t border-slate-200">
+                              <p className="text-xs text-indigo-700 font-semibold flex items-center gap-1.5 truncate">
+                                <Home size={12} className="shrink-0"/> <span className="truncate">{lead.property.title}</span>
+                              </p>
+                            </div>
+                          )}
+                          <p className="text-[10px] text-slate-500 font-semibold flex items-center gap-1.5 pt-1">
+                            <Briefcase size={10} className="shrink-0 text-blue-500"/> {lead.broker?.name || 'S/ Corretor'}
+                          </p>
+                        </div>
+
+                        <div className="flex items-center justify-between mt-1" onClick={e => e.stopPropagation()}>
+                          <select 
+                            value={lead.stage} 
+                            onChange={(e) => handleChangeStage(lead.id, e.target.value)}
+                            className="text-xs font-semibold bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-slate-600 outline-none focus:ring-2 focus:ring-blue-500 hover:border-blue-300 transition-colors"
+                          >
+                            {STAGES.map(s => <option key={s} value={s}>{s}</option>)}
+                          </select>
+                          <span className="text-[10px] text-slate-400 flex items-center gap-1 font-medium">
+                            <Clock size={12}/> {new Date(lead.updatedAt).toLocaleDateString()}
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   {stageLeads.length === 0 && (
                     <div className="text-center p-6 text-sm text-slate-400 border-2 border-dashed border-slate-200 rounded-xl font-medium">
                       Nenhum lead nesta fase
@@ -472,48 +607,147 @@ export default function CRMPage() {
         </div>
       )}
 
-      {/* MODAL: DETALHES, HISTÓRICO E RADAR DO LEAD (MANTIDO 100%) */}
+      {/* ========================================================= */}
+      {/* MODAL: DETALHES, GOOGLE MEET, HISTÓRICO E RADAR DO LEAD   */}
+      {/* ========================================================= */}
       {selectedLead && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-6xl h-[90vh] flex flex-col md:flex-row overflow-hidden animate-in zoom-in-95 duration-200">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-6xl h-[92vh] flex flex-col md:flex-row overflow-hidden animate-in zoom-in-95 duration-200">
             
-            <div className="w-full md:w-1/4 bg-slate-50 border-r border-slate-200 p-6 flex flex-col">
-              <div className="flex justify-between items-start mb-6">
-                <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mb-2 shrink-0 shadow-sm border border-blue-200">
-                  <User size={32} />
+            {/* COLUNA ESQUERDA: PERFIL + CENTRAL GOOGLE MEET */}
+            <div className="w-full md:w-[310px] bg-slate-50 border-r border-slate-200 p-5 flex flex-col overflow-y-auto shrink-0">
+              <div className="flex justify-between items-start mb-4">
+                <div className="w-14 h-14 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center shrink-0 shadow-sm border border-blue-200">
+                  <User size={28} />
                 </div>
                 <button onClick={() => setSelectedLead(null)} className="md:hidden text-slate-400 p-2 hover:bg-slate-200 rounded-lg"><X size={20}/></button>
               </div>
               
-              <h2 className="text-xl font-bold text-slate-800 leading-tight">{selectedLead.name}</h2>
-              <span className="inline-block mt-2 bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-xs font-bold w-fit">{selectedLead.interest}</span>
+              <h2 className="text-lg font-bold text-slate-800 leading-tight">{selectedLead.name}</h2>
+              <span className="inline-block mt-1.5 bg-blue-100 text-blue-700 px-2.5 py-0.5 rounded-full text-xs font-bold w-fit">{selectedLead.interest}</span>
 
-              <div className="mt-8 flex flex-col gap-2">
+              <div className="mt-5 flex flex-col gap-1.5">
                 <button 
                   onClick={() => setLeadTab('historico')} 
-                  className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-colors ${leadTab === 'historico' ? 'bg-white text-blue-600 shadow-sm border border-blue-100' : 'text-slate-600 hover:bg-slate-100 border border-transparent'}`}
+                  className={`flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs font-bold transition-colors ${leadTab === 'historico' ? 'bg-white text-blue-600 shadow-sm border border-blue-100' : 'text-slate-600 hover:bg-slate-100 border border-transparent'}`}
                 >
-                  <Clock size={18} /> Linha do Tempo
+                  <Clock size={16} /> Linha do Tempo & Meet
                 </button>
                 <button 
                   onClick={() => setLeadTab('perfil')} 
-                  className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-colors ${leadTab === 'perfil' ? 'bg-white text-blue-600 shadow-sm border border-blue-100' : 'text-slate-600 hover:bg-slate-100 border border-transparent'}`}
+                  className={`flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs font-bold transition-colors ${leadTab === 'perfil' ? 'bg-white text-blue-600 shadow-sm border border-blue-100' : 'text-slate-600 hover:bg-slate-100 border border-transparent'}`}
                 >
-                  <Search size={18} /> Perfil de Busca
+                  <Search size={16} /> Perfil de Busca
                 </button>
                 <button 
                   onClick={() => setLeadTab('radar')} 
-                  className={`flex items-center justify-between px-4 py-3 rounded-xl text-sm font-bold transition-colors ${leadTab === 'radar' ? 'bg-gradient-to-r from-orange-50 to-amber-50 text-orange-700 shadow-sm border border-orange-200' : 'text-slate-600 hover:bg-slate-100 border border-transparent'}`}
+                  className={`flex items-center justify-between px-4 py-2.5 rounded-xl text-xs font-bold transition-colors ${leadTab === 'radar' ? 'bg-gradient-to-r from-orange-50 to-amber-50 text-orange-700 shadow-sm border border-orange-200' : 'text-slate-600 hover:bg-slate-100 border border-transparent'}`}
                 >
-                  <div className="flex items-center gap-3"><Sparkles size={18} className={leadTab === 'radar' ? "text-orange-500" : ""} /> Radar Imóveis</div>
+                  <div className="flex items-center gap-3"><Sparkles size={16} className={leadTab === 'radar' ? "text-orange-500" : ""} /> Radar Imóveis</div>
                   {matches.length > 0 && <span className="bg-orange-500 text-white text-[10px] px-2 py-0.5 rounded-full">{matches.length}</span>}
                 </button>
               </div>
 
+              {/* ========================================================= */}
+              {/* CENTRAL AUTOMATIZADA DO GOOGLE MEET                       */}
+              {/* ========================================================= */}
+              <div className="mt-5 bg-gradient-to-br from-teal-900 to-slate-900 text-white p-4 rounded-2xl shadow-md space-y-3 border border-teal-700/40">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-extrabold uppercase tracking-wider text-teal-300 flex items-center gap-1.5">
+                    <Video size={15} className="text-teal-400" /> Reunião Google Meet
+                  </span>
+                  <div className="flex gap-1">
+                    <button
+                      type="button"
+                      onClick={handleCreateInstantMeetRoom}
+                      className="bg-teal-500/20 hover:bg-teal-500/40 text-teal-200 border border-teal-400/30 text-[10px] font-bold px-2 py-1 rounded-lg transition-colors"
+                      title="Abre o Google Meet e cria uma sala limpa instantaneamente"
+                    >
+                      ⚡ Criar Sala
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleOpenGoogleCalendarWithMeet}
+                      className="bg-blue-500/20 hover:bg-blue-500/40 text-blue-200 border border-blue-400/30 text-[10px] font-bold px-2 py-1 rounded-lg transition-colors"
+                      title="Abre o Google Agenda já com os dados do cliente para gerar convite com Google Meet"
+                    >
+                      📅 Agenda
+                    </button>
+                  </div>
+                </div>
+
+                <form onSubmit={handleSaveAndSendMeet} className="space-y-2.5 text-xs">
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <div>
+                      <label className="block text-[10px] text-slate-300 font-bold mb-0.5">Data</label>
+                      <input
+                        type="date"
+                        value={meetForm.meetingDate}
+                        onChange={e => setMeetForm({ ...meetForm, meetingDate: e.target.value })}
+                        className="w-full px-2 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-white text-[11px] outline-none focus:border-teal-400"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-slate-300 font-bold mb-0.5">Horário</label>
+                      <input
+                        type="time"
+                        value={meetForm.meetingTime}
+                        onChange={e => setMeetForm({ ...meetForm, meetingTime: e.target.value })}
+                        className="w-full px-2 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-white text-[11px] outline-none focus:border-teal-400"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] text-slate-300 font-bold mb-0.5">Link da Sala Google Meet</label>
+                    <input
+                      type="url"
+                      placeholder="https://meet.google.com/abc-defg-hij"
+                      value={meetForm.meetingUrl}
+                      onChange={e => setMeetForm({ ...meetForm, meetingUrl: e.target.value })}
+                      className="w-full px-2.5 py-2 rounded-lg bg-slate-800 border border-slate-700 text-white text-xs outline-none focus:border-teal-400 font-mono"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isSavingMeet}
+                    className="w-full bg-teal-500 hover:bg-teal-400 text-slate-950 font-black py-2.5 rounded-xl flex items-center justify-center gap-1.5 shadow-sm transition-all text-xs"
+                  >
+                    {isSavingMeet ? <Loader2 size={14} className="animate-spin" /> : <Send size={13} />}
+                    Salvar & Enviar p/ Cliente
+                  </button>
+                </form>
+
+                {selectedLeadMeet?.url && (
+                  <div className="pt-2 border-t border-slate-800 flex items-center justify-between gap-2">
+                    <a
+                      href={selectedLeadMeet.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex-1 bg-white/10 hover:bg-white/20 text-white font-bold py-2 px-3 rounded-lg text-[11px] flex items-center justify-center gap-1.5 transition-colors"
+                    >
+                      <ExternalLink size={12} /> Entrar na Reunião
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(selectedLeadMeet.url);
+                        alert('Link do Google Meet copiado!');
+                      }}
+                      className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors"
+                      title="Copiar Link da Sala"
+                    >
+                      <Copy size={13} />
+                    </button>
+                  </div>
+                )}
+              </div>
+
               {/* DADOS DE CONTATO RÁPIDOS E CLICÁVEIS */}
-              <div className="mt-auto pt-6 border-t border-slate-200 space-y-3">
+              <div className="mt-auto pt-4 border-t border-slate-200 space-y-2">
                 <a 
-                  href={`https://wa.me/${selectedLead.phone?.replace(/\D/g, '')}`} 
+                  href={`https://wa.me/55${selectedLead.phone?.replace(/\D/g, '').replace(/^55/, '')}`} 
                   target="_blank" rel="noreferrer" 
                   className="flex items-center gap-2 text-xs font-bold text-slate-600 bg-white hover:bg-green-50 hover:text-green-700 hover:border-green-200 p-2.5 rounded-lg border border-slate-200 transition-colors cursor-pointer"
                   title="Abrir WhatsApp"
@@ -542,7 +776,7 @@ export default function CRMPage() {
               </div>
             </div>
 
-            <div className="w-full md:w-3/4 flex flex-col h-full relative bg-slate-50/30">
+            <div className="flex-1 flex flex-col h-full relative bg-slate-50/30 overflow-hidden">
               <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-white z-10 shadow-sm">
                 <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">
                   {leadTab === 'historico' ? <><Clock className="text-blue-500"/> Histórico de Atendimento</> : 
@@ -556,33 +790,58 @@ export default function CRMPage() {
                 <>
                   <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50">
                     <div className="space-y-6">
-                      {selectedLead.history?.map((event: any, index: number) => (
-                        <div key={event.id} className="flex gap-4">
-                          <div className="flex flex-col items-center">
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white shrink-0 shadow-md border-2 border-white
-                              ${event.actionType === 'WhatsApp' ? 'bg-green-500' : 
-                                event.actionType === 'Ligação' ? 'bg-blue-500' : 
-                                event.actionType === 'E-mail' ? 'bg-cyan-500' :
-                                event.actionType === 'Visita' ? 'bg-purple-500' : 
-                                event.actionType === 'Sistema' ? 'bg-slate-400' : 
-                                event.actionType === 'Mudança de Estágio' ? 'bg-indigo-500' : 'bg-amber-500'}`}>
-                              {event.actionType === 'WhatsApp' ? <MessageCircle size={18}/> : 
-                               event.actionType === 'Ligação' ? <Phone size={18}/> : 
-                               event.actionType === 'E-mail' ? <Mail size={18}/> : 
-                               event.actionType === 'Visita' ? <Calendar size={18}/> : 
-                               event.actionType === 'Mudança de Estágio' ? <Briefcase size={18}/> : <Clock size={18}/>}
+                      {selectedLead.history?.map((event: any, index: number) => {
+                        const meetUrlInEvent = event.description?.match(/https?:\/\/meet\.google\.com\/[a-zA-Z0-9-]+/)?.[0];
+                        return (
+                          <div key={event.id} className="flex gap-4">
+                            <div className="flex flex-col items-center">
+                              <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white shrink-0 shadow-md border-2 border-white
+                                ${event.actionType === 'WhatsApp' ? 'bg-green-500' : 
+                                  event.actionType === 'Google Meet' ? 'bg-teal-600' :
+                                  event.actionType === 'Ligação' ? 'bg-blue-500' : 
+                                  event.actionType === 'E-mail' ? 'bg-cyan-500' :
+                                  event.actionType === 'Visita' ? 'bg-purple-500' : 
+                                  event.actionType === 'Sistema' ? 'bg-slate-400' : 
+                                  event.actionType === 'Mudança de Estágio' ? 'bg-indigo-500' : 'bg-amber-500'}`}>
+                                {event.actionType === 'WhatsApp' ? <MessageCircle size={18}/> : 
+                                 event.actionType === 'Google Meet' ? <Video size={18}/> :
+                                 event.actionType === 'Ligação' ? <Phone size={18}/> : 
+                                 event.actionType === 'E-mail' ? <Mail size={18}/> : 
+                                 event.actionType === 'Visita' ? <Calendar size={18}/> : 
+                                 event.actionType === 'Mudança de Estágio' ? <Briefcase size={18}/> : <Clock size={18}/>}
+                              </div>
+                              {index !== selectedLead.history.length - 1 && <div className="w-0.5 h-full bg-slate-200 my-2"></div>}
                             </div>
-                            {index !== selectedLead.history.length - 1 && <div className="w-0.5 h-full bg-slate-200 my-2"></div>}
-                          </div>
-                          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex-1 pb-5 mb-2 hover:shadow-md transition-shadow">
-                            <div className="flex justify-between items-center mb-2">
-                              <span className="font-bold text-slate-800">{event.actionType}</span>
-                              <span className="text-xs font-medium text-slate-400 bg-slate-100 px-2 py-1 rounded-lg">{new Date(event.date).toLocaleString()}</span>
+                            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex-1 pb-5 mb-2 hover:shadow-md transition-shadow">
+                              <div className="flex justify-between items-center mb-2">
+                                <span className="font-bold text-slate-800">{event.actionType}</span>
+                                <span className="text-xs font-medium text-slate-400 bg-slate-100 px-2 py-1 rounded-lg">{new Date(event.date).toLocaleString()}</span>
+                              </div>
+                              <p className="text-slate-600 text-sm whitespace-pre-wrap leading-relaxed">{event.description}</p>
+                              {meetUrlInEvent && (
+                                <div className="mt-3 pt-3 border-t border-slate-100 flex flex-wrap gap-2">
+                                  <a
+                                    href={meetUrlInEvent}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex items-center gap-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold px-3.5 py-2 rounded-xl shadow-sm transition-colors"
+                                  >
+                                    <Video size={14} /> Entrar na Sala do Google Meet
+                                  </a>
+                                  <a
+                                    href={`https://wa.me/55${selectedLead.phone?.replace(/\D/g, '').replace(/^55/, '')}?text=${encodeURIComponent(`Olá ${selectedLead.name.split(' ')[0]}! Estamos prontos na sala de vídeo. Clique no link para entrar: ${meetUrlInEvent}`)}`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex items-center gap-1.5 bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 text-xs font-bold px-3.5 py-2 rounded-xl transition-colors"
+                                  >
+                                    <MessageCircle size={14} /> Reenviar Link no WhatsApp
+                                  </a>
+                                </div>
+                              )}
                             </div>
-                            <p className="text-slate-600 text-sm whitespace-pre-wrap leading-relaxed">{event.description}</p>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                   
@@ -591,9 +850,10 @@ export default function CRMPage() {
                       <select 
                         value={historyForm.actionType} 
                         onChange={e => setHistoryForm({...historyForm, actionType: e.target.value})}
-                        className="px-4 py-3 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm font-semibold bg-slate-50 cursor-pointer w-[160px] shrink-0"
+                        className="px-4 py-3 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm font-semibold bg-slate-50 cursor-pointer w-[170px] shrink-0"
                       >
                         <option value="WhatsApp">WhatsApp</option>
+                        <option value="Google Meet">Google Meet</option>
                         <option value="Ligação">Ligação</option>
                         <option value="E-mail">E-mail</option>
                         <option value="Visita">Visita</option>
@@ -608,7 +868,7 @@ export default function CRMPage() {
                       
                       <button type="submit" disabled={isSaving} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold transition-all shadow-sm flex items-center gap-2 disabled:opacity-70 whitespace-nowrap">
                         {isSaving ? <Loader2 size={18} className="animate-spin" /> : 
-                          (historyForm.actionType === 'WhatsApp' || historyForm.actionType === 'E-mail' || historyForm.actionType === 'Ligação') 
+                          (historyForm.actionType === 'WhatsApp' || historyForm.actionType === 'Google Meet' || historyForm.actionType === 'E-mail' || historyForm.actionType === 'Ligação') 
                             ? 'Registar & Abrir' 
                             : 'Registar Ação'
                         }
@@ -742,7 +1002,7 @@ export default function CRMPage() {
 
                             <div className="mt-4 flex items-center gap-3">
                               <a 
-                                href={`https://wa.me/${selectedLead.phone.replace(/\D/g, '')}?text=Olá ${selectedLead.name.split(' ')[0]}! Encontrei um imóvel que bate exatamente com o que procura no bairro ${match.property.neighborhood}. Dá uma olhada:`} 
+                                href={`https://wa.me/55${selectedLead.phone.replace(/\D/g, '').replace(/^55/, '')}?text=Olá ${selectedLead.name.split(' ')[0]}! Encontrei um imóvel que bate exatamente com o que procura no bairro ${match.property.neighborhood}. Dá uma olhada:`} 
                                 target="_blank" rel="noreferrer"
                                 className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors shadow-sm flex items-center gap-2"
                               >
