@@ -7,7 +7,7 @@ import {
   Layers, ShieldCheck, Loader2
 } from 'lucide-react';
 
-// Lista expandida com todos os IDs 100% padronizados em minúsculas
+
 const AVAILABLE_MODULES = [
   { id: 'incorporadoras', label: 'Incorporadoras' },
   { id: 'condominios', label: 'Condomínios' },
