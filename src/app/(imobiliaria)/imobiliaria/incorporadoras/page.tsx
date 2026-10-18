@@ -8,7 +8,7 @@ import {
   Sparkles, Globe, Plus, CheckCircle2, AlertTriangle, Loader2,
   TrendingUp, DollarSign, Wrench, Package, ClipboardList, Eye,
   ExternalLink, Calculator, Percent, ShieldCheck, Box, Home, Send,
-  Edit, Power, X, Save, PauseCircle, PlayCircle
+  Edit, Power, X, Save, PauseCircle, PlayCircle, Trash2
 } from 'lucide-react';
 
 export default function IncorporadoraPage() {
@@ -23,12 +23,20 @@ export default function IncorporadoraPage() {
   const [storeInfo, setStoreInfo] = useState<any>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
 
-  // Estados de Edição: SPE, Empreendimento e Terreno (Land Bank)
+  // Estados de Edição (Aba 1: SPE, Empreendimento e Land Bank)
   const [editingSpeId, setEditingSpeId] = useState<string | null>(null);
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [isLandModalOpen, setIsLandModalOpen] = useState(false);
   const [editingLandId, setEditingLandId] = useState<string | null>(null);
   const [isSavingLand, setIsSavingLand] = useState(false);
+
+  // Estados de Edição (Aba 2 e 3: Curva ABC, Medições, Suprimentos, Diário, Kits e BIM)
+  const [editingBudgetItemId, setEditingBudgetItemId] = useState<string | null>(null);
+  const [editingMeasurementId, setEditingMeasurementId] = useState<string | null>(null);
+  const [editingSupplyId, setEditingSupplyId] = useState<string | null>(null);
+  const [editingDiaryId, setEditingDiaryId] = useState<string | null>(null);
+  const [editingKitId, setEditingKitId] = useState<string | null>(null);
+  const [editingBimId, setEditingBimId] = useState<string | null>(null);
 
   // Sub-abas de Engenharia e Design
   const [engSubTab, setEngSubTab] = useState<'cronograma' | 'curva_abc' | 'medicoes' | 'suprimentos' | 'diario' | 'incc'>('cronograma');
@@ -58,7 +66,7 @@ export default function IncorporadoraPage() {
     contractorName: '', contractorCnpj: '', serviceDescription: '', periodReference: '', grossAmount: '', retentionPercent: '5', integrateToDre: true
   });
   const [supplyForm, setSupplyForm] = useState({
-    materialName: '', unit: 'ton', quantityOrdered: '', supplierName: '', totalAmount: '', status: 'ENTREGUE_NO_CANTEIRO'
+    materialName: '', unit: 'ton', quantityOrdered: '', quantityInStock: '', supplierName: '', totalAmount: '', status: 'ENTREGUE_NO_CANTEIRO'
   });
   const [diaryForm, setDiaryForm] = useState({
     weatherMorning: 'Sol', weatherAfternoon: 'Sol', workforceCount: '25', activitiesExecuted: '', occurrences: '', photosUrls: '', engineerName: ''
@@ -368,7 +376,7 @@ export default function IncorporadoraPage() {
   };
 
   // =========================================================================
-  // 4. HANDLERS DE ENGENHARIA, BIM & VITRINE
+  // 4. HANDLERS DE ENGENHARIA (CRIAR, EDITAR E EXCLUIR)
   // =========================================================================
   const handleSaveProgressAndSite = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -407,44 +415,151 @@ export default function IncorporadoraPage() {
     }
   };
 
-  const handleAddBudgetItem = async (e: React.FormEvent) => {
+  // 4.1 Curva ABC (Criar, Editar, Excluir)
+  const handleSaveBudgetItem = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedProject) return;
     try {
-      await api.post(`/incorporadoras/projects/${selectedProject.id}/budget-items`, budgetForm).catch(() => api.post(`/incorporadora/projects/${selectedProject.id}/budget-items`, budgetForm));
+      if (editingBudgetItemId) {
+        await api
+          .put(`/incorporadoras/budget-items/${editingBudgetItemId}`, budgetForm)
+          .catch(() => api.put(`/incorporadora/budget-items/${editingBudgetItemId}`, budgetForm));
+      } else {
+        await api
+          .post(`/incorporadoras/projects/${selectedProject.id}/budget-items`, budgetForm)
+          .catch(() => api.post(`/incorporadora/projects/${selectedProject.id}/budget-items`, budgetForm));
+      }
+      setEditingBudgetItemId(null);
       setBudgetForm({ code: '', stageName: 'Estrutura', itemDescription: '', category: 'Material', unit: 'm³', quantity: '', unitCost: '' });
       fetchAllData();
     } catch (err) {
-      alert('Erro ao adicionar item de orçamento.');
+      alert('Erro ao salvar item de orçamento.');
     }
   };
 
-  const handleAddMeasurement = async (e: React.FormEvent) => {
+  const handleStartEditBudgetItem = (item: any) => {
+    setEditingBudgetItemId(item.id);
+    setBudgetForm({
+      code: item.code || '',
+      stageName: item.stageName || 'Estrutura',
+      itemDescription: item.itemDescription || '',
+      category: item.category || 'Material',
+      unit: item.unit || 'un',
+      quantity: String(item.quantity ?? ''),
+      unitCost: String(item.unitCost ?? '')
+    });
+  };
+
+  const handleDeleteBudgetItem = async (itemId: string) => {
+    if (!confirm('Deseja excluir este insumo? A Curva ABC será recalculada automaticamente.')) return;
+    try {
+      await api
+        .delete(`/incorporadoras/budget-items/${itemId}`)
+        .catch(() => api.delete(`/incorporadora/budget-items/${itemId}`));
+      fetchAllData();
+    } catch (err) {
+      alert('Erro ao excluir item de orçamento.');
+    }
+  };
+
+  // 4.2 Medições de Empreiteiros (Criar, Editar, Excluir)
+  const handleSaveMeasurement = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedProject) return;
     try {
-      await api.post(`/incorporadoras/projects/${selectedProject.id}/measurements`, measurementForm).catch(() => api.post(`/incorporadora/projects/${selectedProject.id}/measurements`, measurementForm));
+      if (editingMeasurementId) {
+        await api
+          .put(`/incorporadoras/measurements/${editingMeasurementId}`, measurementForm)
+          .catch(() => api.put(`/incorporadora/measurements/${editingMeasurementId}`, measurementForm));
+        alert('Medição atualizada com sucesso!');
+      } else {
+        await api
+          .post(`/incorporadoras/projects/${selectedProject.id}/measurements`, measurementForm)
+          .catch(() => api.post(`/incorporadora/projects/${selectedProject.id}/measurements`, measurementForm));
+        alert('Medição registrada com sucesso!');
+      }
+      setEditingMeasurementId(null);
       setMeasurementForm({ contractorName: '', contractorCnpj: '', serviceDescription: '', periodReference: '', grossAmount: '', retentionPercent: '5', integrateToDre: true });
       fetchAllData();
-      alert('Medição registrada! Despesa lançada automaticamente no DRE.');
     } catch (err) {
-      alert('Erro ao registrar medição.');
+      alert('Erro ao salvar medição.');
     }
   };
 
-  const handleAddSupplyOrder = async (e: React.FormEvent) => {
+  const handleStartEditMeasurement = (m: any) => {
+    setEditingMeasurementId(m.id);
+    setMeasurementForm({
+      contractorName: m.contractorName || '',
+      contractorCnpj: m.contractorCnpj || '',
+      serviceDescription: m.serviceDescription || '',
+      periodReference: m.periodReference || '',
+      grossAmount: String(m.grossAmount ?? ''),
+      retentionPercent: String(m.retentionPercent ?? '5'),
+      integrateToDre: false
+    });
+  };
+
+  const handleDeleteMeasurement = async (measurementId: string) => {
+    if (!confirm('Deseja excluir este registro de medição?')) return;
+    try {
+      await api
+        .delete(`/incorporadoras/measurements/${measurementId}`)
+        .catch(() => api.delete(`/incorporadora/measurements/${measurementId}`));
+      fetchAllData();
+    } catch (err) {
+      alert('Erro ao excluir medição.');
+    }
+  };
+
+  // 4.3 Suprimentos & Estoque de Canteiro (Criar, Editar, Excluir)
+  const handleSaveSupplyOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedProject) return;
     try {
-      await api.post(`/incorporadoras/projects/${selectedProject.id}/supply-orders`, supplyForm).catch(() => api.post(`/incorporadora/projects/${selectedProject.id}/supply-orders`, supplyForm));
-      setSupplyForm({ materialName: '', unit: 'ton', quantityOrdered: '', supplierName: '', totalAmount: '', status: 'ENTREGUE_NO_CANTEIRO' });
+      if (editingSupplyId) {
+        await api
+          .put(`/incorporadoras/supply-orders/${editingSupplyId}`, supplyForm)
+          .catch(() => api.put(`/incorporadora/supply-orders/${editingSupplyId}`, supplyForm));
+      } else {
+        await api
+          .post(`/incorporadoras/projects/${selectedProject.id}/supply-orders`, supplyForm)
+          .catch(() => api.post(`/incorporadora/projects/${selectedProject.id}/supply-orders`, supplyForm));
+      }
+      setEditingSupplyId(null);
+      setSupplyForm({ materialName: '', unit: 'ton', quantityOrdered: '', quantityInStock: '', supplierName: '', totalAmount: '', status: 'ENTREGUE_NO_CANTEIRO' });
       fetchAllData();
     } catch (err) {
-      alert('Erro ao registrar compra/suprimento.');
+      alert('Erro ao salvar ordem de compra/suprimento.');
     }
   };
 
-  const handleAddWorkDiary = async (e: React.FormEvent) => {
+  const handleStartEditSupply = (s: any) => {
+    setEditingSupplyId(s.id);
+    setSupplyForm({
+      materialName: s.materialName || '',
+      unit: s.unit || 'un',
+      quantityOrdered: String(s.quantityOrdered ?? ''),
+      quantityInStock: String(s.quantityInStock ?? ''),
+      supplierName: s.supplierName || '',
+      totalAmount: String(s.totalAmount ?? ''),
+      status: s.status || 'ENTREGUE_NO_CANTEIRO'
+    });
+  };
+
+  const handleDeleteSupply = async (supplyId: string) => {
+    if (!confirm('Deseja excluir esta ordem de compra / estoque?')) return;
+    try {
+      await api
+        .delete(`/incorporadoras/supply-orders/${supplyId}`)
+        .catch(() => api.delete(`/incorporadora/supply-orders/${supplyId}`));
+      fetchAllData();
+    } catch (err) {
+      alert('Erro ao excluir ordem de compra.');
+    }
+  };
+
+  // 4.4 Diário de Obra - RDO (Criar, Editar, Excluir)
+  const handleSaveWorkDiary = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedProject) return;
     try {
@@ -452,12 +567,47 @@ export default function IncorporadoraPage() {
         ...diaryForm,
         photosUrls: diaryForm.photosUrls.split(',').map(s => s.trim()).filter(Boolean)
       };
-      await api.post(`/incorporadoras/projects/${selectedProject.id}/work-diaries`, payload).catch(() => api.post(`/incorporadora/projects/${selectedProject.id}/work-diaries`, payload));
+      if (editingDiaryId) {
+        await api
+          .put(`/incorporadoras/work-diaries/${editingDiaryId}`, payload)
+          .catch(() => api.put(`/incorporadora/work-diaries/${editingDiaryId}`, payload));
+        alert('Diário de Obra atualizado!');
+      } else {
+        await api
+          .post(`/incorporadoras/projects/${selectedProject.id}/work-diaries`, payload)
+          .catch(() => api.post(`/incorporadora/projects/${selectedProject.id}/work-diaries`, payload));
+        alert('Diário de Obra (RDO) salvo com sucesso!');
+      }
+      setEditingDiaryId(null);
       setDiaryForm({ weatherMorning: 'Sol', weatherAfternoon: 'Sol', workforceCount: '25', activitiesExecuted: '', occurrences: '', photosUrls: '', engineerName: '' });
       fetchAllData();
-      alert('Diário de Obra (RDO) salvo com sucesso!');
     } catch (err) {
       alert('Erro ao salvar Diário de Obra.');
+    }
+  };
+
+  const handleStartEditDiary = (d: any) => {
+    setEditingDiaryId(d.id);
+    setDiaryForm({
+      weatherMorning: d.weatherMorning || 'Sol',
+      weatherAfternoon: d.weatherAfternoon || 'Sol',
+      workforceCount: String(d.workforceCount ?? '25'),
+      activitiesExecuted: d.activitiesExecuted || '',
+      occurrences: d.occurrences || '',
+      photosUrls: (d.photosUrls || []).join(', '),
+      engineerName: d.engineerName || ''
+    });
+  };
+
+  const handleDeleteDiary = async (diaryId: string) => {
+    if (!confirm('Deseja excluir este registro do Diário de Obra?')) return;
+    try {
+      await api
+        .delete(`/incorporadoras/work-diaries/${diaryId}`)
+        .catch(() => api.delete(`/incorporadora/work-diaries/${diaryId}`));
+      fetchAllData();
+    } catch (err) {
+      alert('Erro ao excluir Diário de Obra.');
     }
   };
 
@@ -473,32 +623,105 @@ export default function IncorporadoraPage() {
     }
   };
 
-  const handleAddBimFile = async (e: React.FormEvent) => {
+  // =========================================================================
+  // 5. HANDLERS DE BIM E KITS DE PERSONALIZAÇÃO (CRIAR, EDITAR E EXCLUIR)
+  // =========================================================================
+  const handleSaveBimFile = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedProject) return;
     try {
-      await api.post(`/incorporadoras/projects/${selectedProject.id}/bim-files`, bimForm).catch(() => api.post(`/incorporadora/projects/${selectedProject.id}/bim-files`, bimForm));
+      if (editingBimId) {
+        await api
+          .put(`/incorporadoras/bim-files/${editingBimId}`, bimForm)
+          .catch(() => api.put(`/incorporadora/bim-files/${editingBimId}`, bimForm));
+        alert('Arquivo BIM atualizado com sucesso!');
+      } else {
+        await api
+          .post(`/incorporadoras/projects/${selectedProject.id}/bim-files`, bimForm)
+          .catch(() => api.post(`/incorporadora/projects/${selectedProject.id}/bim-files`, bimForm));
+        alert('Arquivo BIM / Planta adicionado ao repositório!');
+      }
+      setEditingBimId(null);
       setBimForm({
         discipline: 'Fachada / Exterior', fileName: '', fileFormat: 'IFC', fileUrl: '', version: 'R01',
         clashStatus: 'COMPATIBILIZADO', clashDescription: '', responsibleDesigner: ''
       });
       fetchAllData();
-      alert('Arquivo BIM / Planta adicionado ao repositório com controle de revisão!');
     } catch (err) {
-      alert('Erro ao subir arquivo BIM.');
+      alert('Erro ao salvar arquivo BIM.');
     }
   };
 
-  const handleAddKitOption = async (e: React.FormEvent) => {
+  const handleStartEditBim = (bf: any) => {
+    setEditingBimId(bf.id);
+    setBimForm({
+      discipline: bf.discipline || 'Fachada / Exterior',
+      fileName: bf.fileName || '',
+      fileFormat: bf.fileFormat || 'IFC',
+      fileUrl: bf.fileUrl || '',
+      version: bf.version || 'R01',
+      clashStatus: bf.clashStatus || 'COMPATIBILIZADO',
+      clashDescription: bf.clashDescription || '',
+      responsibleDesigner: bf.responsibleDesigner || ''
+    });
+  };
+
+  const handleDeleteBim = async (bimId: string) => {
+    if (!confirm('Deseja excluir este projeto BIM?')) return;
+    try {
+      await api
+        .delete(`/incorporadoras/bim-files/${bimId}`)
+        .catch(() => api.delete(`/incorporadora/bim-files/${bimId}`));
+      fetchAllData();
+    } catch (err) {
+      alert('Erro ao excluir arquivo BIM.');
+    }
+  };
+
+  const handleSaveKitOption = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedProject) return;
     try {
-      await api.post(`/incorporadoras/projects/${selectedProject.id}/customization-options`, kitOptionForm).catch(() => api.post(`/incorporadora/projects/${selectedProject.id}/customization-options`, kitOptionForm));
+      if (editingKitId) {
+        await api
+          .put(`/incorporadoras/customization-options/${editingKitId}`, kitOptionForm)
+          .catch(() => api.put(`/incorporadora/customization-options/${editingKitId}`, kitOptionForm));
+        alert('Kit de Acabamento atualizado!');
+      } else {
+        await api
+          .post(`/incorporadoras/projects/${selectedProject.id}/customization-options`, kitOptionForm)
+          .catch(() => api.post(`/incorporadora/projects/${selectedProject.id}/customization-options`, kitOptionForm));
+        alert('Kit de Acabamento adicionado ao catálogo!');
+      }
+      setEditingKitId(null);
       setKitOptionForm({ category: 'Pisos e Porcelanatos', title: '', specification: '', imageUrl: '', additionalPrice: '', maxStageAllowedPct: '60' });
       fetchAllData();
-      alert('Kit de Acabamento adicionado ao catálogo do empreendimento!');
     } catch (err) {
-      alert('Erro ao cadastrar kit.');
+      alert('Erro ao salvar kit.');
+    }
+  };
+
+  const handleStartEditKit = (opt: any) => {
+    setEditingKitId(opt.id);
+    setKitOptionForm({
+      category: opt.category || 'Pisos e Porcelanatos',
+      title: opt.title || '',
+      specification: opt.specification || '',
+      imageUrl: opt.imageUrl || '',
+      additionalPrice: String(opt.additionalPrice ?? ''),
+      maxStageAllowedPct: String(opt.maxStageAllowedPct ?? '60')
+    });
+  };
+
+  const handleDeleteKit = async (optionId: string) => {
+    if (!confirm('Deseja excluir este Kit de Personalização?')) return;
+    try {
+      await api
+        .delete(`/incorporadoras/customization-options/${optionId}`)
+        .catch(() => api.delete(`/incorporadora/customization-options/${optionId}`));
+      fetchAllData();
+    } catch (err) {
+      alert('Erro ao excluir kit.');
     }
   };
 
@@ -811,7 +1034,7 @@ export default function IncorporadoraPage() {
             </div>
           </div>
 
-          {/* BLOCO B: LISTA COMPLETA DE EMPREENDIMENTOS & OBRAS CADASTRADAS (EDITAR, PARALISAR, VITRINE) */}
+          {/* BLOCO B: LISTA COMPLETA DE EMPREENDIMENTOS & OBRAS CADASTRADAS */}
           <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
               <div>
@@ -960,7 +1183,6 @@ export default function IncorporadoraPage() {
               </button>
             </div>
 
-            {/* Tabela de Terrenos com Ações de Editar, Habilitar e Desabilitar */}
             <div className="border border-slate-200 rounded-2xl overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-50 text-slate-600 font-bold uppercase border-b border-slate-200">
@@ -1031,9 +1253,7 @@ export default function IncorporadoraPage() {
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* MODAL DE CADASTRO / EDIÇÃO DE TERRENO (LAND BANK)                         */}
-      {/* ========================================================================= */}
+      {/* MODAL DE CADASTRO / EDIÇÃO DE TERRENO (LAND BANK) */}
       {isLandModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
@@ -1188,15 +1408,29 @@ export default function IncorporadoraPage() {
                 </form>
               )}
 
-              {/* 2.2 ORÇAMENTO DE OBRA & CURVA ABC */}
+              {/* 2.2 ORÇAMENTO DE OBRA & CURVA ABC (COM EDITAR E EXCLUIR) */}
               {engSubTab === 'curva_abc' && (
                 <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-6">
-                  <div>
-                    <h3 className="text-lg font-bold text-slate-800">Orçamento Executivo & Curva ABC de Insumos</h3>
-                    <p className="text-xs text-slate-500">O sistema classifica automaticamente os insumos em Classe A (80% do impacto financeiro), B (15%) e C (5%).</p>
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h3 className="text-lg font-bold text-slate-800">Orçamento Executivo & Curva ABC de Insumos</h3>
+                      <p className="text-xs text-slate-500">O sistema classifica e recalcula automaticamente os insumos em Classe A (80% do custo), B (15%) e C (5%).</p>
+                    </div>
+                    {editingBudgetItemId && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingBudgetItemId(null);
+                          setBudgetForm({ code: '', stageName: 'Estrutura', itemDescription: '', category: 'Material', unit: 'm³', quantity: '', unitCost: '' });
+                        }}
+                        className="text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg"
+                      >
+                        Cancelar Edição
+                      </button>
+                    )}
                   </div>
 
-                  <form onSubmit={handleAddBudgetItem} className="grid grid-cols-1 sm:grid-cols-6 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200 text-xs items-end">
+                  <form onSubmit={handleSaveBudgetItem} className="grid grid-cols-1 sm:grid-cols-6 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200 text-xs items-end">
                     <div>
                       <label className="block font-bold text-slate-600 mb-1">Etapa</label>
                       <select value={budgetForm.stageName} onChange={e => setBudgetForm({ ...budgetForm, stageName: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white">
@@ -1213,19 +1447,22 @@ export default function IncorporadoraPage() {
                       <input required type="text" placeholder="Ex: Aço CA-50 / Concreto FCK 35" value={budgetForm.itemDescription} onChange={e => setBudgetForm({ ...budgetForm, itemDescription: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white" />
                     </div>
                     <div>
-                      <label className="block font-bold text-slate-600 mb-1">Qtd ({budgetForm.unit})</label>
-                      <input required type="number" step="0.01" value={budgetForm.quantity} onChange={e => setBudgetForm({ ...budgetForm, quantity: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white" />
+                      <label className="block font-bold text-slate-600 mb-1">Qtd & Unidade</label>
+                      <div className="flex gap-1">
+                        <input required type="number" step="0.01" placeholder="Qtd" value={budgetForm.quantity} onChange={e => setBudgetForm({ ...budgetForm, quantity: e.target.value })} className="w-2/3 p-2.5 border border-slate-300 rounded-xl bg-white" />
+                        <input required type="text" placeholder="un" value={budgetForm.unit} onChange={e => setBudgetForm({ ...budgetForm, unit: e.target.value })} className="w-1/3 p-2.5 border border-slate-300 rounded-xl bg-white text-center font-bold" />
+                      </div>
                     </div>
                     <div>
                       <label className="block font-bold text-slate-600 mb-1">Custo Unit. (R$)</label>
                       <input required type="number" step="0.01" value={budgetForm.unitCost} onChange={e => setBudgetForm({ ...budgetForm, unitCost: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white" />
                     </div>
-                    <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-xl shadow-sm">
-                      + Insumo ABC
+                    <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-xl shadow-sm flex items-center justify-center gap-1">
+                      {editingBudgetItemId ? <><Save size={14} /> Salvar</> : <><Plus size={14} /> Insumo ABC</>}
                     </button>
                   </form>
 
-                  <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                  <div className="border border-slate-200 rounded-2xl overflow-x-auto">
                     <table className="w-full text-left text-xs">
                       <thead className="bg-slate-50 text-slate-600 font-bold uppercase border-b border-slate-200">
                         <tr>
@@ -1235,11 +1472,12 @@ export default function IncorporadoraPage() {
                           <th className="p-3.5">Quantidade</th>
                           <th className="p-3.5">Custo Unitário</th>
                           <th className="p-3.5">Custo Total Planejado</th>
+                          <th className="p-3.5 text-right">Ações</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 font-medium">
                         {(selectedProject.budgetItems || []).map((item: any) => (
-                          <tr key={item.id}>
+                          <tr key={item.id} className="hover:bg-slate-50">
                             <td className="p-3.5">
                               <span className={`px-2.5 py-1 rounded-full font-black text-[11px] ${
                                 item.abcClass === 'A' ? 'bg-rose-100 text-rose-800' : item.abcClass === 'B' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
@@ -1252,6 +1490,22 @@ export default function IncorporadoraPage() {
                             <td className="p-3.5">{item.quantity} {item.unit}</td>
                             <td className="p-3.5">{formatCurrency(item.unitCost)}</td>
                             <td className="p-3.5 font-black text-slate-900">{formatCurrency(item.totalPlannedCost)}</td>
+                            <td className="p-3.5 text-right space-x-1.5 whitespace-nowrap">
+                              <button
+                                type="button"
+                                onClick={() => handleStartEditBudgetItem(item)}
+                                className="bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold px-2.5 py-1.5 rounded-lg inline-flex items-center gap-1"
+                              >
+                                <Edit size={13} /> Editar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteBudgetItem(item.id)}
+                                className="bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold px-2.5 py-1.5 rounded-lg inline-flex items-center gap-1"
+                              >
+                                <Trash2 size={13} /> Excluir
+                              </button>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -1260,15 +1514,29 @@ export default function IncorporadoraPage() {
                 </div>
               )}
 
-              {/* 2.3 MEDIÇÕES DE EMPREITEIROS */}
+              {/* 2.3 MEDIÇÕES DE EMPREITEIROS (COM EDITAR E EXCLUIR) */}
               {engSubTab === 'medicoes' && (
                 <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-6">
-                  <div>
-                    <h3 className="text-lg font-bold text-slate-800">Medições de Empreiteiros & Retenção Contratual</h3>
-                    <p className="text-xs text-slate-500">Aprove medições de serviços executados, retenha a caução de garantia e envie o valor líquido direto para o DRE da imobiliária/incorporadora.</p>
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h3 className="text-lg font-bold text-slate-800">Medições de Empreiteiros & Retenção Contratual</h3>
+                      <p className="text-xs text-slate-500">Aprove ou edite medições de serviços executados, retenha a caução de garantia e integre ao DRE.</p>
+                    </div>
+                    {editingMeasurementId && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingMeasurementId(null);
+                          setMeasurementForm({ contractorName: '', contractorCnpj: '', serviceDescription: '', periodReference: '', grossAmount: '', retentionPercent: '5', integrateToDre: true });
+                        }}
+                        className="text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg"
+                      >
+                        Cancelar Edição
+                      </button>
+                    )}
                   </div>
 
-                  <form onSubmit={handleAddMeasurement} className="grid grid-cols-1 sm:grid-cols-5 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200 text-xs items-end">
+                  <form onSubmit={handleSaveMeasurement} className="grid grid-cols-1 sm:grid-cols-5 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200 text-xs items-end">
                     <div>
                       <label className="block font-bold text-slate-600 mb-1">Empreiteira *</label>
                       <input required type="text" placeholder="Construtora Alfa Ltda" value={measurementForm.contractorName} onChange={e => setMeasurementForm({ ...measurementForm, contractorName: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white" />
@@ -1286,17 +1554,19 @@ export default function IncorporadoraPage() {
                       <input required type="number" step="0.5" value={measurementForm.retentionPercent} onChange={e => setMeasurementForm({ ...measurementForm, retentionPercent: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white" />
                     </div>
                     <div className="sm:col-span-5 flex justify-between items-center pt-2">
-                      <label className="flex items-center gap-2 font-bold text-slate-700 cursor-pointer">
-                        <input type="checkbox" checked={measurementForm.integrateToDre} onChange={e => setMeasurementForm({ ...measurementForm, integrateToDre: e.target.checked })} className="w-4 h-4 accent-blue-600" />
-                        Lançar automaticamente como Despesa Paga no DRE da Empresa
-                      </label>
-                      <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-2.5 rounded-xl shadow-sm">
-                        Aprovar Medição
+                      {!editingMeasurementId ? (
+                        <label className="flex items-center gap-2 font-bold text-slate-700 cursor-pointer">
+                          <input type="checkbox" checked={measurementForm.integrateToDre} onChange={e => setMeasurementForm({ ...measurementForm, integrateToDre: e.target.checked })} className="w-4 h-4 accent-blue-600" />
+                          Lançar automaticamente como Despesa Paga no DRE da Empresa
+                        </label>
+                      ) : <span className="text-slate-500 font-bold">Editando medição selecionada</span>}
+                      <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-2.5 rounded-xl shadow-sm flex items-center gap-1.5">
+                        {editingMeasurementId ? <><Save size={14} /> Salvar Alterações</> : 'Aprovar Medição'}
                       </button>
                     </div>
                   </form>
 
-                  <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                  <div className="border border-slate-200 rounded-2xl overflow-x-auto">
                     <table className="w-full text-left text-xs">
                       <thead className="bg-slate-50 text-slate-600 font-bold uppercase border-b border-slate-200">
                         <tr>
@@ -1306,17 +1576,34 @@ export default function IncorporadoraPage() {
                           <th className="p-3.5">Retenção Contratual</th>
                           <th className="p-3.5">Líquido Liberado</th>
                           <th className="p-3.5">Status</th>
+                          <th className="p-3.5 text-right">Ações</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 font-medium">
                         {(selectedProject.measurements || []).map((m: any) => (
-                          <tr key={m.id}>
+                          <tr key={m.id} className="hover:bg-slate-50">
                             <td className="p-3.5 font-bold text-slate-900">{m.contractorName}</td>
                             <td className="p-3.5">{m.serviceDescription}</td>
                             <td className="p-3.5">{formatCurrency(m.grossAmount)}</td>
                             <td className="p-3.5 text-amber-700 font-bold">-{formatCurrency(m.retentionAmount)} ({m.retentionPercent}%)</td>
                             <td className="p-3.5 font-black text-emerald-700">{formatCurrency(m.netAmount)}</td>
                             <td className="p-3.5"><span className="bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full font-bold text-[10px]">{m.status}</span></td>
+                            <td className="p-3.5 text-right space-x-1.5 whitespace-nowrap">
+                              <button
+                                type="button"
+                                onClick={() => handleStartEditMeasurement(m)}
+                                className="bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold px-2.5 py-1.5 rounded-lg inline-flex items-center gap-1"
+                              >
+                                <Edit size={13} /> Editar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteMeasurement(m.id)}
+                                className="bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold px-2.5 py-1.5 rounded-lg inline-flex items-center gap-1"
+                              >
+                                <Trash2 size={13} /> Excluir
+                              </button>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -1325,32 +1612,51 @@ export default function IncorporadoraPage() {
                 </div>
               )}
 
-              {/* 2.4 SUPRIMENTOS E ESTOQUE DE CANTEIRO */}
+              {/* 2.4 SUPRIMENTOS E ESTOQUE DE CANTEIRO (COM EDITAR E EXCLUIR) */}
               {engSubTab === 'suprimentos' && (
                 <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-6">
-                  <h3 className="text-lg font-bold text-slate-800">Suprimentos, Ordens de Compra & Estoque no Canteiro</h3>
-                  <form onSubmit={handleAddSupplyOrder} className="grid grid-cols-1 sm:grid-cols-5 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200 text-xs items-end">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-lg font-bold text-slate-800">Suprimentos, Ordens de Compra & Estoque no Canteiro</h3>
+                    {editingSupplyId && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingSupplyId(null);
+                          setSupplyForm({ materialName: '', unit: 'ton', quantityOrdered: '', quantityInStock: '', supplierName: '', totalAmount: '', status: 'ENTREGUE_NO_CANTEIRO' });
+                        }}
+                        className="text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg"
+                      >
+                        Cancelar Edição
+                      </button>
+                    )}
+                  </div>
+
+                  <form onSubmit={handleSaveSupplyOrder} className="grid grid-cols-1 sm:grid-cols-6 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200 text-xs items-end">
                     <div className="sm:col-span-2">
                       <label className="block font-bold text-slate-600 mb-1">Material / Insumo *</label>
                       <input required type="text" placeholder="Ex: Cimento CP-II 50kg / Porcelanato" value={supplyForm.materialName} onChange={e => setSupplyForm({ ...supplyForm, materialName: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white" />
                     </div>
                     <div>
-                      <label className="block font-bold text-slate-600 mb-1">Quantidade</label>
+                      <label className="block font-bold text-slate-600 mb-1">Qtd Comprada</label>
                       <input required type="number" step="0.01" value={supplyForm.quantityOrdered} onChange={e => setSupplyForm({ ...supplyForm, quantityOrdered: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white" />
                     </div>
                     <div>
-                      <label className="block font-bold text-slate-600 mb-1">Fornecedor & Valor Total (R$)</label>
+                      <label className="block font-bold text-slate-600 mb-1">Saldo Canteiro</label>
+                      <input type="number" step="0.01" placeholder="Automático" value={supplyForm.quantityInStock} onChange={e => setSupplyForm({ ...supplyForm, quantityInStock: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white" />
+                    </div>
+                    <div>
+                      <label className="block font-bold text-slate-600 mb-1">Fornecedor & Valor (R$)</label>
                       <div className="flex gap-1">
                         <input required type="text" placeholder="Fornecedor" value={supplyForm.supplierName} onChange={e => setSupplyForm({ ...supplyForm, supplierName: e.target.value })} className="w-1/2 p-2.5 border border-slate-300 rounded-xl bg-white" />
                         <input required type="number" placeholder="R$" value={supplyForm.totalAmount} onChange={e => setSupplyForm({ ...supplyForm, totalAmount: e.target.value })} className="w-1/2 p-2.5 border border-slate-300 rounded-xl bg-white" />
                       </div>
                     </div>
-                    <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-xl shadow-sm">
-                      Emitir OC / Estoque
+                    <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-xl shadow-sm flex items-center justify-center gap-1">
+                      {editingSupplyId ? <><Save size={14} /> Salvar</> : 'Emitir OC / Estoque'}
                     </button>
                   </form>
 
-                  <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                  <div className="border border-slate-200 rounded-2xl overflow-x-auto">
                     <table className="w-full text-left text-xs">
                       <thead className="bg-slate-50 text-slate-600 font-bold uppercase border-b border-slate-200">
                         <tr>
@@ -1359,16 +1665,33 @@ export default function IncorporadoraPage() {
                           <th className="p-3.5">Qtd Comprada</th>
                           <th className="p-3.5">Saldo no Canteiro</th>
                           <th className="p-3.5">Valor da Ordem</th>
+                          <th className="p-3.5 text-right">Ações</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 font-medium">
                         {(selectedProject.supplyOrders || []).map((s: any) => (
-                          <tr key={s.id}>
+                          <tr key={s.id} className="hover:bg-slate-50">
                             <td className="p-3.5 font-bold text-slate-900">{s.materialName}</td>
                             <td className="p-3.5">{s.supplierName}</td>
                             <td className="p-3.5">{s.quantityOrdered} {s.unit}</td>
                             <td className="p-3.5 font-bold text-blue-600">{s.quantityInStock} {s.unit} em estoque</td>
                             <td className="p-3.5 font-bold">{formatCurrency(s.totalAmount)}</td>
+                            <td className="p-3.5 text-right space-x-1.5 whitespace-nowrap">
+                              <button
+                                type="button"
+                                onClick={() => handleStartEditSupply(s)}
+                                className="bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold px-2.5 py-1.5 rounded-lg inline-flex items-center gap-1"
+                              >
+                                <Edit size={13} /> Editar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteSupply(s.id)}
+                                className="bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold px-2.5 py-1.5 rounded-lg inline-flex items-center gap-1"
+                              >
+                                <Trash2 size={13} /> Excluir
+                              </button>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -1377,11 +1700,26 @@ export default function IncorporadoraPage() {
                 </div>
               )}
 
-              {/* 2.5 DIÁRIO DE OBRA (RDO) */}
+              {/* 2.5 DIÁRIO DE OBRA - RDO (COM EDITAR E EXCLUIR) */}
               {engSubTab === 'diario' && (
                 <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-6">
-                  <h3 className="text-lg font-bold text-slate-800">Diário de Obra (RDO) & Relatório Fotográfico</h3>
-                  <form onSubmit={handleAddWorkDiary} className="grid grid-cols-1 sm:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200 text-xs">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-lg font-bold text-slate-800">Diário de Obra (RDO) & Relatório Fotográfico</h3>
+                    {editingDiaryId && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingDiaryId(null);
+                          setDiaryForm({ weatherMorning: 'Sol', weatherAfternoon: 'Sol', workforceCount: '25', activitiesExecuted: '', occurrences: '', photosUrls: '', engineerName: '' });
+                        }}
+                        className="text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg"
+                      >
+                        Cancelar Edição
+                      </button>
+                    )}
+                  </div>
+
+                  <form onSubmit={handleSaveWorkDiary} className="grid grid-cols-1 sm:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200 text-xs">
                     <div>
                       <label className="block font-bold text-slate-600 mb-1">Clima Manhã / Tarde</label>
                       <div className="flex gap-2">
@@ -1414,21 +1752,36 @@ export default function IncorporadoraPage() {
                       <input type="text" placeholder="https://foto1.jpg, https://foto2.jpg" value={diaryForm.photosUrls} onChange={e => setDiaryForm({ ...diaryForm, photosUrls: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white" />
                     </div>
                     <div className="sm:col-span-4 flex justify-end">
-                      <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-2.5 rounded-xl shadow-sm">
-                        Registrar Diário de Obra
+                      <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-2.5 rounded-xl shadow-sm flex items-center gap-1.5">
+                        {editingDiaryId ? <><Save size={14} /> Salvar Alterações do RDO</> : 'Registrar Diário de Obra'}
                       </button>
                     </div>
                   </form>
 
                   <div className="space-y-3">
                     {(selectedProject.workDiaries || []).map((d: any) => (
-                      <div key={d.id} className="p-4 border border-slate-200 rounded-2xl bg-slate-50/60 flex flex-col sm:flex-row justify-between gap-4 text-xs">
+                      <div key={d.id} className="p-4 border border-slate-200 rounded-2xl bg-slate-50/60 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 text-xs">
                         <div>
                           <span className="font-black text-slate-800">{new Date(d.date).toLocaleDateString('pt-BR')}</span>
-                          <span className="ml-3 text-slate-500">Clima: {d.weatherMorning} / {d.weatherAfternoon} • 👷 {d.workforceCount} operários</span>
+                          <span className="ml-3 text-slate-500">Clima: {d.weatherMorning} / {d.weatherAfternoon} • 👷 {d.workforceCount} operários • {d.engineerName || 'Engenharia'}</span>
                           <p className="mt-1.5 text-slate-700 font-medium">{d.activitiesExecuted}</p>
                         </div>
-                        <span className="text-slate-400 font-bold self-start">{d.engineerName || 'Engenharia'}</span>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => handleStartEditDiary(d)}
+                            className="bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold px-2.5 py-1.5 rounded-lg inline-flex items-center gap-1"
+                          >
+                            <Edit size={13} /> Editar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteDiary(d.id)}
+                            className="bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold px-2.5 py-1.5 rounded-lg inline-flex items-center gap-1"
+                          >
+                            <Trash2 size={13} /> Excluir
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -1497,12 +1850,27 @@ export default function IncorporadoraPage() {
               {designSubTab === 'personalizacao' && (
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                   
-                  {/* Coluna Esquerda: Catálogo de Kits de Acabamento */}
+                  {/* Coluna Esquerda: Catálogo de Kits de Acabamento (Com Editar e Excluir) */}
                   <div className="lg:col-span-5 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-5">
-                    <h3 className="text-base font-bold text-slate-800 border-b border-slate-100 pb-3">
-                      Catálogo de Kits & Acabamentos Opcionais
-                    </h3>
-                    <form onSubmit={handleAddKitOption} className="space-y-3 text-xs bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                    <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                      <h3 className="text-base font-bold text-slate-800">
+                        Catálogo de Kits & Acabamentos Opcionais
+                      </h3>
+                      {editingKitId && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingKitId(null);
+                            setKitOptionForm({ category: 'Pisos e Porcelanatos', title: '', specification: '', imageUrl: '', additionalPrice: '', maxStageAllowedPct: '60' });
+                          }}
+                          className="text-xs font-bold text-slate-500 hover:text-slate-800 bg-slate-100 px-2.5 py-1 rounded-lg"
+                        >
+                          Cancelar
+                        </button>
+                      )}
+                    </div>
+
+                    <form onSubmit={handleSaveKitOption} className="space-y-3 text-xs bg-slate-50 p-4 rounded-2xl border border-slate-200">
                       <div className="grid grid-cols-2 gap-2">
                         <div>
                           <label className="block font-bold text-slate-600 mb-1">Categoria</label>
@@ -1532,20 +1900,38 @@ export default function IncorporadoraPage() {
                         <label className="block font-bold text-slate-600 mb-1">URL da Imagem / Render do Acabamento</label>
                         <input type="text" placeholder="https://..." value={kitOptionForm.imageUrl} onChange={e => setKitOptionForm({ ...kitOptionForm, imageUrl: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white" />
                       </div>
-                      <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl shadow-sm">
-                        + Cadastrar Kit de Personalização
+                      <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl shadow-sm flex items-center justify-center gap-1.5">
+                        {editingKitId ? <><Save size={14} /> Salvar Alterações do Kit</> : '+ Cadastrar Kit de Personalização'}
                       </button>
                     </form>
 
                     <div className="space-y-2 max-h-80 overflow-y-auto">
                       {(selectedProject.customizationOptions || []).map((opt: any) => (
-                        <div key={opt.id} className="p-3 border border-slate-200 rounded-xl flex justify-between items-center text-xs bg-slate-50/50">
+                        <div key={opt.id} className="p-3 border border-slate-200 rounded-xl flex justify-between items-center text-xs bg-slate-50/50 gap-2">
                           <div>
                             <span className="text-[10px] font-bold uppercase text-blue-600">{opt.category}</span>
                             <p className="font-bold text-slate-800">{opt.title}</p>
                             <p className="text-slate-500 text-[11px]">{opt.specification}</p>
+                            <span className="font-black text-emerald-700 block mt-1">+ {formatCurrency(opt.additionalPrice)}</span>
                           </div>
-                          <span className="font-black text-emerald-700 shrink-0 ml-2">+ {formatCurrency(opt.additionalPrice)}</span>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => handleStartEditKit(opt)}
+                              className="bg-blue-50 hover:bg-blue-100 text-blue-700 p-1.5 rounded-lg"
+                              title="Editar Kit"
+                            >
+                              <Edit size={13} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteKit(opt.id)}
+                              className="bg-rose-50 hover:bg-rose-100 text-rose-700 p-1.5 rounded-lg"
+                              title="Excluir Kit"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -1636,15 +2022,29 @@ export default function IncorporadoraPage() {
                 </div>
               )}
 
-              {/* 3.2 REPOSITÓRIO BIM, FACHADA/INTERIORES & COMPATIBILIZAÇÃO */}
+              {/* 3.2 REPOSITÓRIO BIM, FACHADA/INTERIORES & COMPATIBILIZAÇÃO (COM EDITAR E EXCLUIR) */}
               {designSubTab === 'bim' && (
                 <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-6">
-                  <div>
-                    <h3 className="text-lg font-bold text-slate-800">Repositório Central BIM (Revit, SketchUp, Promob, IFC, DWG) & Compatibilização</h3>
-                    <p className="text-xs text-slate-500">Controle as revisões de maquetes 3D da fachada e projetos executivos de interiores para evitar conflitos com estrutura e hidráulica.</p>
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h3 className="text-lg font-bold text-slate-800">Repositório Central BIM (Revit, SketchUp, Promob, IFC, DWG) & Compatibilização</h3>
+                      <p className="text-xs text-slate-500">Controle as revisões de maquetes 3D da fachada e projetos executivos de interiores para evitar conflitos com estrutura e hidráulica.</p>
+                    </div>
+                    {editingBimId && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingBimId(null);
+                          setBimForm({ discipline: 'Fachada / Exterior', fileName: '', fileFormat: 'IFC', fileUrl: '', version: 'R01', clashStatus: 'COMPATIBILIZADO', clashDescription: '', responsibleDesigner: '' });
+                        }}
+                        className="text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg"
+                      >
+                        Cancelar Edição
+                      </button>
+                    )}
                   </div>
 
-                  <form onSubmit={handleAddBimFile} className="grid grid-cols-1 sm:grid-cols-6 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200 text-xs items-end">
+                  <form onSubmit={handleSaveBimFile} className="grid grid-cols-1 sm:grid-cols-6 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200 text-xs items-end">
                     <div>
                       <label className="block font-bold text-slate-600 mb-1">Disciplina</label>
                       <select value={bimForm.discipline} onChange={e => setBimForm({ ...bimForm, discipline: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white">
@@ -1686,12 +2086,12 @@ export default function IncorporadoraPage() {
                       <label className="block font-bold text-slate-600 mb-1">Link do Arquivo / Nuvem *</label>
                       <input required type="url" placeholder="https://drive..." value={bimForm.fileUrl} onChange={e => setBimForm({ ...bimForm, fileUrl: e.target.value })} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white" />
                     </div>
-                    <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-xl shadow-sm">
-                      Publicar Revisão
+                    <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-xl shadow-sm flex items-center justify-center gap-1">
+                      {editingBimId ? <><Save size={14} /> Salvar</> : 'Publicar Revisão'}
                     </button>
                   </form>
 
-                  <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                  <div className="border border-slate-200 rounded-2xl overflow-x-auto">
                     <table className="w-full text-left text-xs">
                       <thead className="bg-slate-50 text-slate-600 font-bold uppercase border-b border-slate-200">
                         <tr>
@@ -1699,12 +2099,12 @@ export default function IncorporadoraPage() {
                           <th className="p-3.5">Arquivo / Formato</th>
                           <th className="p-3.5">Revisão</th>
                           <th className="p-3.5">Compatibilização (Clash Detection)</th>
-                          <th className="p-3.5 text-right">Download</th>
+                          <th className="p-3.5 text-right">Ações</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 font-medium">
                         {(selectedProject.bimFiles || []).map((bf: any) => (
-                          <tr key={bf.id}>
+                          <tr key={bf.id} className="hover:bg-slate-50">
                             <td className="p-3.5 font-bold text-slate-900">{bf.discipline}</td>
                             <td className="p-3.5">{bf.fileName} <span className="bg-slate-200 px-2 py-0.5 rounded text-[10px] font-bold ml-1">{bf.fileFormat}</span></td>
                             <td className="p-3.5 font-black text-blue-600">{bf.version}</td>
@@ -1715,8 +2115,24 @@ export default function IncorporadoraPage() {
                                 {bf.clashStatus}
                               </span>
                             </td>
-                            <td className="p-3.5 text-right">
-                              <a href={bf.fileUrl} target="_blank" rel="noreferrer" className="text-blue-600 font-bold underline">Abrir Projeto</a>
+                            <td className="p-3.5 text-right space-x-1.5 whitespace-nowrap">
+                              <a href={bf.fileUrl} target="_blank" rel="noreferrer" className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-2.5 py-1.5 rounded-lg inline-flex items-center gap-1">
+                                <ExternalLink size={13} /> Abrir
+                              </a>
+                              <button
+                                type="button"
+                                onClick={() => handleStartEditBim(bf)}
+                                className="bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold px-2.5 py-1.5 rounded-lg inline-flex items-center gap-1"
+                              >
+                                <Edit size={13} /> Editar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteBim(bf.id)}
+                                className="bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold px-2.5 py-1.5 rounded-lg inline-flex items-center gap-1"
+                              >
+                                <Trash2 size={13} /> Excluir
+                              </button>
                             </td>
                           </tr>
                         ))}
