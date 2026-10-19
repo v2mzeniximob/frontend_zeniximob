@@ -22,12 +22,13 @@ export function Sidebar() {
   const pathname = usePathname();
 
   const links = [
-   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Franqueados', href: '/franqueados', icon: Users },
     { name: 'Imobiliárias', href: '/imobiliarias', icon: Building2 },
     { name: 'Planos', href: '/planos', icon: CreditCard },
     { name: 'Contratos', href: '/contratos', icon: FileSignature },
     { name: 'Financeiro', href: '/financeiro', icon: Wallet },
+    { name: 'Configurações', href: '/configuracoes', icon: Settings },
   ];
 
   const handleLogout = () => {
