@@ -28,7 +28,6 @@ export function Sidebar() {
     { name: 'Planos', href: '/planos', icon: CreditCard },
     { name: 'Contratos', href: '/contratos', icon: FileSignature },
     { name: 'Financeiro', href: '/financeiro', icon: Wallet },
-    { name: 'Configurações', href: '/configuracoes', icon: Settings },
   ];
 
   const handleLogout = () => {
