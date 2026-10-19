@@ -4,7 +4,7 @@ import { useState, useEffect, use } from 'react';
 import { api } from '../../../lib/api';
 import { 
   MapPin, Phone, Mail, Home, Loader2, BedDouble, Bath, Car, 
-  Search, Heart, UserCheck, Building2, Users
+  Search, Heart, UserCheck, Building2, Users, Award, MessageSquare
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -13,9 +13,8 @@ export default function VitrineLojaPage(props: { params: Promise<{ slug: string 
   const slug = params?.slug;
 
   const [storeData, setStoreData] = useState<any>(null);
-  
-  // Guardamos TODOS os imóveis para poder filtrar sem ir ao servidor novamente
   const [allProperties, setAllProperties] = useState<any[]>([]);
+  const [brokers, setBrokers] = useState<any[]>([]);
   
   const [propertiesRent, setPropertiesRent] = useState<any[]>([]);
   const [propertiesSale, setPropertiesSale] = useState<any[]>([]);
@@ -34,10 +33,14 @@ export default function VitrineLojaPage(props: { params: Promise<{ slug: string 
     const fetchVitrine = async () => {
       try {
         const response = await api.get(`/public/stores/${slug}`);
-        setStoreData(response.data.realEstate);
+        const store = response.data.realEstate;
+        setStoreData(store);
         
         const fetchedProperties = response.data.properties || [];
         setAllProperties(fetchedProperties);
+
+        const fetchedBrokers = response.data.brokers || store?.brokers || [];
+        setBrokers(fetchedBrokers.filter((b: any) => b.isActive !== false));
         
         setPropertiesRent(fetchedProperties.filter((p: any) => p.transaction === 'Locação' || p.transaction === 'Aluguel' || p.transaction?.includes('Locação') || p.transaction?.includes('Aluguel')));
         setPropertiesSale(fetchedProperties.filter((p: any) => p.transaction === 'Venda' || p.transaction?.includes('Venda')));
@@ -51,9 +54,6 @@ export default function VitrineLojaPage(props: { params: Promise<{ slug: string 
     fetchVitrine();
   }, [slug]);
 
-  // ==========================================
-  // FUNÇÕES DE BUSCA E FILTRAGEM
-  // ==========================================
   const handleSearch = () => {
     let filtered = allProperties;
 
@@ -110,9 +110,6 @@ export default function VitrineLojaPage(props: { params: Promise<{ slug: string 
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
   };
 
-  // ==========================================
-  // COMPONENTE CARD DE IMÓVEL
-  // ==========================================
   const PropertyCard = ({ prop }: { prop: any }) => (
     <Link href={`/loja/${slug}/imovel/${prop.id}`} className="group block">
       <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100 hover:shadow-xl transition-all duration-300 flex flex-col h-full">
@@ -180,7 +177,6 @@ export default function VitrineLojaPage(props: { params: Promise<{ slug: string 
             <button onClick={() => triggerCategorySearch('Locação')} className="hover:text-blue-600 transition-colors">Locação</button>
             <button onClick={() => triggerCategorySearch('Venda')} className="hover:text-blue-600 transition-colors">Venda</button>
             
-            {/* BOTÃO DA INCORPORADORA & LANÇAMENTOS */}
             <Link 
               href={`/loja/${slug}/incorporadora`} 
               className="hover:bg-indigo-100 transition-colors font-bold text-indigo-700 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-200 flex items-center gap-1.5 shadow-sm"
@@ -192,7 +188,6 @@ export default function VitrineLojaPage(props: { params: Promise<{ slug: string 
             <Link href={`/loja/${slug}/simule-seu-financiamento`} className="hover:text-amber-700 transition-colors font-bold text-amber-600 bg-amber-50 px-3 py-1.5 rounded-lg border border-amber-200">Simular Financiamento</Link>
             <Link href={`/loja/${slug}/cadastre-seu-imovel`} className="hover:text-blue-700 transition-colors font-bold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100">Cadastre seu Imóvel</Link>
             
-            {/* LINK PARA A PÁGINA DE CORRETORES DA IMOBILIÁRIA */}
             <Link href={`/loja/${slug}/corretores`} className="hover:text-blue-600 transition-colors flex items-center gap-1">
               <Users size={14} className="text-slate-400" /> Corretores
             </Link>
@@ -201,7 +196,6 @@ export default function VitrineLojaPage(props: { params: Promise<{ slug: string 
           </nav>
 
           <div className="hidden md:flex items-center gap-3 shrink-0">
-            {/* BOTÃO PORTAL DO CLIENTE */}
             <Link 
               href={`/loja/${slug}/portal-cliente/login`}
               className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl transition-all shadow-md hover:shadow-lg whitespace-nowrap"
@@ -345,6 +339,55 @@ export default function VitrineLojaPage(props: { params: Promise<{ slug: string 
                 )}
               </section>
             )}
+
+            {/* 5. SECÇÃO NOSSO TIME DE CORRETORES (HOME) */}
+            {brokers.length > 0 && (
+              <section id="corretores" className="pt-4">
+                <div className="text-center mb-10">
+                  <h2 className="text-3xl font-bold text-slate-800">Nossa Equipe de Corretores</h2>
+                  <p className="text-slate-500 text-sm mt-2">Fale diretamente com os nossos especialistas credenciados</p>
+                  <div className="w-24 h-1 bg-blue-600 mx-auto mt-4 rounded-full"></div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                  {brokers.slice(0, 4).map((broker: any) => {
+                    const cleanPhone = String(broker.phone || '').replace(/\D/g, '');
+                    return (
+                      <div key={broker.id} className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm hover:shadow-lg transition-all flex flex-col justify-between">
+                        <div className="flex items-center gap-3.5 mb-4">
+                          <div className="w-12 h-12 rounded-xl bg-blue-600 text-white flex items-center justify-center font-black text-lg shrink-0">
+                            {String(broker.name || 'C').charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <h3 className="font-bold text-sm text-slate-900">{broker.name}</h3>
+                            <span className="text-[11px] font-bold text-blue-600 flex items-center gap-1 mt-0.5">
+                              <Award size={12} /> CRECI: {broker.creci || 'Ativo'}
+                            </span>
+                          </div>
+                        </div>
+                        {cleanPhone && (
+                          <a
+                            href={`https://wa.me/55${cleanPhone}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2.5 px-4 rounded-xl flex items-center justify-center gap-1.5 transition-colors mt-2"
+                          >
+                            <MessageSquare size={14} /> Falar no WhatsApp
+                          </a>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="text-center mt-8">
+                  <Link
+                    href={`/loja/${slug}/corretores`}
+                    className="inline-flex items-center gap-2 border-2 border-slate-800 text-slate-800 font-bold text-xs px-6 py-2.5 rounded-full hover:bg-slate-800 hover:text-white transition-colors"
+                  >
+                    <Users size={15} /> Ver todos os corretores
+                  </Link>
+                </div>
+              </section>
+            )}
           </>
         )}
 
@@ -361,7 +404,7 @@ export default function VitrineLojaPage(props: { params: Promise<{ slug: string 
         </a>
       )}
 
-      {/* 5. RODAPÉ */}
+      {/* 6. RODAPÉ */}
       <footer className="bg-slate-900 text-slate-300 pt-16 pb-8 border-t border-slate-800">
         <div className="max-w-7xl mx-auto px-4 grid grid-cols-1 md:grid-cols-4 gap-12 mb-12">
           
@@ -409,7 +452,6 @@ export default function VitrineLojaPage(props: { params: Promise<{ slug: string 
             </ul>
           </div>
 
-          {/* Links para Área do Locador e Locatário direcionam para o Portal do Cliente */}
           <div>
             <h4 className="text-white font-bold mb-6 uppercase tracking-wider text-sm">Área Restrita</h4>
             <ul className="space-y-3 text-sm">
