@@ -4,7 +4,7 @@ import { useState, useEffect, use } from 'react';
 import { api } from '../../../lib/api';
 import { 
   MapPin, Phone, Mail, Home, Loader2, BedDouble, Bath, Car, 
-  Search, Heart, UserCheck, Building2
+  Search, Heart, UserCheck, Building2, Users
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -166,8 +166,8 @@ export default function VitrineLojaPage(props: { params: Promise<{ slug: string 
       
       {/* 1. CABEÇALHO */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 h-20 flex items-center justify-between">
-          <button onClick={clearSearch} className="focus:outline-none">
+        <div className="max-w-7xl mx-auto px-4 h-20 flex items-center justify-between gap-2">
+          <button onClick={clearSearch} className="focus:outline-none shrink-0">
             {storeData.logoUrl ? (
               <img src={storeData.logoUrl} alt={storeData.tradeName} className="h-12 object-contain" />
             ) : (
@@ -175,7 +175,7 @@ export default function VitrineLojaPage(props: { params: Promise<{ slug: string 
             )}
           </button>
 
-          <nav className="hidden lg:flex items-center gap-5 text-sm font-semibold text-slate-600">
+          <nav className="hidden lg:flex items-center gap-3 xl:gap-4 text-xs xl:text-sm font-semibold text-slate-600 whitespace-nowrap">
             <button onClick={clearSearch} className={`${searchResults === null ? 'text-blue-600' : 'hover:text-blue-600 transition-colors'}`}>Início</button>
             <button onClick={() => triggerCategorySearch('Locação')} className="hover:text-blue-600 transition-colors">Locação</button>
             <button onClick={() => triggerCategorySearch('Venda')} className="hover:text-blue-600 transition-colors">Venda</button>
@@ -183,28 +183,34 @@ export default function VitrineLojaPage(props: { params: Promise<{ slug: string 
             {/* BOTÃO DA INCORPORADORA & LANÇAMENTOS */}
             <Link 
               href={`/loja/${slug}/incorporadora`} 
-              className="hover:bg-indigo-100 transition-colors font-bold text-indigo-700 bg-indigo-50 px-3.5 py-1.5 rounded-lg border border-indigo-200 flex items-center gap-1.5 shadow-sm"
+              className="hover:bg-indigo-100 transition-colors font-bold text-indigo-700 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-200 flex items-center gap-1.5 shadow-sm"
             >
-              <Building2 size={15} className="text-indigo-600" />
+              <Building2 size={14} className="text-indigo-600 shrink-0" />
               Incorporadora & Lançamentos
             </Link>
 
             <Link href={`/loja/${slug}/simule-seu-financiamento`} className="hover:text-amber-700 transition-colors font-bold text-amber-600 bg-amber-50 px-3 py-1.5 rounded-lg border border-amber-200">Simular Financiamento</Link>
             <Link href={`/loja/${slug}/cadastre-seu-imovel`} className="hover:text-blue-700 transition-colors font-bold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100">Cadastre seu Imóvel</Link>
+            
+            {/* LINK PARA A PÁGINA DE CORRETORES DA IMOBILIÁRIA */}
+            <Link href={`/loja/${slug}/corretores`} className="hover:text-blue-600 transition-colors flex items-center gap-1">
+              <Users size={14} className="text-slate-400" /> Corretores
+            </Link>
+
             <Link href={`/loja/${slug}/sobre`} className="hover:text-blue-600 transition-colors">Sobre Nós</Link>
           </nav>
 
-          <div className="hidden md:flex items-center gap-4">
+          <div className="hidden md:flex items-center gap-3 shrink-0">
             {/* BOTÃO PORTAL DO CLIENTE */}
             <Link 
               href={`/loja/${slug}/portal-cliente/login`}
-              className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition-all shadow-md hover:shadow-lg"
+              className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl transition-all shadow-md hover:shadow-lg whitespace-nowrap"
             >
               <UserCheck size={16} className="text-blue-400" />
               <span>Portal do Cliente</span>
             </Link>
 
-            <div className="flex flex-col text-right">
+            <div className="flex flex-col text-right whitespace-nowrap">
               <span className="text-[10px] text-slate-400 font-bold uppercase">Telefone</span>
               <span className="text-xs font-bold text-slate-900">{storeData.phone}</span>
             </div>
@@ -379,6 +385,7 @@ export default function VitrineLojaPage(props: { params: Promise<{ slug: string 
               <li><Link href={`/loja/${slug}/incorporadora`} className="hover:text-white transition-colors font-semibold text-indigo-400">Incorporadora & Lançamentos</Link></li>
               <li><Link href={`/loja/${slug}/cadastre-seu-imovel`} className="hover:text-white transition-colors">Cadastre seu Imóvel</Link></li>
               <li><Link href={`/loja/${slug}/simule-seu-financiamento`} className="hover:text-white transition-colors">Simule seu Financiamento</Link></li>
+              <li><Link href={`/loja/${slug}/corretores`} className="hover:text-white transition-colors">Nossos Corretores</Link></li>
               <li><Link href={`/loja/${slug}/sobre`} className="hover:text-white transition-colors">Quem Somos</Link></li>
             </ul>
           </div>
