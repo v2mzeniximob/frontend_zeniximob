@@ -213,21 +213,22 @@ export default function VitrineLojaPage(props: { params: Promise<{ slug: string 
       </header>
 
       {/* 2. HERO BANNER & BARRA DE PESQUISA */}
-      <section className="relative w-full h-[450px] flex items-center justify-center">
+      <section className="relative w-full h-[580px] flex items-center justify-center">
         <div className="absolute inset-0 bg-slate-900 overflow-hidden">
           {storeData.heroImageUrl ? (
-            <img src={storeData.heroImageUrl} className="w-full h-full object-cover opacity-60 mix-blend-overlay" />
+            <img src={storeData.heroImageUrl} alt="Capa" className="w-full h-full object-cover" />
           ) : (
             <div className="w-full h-full bg-gradient-to-r from-blue-900 to-slate-900"></div>
           )}
+          <div className="absolute inset-0 bg-black/35"></div>
         </div>
 
-        <div className="relative z-10 w-full max-w-5xl px-4">
-          <h2 className="text-3xl md:text-5xl font-bold text-white text-center mb-8 drop-shadow-md">
+        <div className="relative z-10 w-full max-w-5xl px-4 mt-6">
+          <h2 className="text-3xl md:text-5xl font-extrabold text-white text-center mb-8 drop-shadow-lg">
             Encontre o imóvel dos seus sonhos
           </h2>
           
-          <div className="bg-white p-4 md:p-6 rounded-2xl shadow-2xl flex flex-col md:flex-row gap-4 items-end">
+          <div className="bg-white/95 backdrop-blur-md p-4 md:p-6 rounded-2xl shadow-2xl flex flex-col md:flex-row gap-4 items-end border border-white/20">
             <div className="w-full md:w-1/4">
               <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Pretendido</label>
               <select value={searchFilter.transaction} onChange={e => setSearchFilter({...searchFilter, transaction: e.target.value})} className="w-full border-b-2 border-slate-200 pb-2 text-slate-800 font-medium outline-none focus:border-blue-600 bg-transparent">

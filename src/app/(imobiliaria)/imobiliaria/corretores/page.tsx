@@ -5,7 +5,7 @@ import { api } from '../../../../lib/api';
 import { 
   Users, Plus, Search, Edit, Power, Loader2, UserCircle, Phone, Mail, 
   Briefcase, Percent, FileSpreadsheet, Filter, Download,
-  DollarSign, X, Shield, Shuffle, Building2, CheckCircle2, Settings, FileText, Send
+  DollarSign, X, Shield, Shuffle, Building2, CheckCircle2, Settings, FileText, Send, Image as ImageIcon
 } from 'lucide-react';
 import { maskCpf, maskPhone } from '@/src/utils/mask';
 
@@ -17,7 +17,8 @@ const initialForm = {
   captureCommission: '10',
   managerCommission: '5',
   inRoulette: true,
-  taxRuleId: ''
+  taxRuleId: '',
+  profileImageUrl: ''
 };
 
 export default function CorretoresPage() {
@@ -132,7 +133,8 @@ export default function CorretoresPage() {
         rentCommission: broker.rentCommission ?? '100',
         captureCommission: broker.captureCommission ?? '10',
         managerCommission: broker.managerCommission ?? '5',
-        inRoulette: broker.inRoulette ?? true
+        inRoulette: broker.inRoulette ?? true,
+        profileImageUrl: broker.profileImageUrl || ''
       });
     } else {
       setEditingId(null);
@@ -373,9 +375,13 @@ export default function CorretoresPage() {
                     <tr key={broker.id} className="hover:bg-slate-50/50 transition-colors">
                       <td className="p-4">
                         <div className="flex items-center gap-3">
-                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold border ${broker.role === 'Gerente' ? 'bg-purple-50 text-purple-600 border-purple-200' : 'bg-blue-50 text-blue-600 border-blue-100'}`}>
-                            {broker.name.charAt(0).toUpperCase()}
-                          </div>
+                          {broker.profileImageUrl ? (
+                            <img src={broker.profileImageUrl} alt={broker.name} className="w-10 h-10 rounded-xl object-cover border border-slate-200 shrink-0" />
+                          ) : (
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold border shrink-0 ${broker.role === 'Gerente' ? 'bg-purple-50 text-purple-600 border-purple-200' : 'bg-blue-50 text-blue-600 border-blue-100'}`}>
+                              {broker.name.charAt(0).toUpperCase()}
+                            </div>
+                          )}
                           <div>
                             <div className="flex items-center gap-2">
                               <p className="font-bold text-slate-800">{broker.name}</p>
@@ -580,10 +586,10 @@ export default function CorretoresPage() {
                           <div className="flex items-center gap-2 mb-1">
                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${row.type === 'Venda' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>{row.type}</span>
                             <span className="text-xs text-slate-400">{new Date(row.date).toLocaleDateString('pt-BR')}</span>
-                          </div>
-                          <p className="font-bold text-slate-800 line-clamp-1" title={row.propertyTitle}>{row.propertyTitle}</p>
-                          <p className="text-xs text-slate-500">Valor Base: {formatCurrency(row.operationValue)}</p>
-                        </td>
+                        </div>
+                        <p className="font-bold text-slate-800 line-clamp-1" title={row.propertyTitle}>{row.propertyTitle}</p>
+                        <p className="text-xs text-slate-500">Valor Base: {formatCurrency(row.operationValue)}</p>
+                      </td>
                          
                         <td className="p-4">
                           <p className="font-black text-slate-800">{formatCurrency(row.commissionValue)}</p>
@@ -611,9 +617,9 @@ export default function CorretoresPage() {
                       </tr>
                     ))
                   )}
-                </tbody>
-              </table>
-            </div>
+              </tbody>
+            </table>
+          </div>
           </div>
         </div>
       )}
@@ -677,6 +683,15 @@ export default function CorretoresPage() {
                     <div>
                       <label className="block text-xs font-bold text-slate-600 mb-1">E-mail (Acesso à Plataforma) *</label>
                       <input required type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-xs font-bold text-slate-600 mb-1">URL da Foto de Perfil (Avatar / Imagem)</label>
+                      <div className="flex gap-2 items-center">
+                        <input type="url" value={formData.profileImageUrl || ''} onChange={e => setFormData({...formData, profileImageUrl: e.target.value})} placeholder="https://exemplo.com/foto-corretor.jpg" className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
+                        {formData.profileImageUrl && (
+                          <img src={formData.profileImageUrl} alt="Preview" className="w-10 h-10 rounded-lg object-cover border border-slate-200 shrink-0" />
+                        )}
+                      </div>
                     </div>
                     <div className="md:col-span-2">
                       <label className="block text-xs font-bold text-slate-600 mb-1">Senha {editingId && '(Deixe em branco para não alterar)'} {(!editingId) && '*'}</label>

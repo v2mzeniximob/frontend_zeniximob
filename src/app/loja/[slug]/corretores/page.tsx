@@ -160,6 +160,9 @@ export default function PublicCorretoresPage(props: { params: Promise<{ slug: st
                   )}`
                 : null;
 
+              // Identifica a imagem considerando profileImageUrl (campo correto), avatarUrl e photoUrl
+              const brokerImage = broker.profileImageUrl || broker.avatarUrl || broker.photoUrl;
+
               return (
                 <div
                   key={broker.id}
@@ -167,11 +170,11 @@ export default function PublicCorretoresPage(props: { params: Promise<{ slug: st
                 >
                   <div>
                     <div className="flex items-center gap-4 mb-5">
-                      {broker.avatarUrl || broker.photoUrl ? (
+                      {brokerImage ? (
                         <img
-                          src={broker.avatarUrl || broker.photoUrl}
+                          src={brokerImage}
                           alt={broker.name}
-                          className="w-16 h-16 rounded-2xl object-cover border border-slate-200 shrink-0"
+                          className="w-16 h-16 rounded-2xl object-cover border border-slate-200 shrink-0 shadow-sm"
                         />
                       ) : (
                         <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center font-black text-2xl shrink-0 shadow-md">
