@@ -3,7 +3,7 @@
 import { useState, useEffect, use } from 'react';
 import { api } from '@/src/lib/api';
 import {
-  Users, Phone, Mail, Award, ArrowLeft, Loader2, MessageSquare, Building2, UserCheck
+  Users, Phone, Mail, Award, ArrowLeft, Loader2, MessageSquare, UserCheck
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -22,13 +22,44 @@ export default function PublicCorretoresPage(props: { params: Promise<{ slug: st
     const fetchBrokers = async () => {
       setIsLoading(true);
       try {
-        const res = await api.get(`/public/stores/${slug}`);
-        const store = res.data?.realEstate || null;
+        // Consulta a vitrine pública e, em paralelo, tenta o endpoint de corretores como fallback
+        const [resStore, resAuthBrokers] = await Promise.all([
+          api.get(`/public/stores/${slug}`),
+          api.get('/brokers').catch(() => ({ data: [] }))
+        ]);
+
+        const store = resStore.data?.realEstate || null;
         setStoreData(store);
 
-        // Lê os corretores tanto de res.data.brokers quanto de res.data.realEstate.brokers
-        const list = res.data?.brokers || store?.brokers || [];
-        setBrokers(list.filter((b: any) => b.isActive !== false));
+        // 1. Tenta ler os corretores vindos da rota pública da loja
+        let list: any[] =
+          resStore.data?.brokers ||
+          store?.brokers ||
+          [];
+
+        // 2. Se o backend ainda não retornou brokers na rota pública, usa o fallback de /brokers (filtrando pela loja atual)
+        if (list.length === 0 && Array.isArray(resAuthBrokers.data) && resAuthBrokers.data.length > 0) {
+          list = store?.id
+            ? resAuthBrokers.data.filter((b: any) => !b.realEstateId || b.realEstateId === store.id)
+            : resAuthBrokers.data;
+        }
+
+        // 3. Fallback adicional: extrai corretores vinculados aos imóveis da loja caso a lista ainda esteja vazia
+        if (list.length === 0 && Array.isArray(resStore.data?.properties)) {
+          const mapBrokers = new Map();
+          resStore.data.properties.forEach((p: any) => {
+            if (p.broker && p.broker.id) {
+              mapBrokers.set(p.broker.id, p.broker);
+            }
+          });
+          list = Array.from(mapBrokers.values());
+        }
+
+        const activeList = list.filter(
+          (b: any) => b.isActive !== false && b.status !== 'Inativo' && b.status !== 'Bloqueado'
+        );
+
+        setBrokers(activeList);
       } catch (err: any) {
         setError(err.response?.data?.error || 'Erro ao carregar a equipe de corretores.');
       } finally {
@@ -78,7 +109,7 @@ export default function PublicCorretoresPage(props: { params: Promise<{ slug: st
               href={`/loja/${slug}`}
               className="text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-4 py-2.5 rounded-xl border border-slate-200 flex items-center gap-2 transition-colors"
             >
-              <ArrowLeft size={15} /> Voltar para a Vitrine
+              <ArrowLeft size={15} /> Voltar para o Início
             </Link>
             <Link
               href={`/loja/${slug}/portal-cliente/login`}
@@ -108,9 +139,9 @@ export default function PublicCorretoresPage(props: { params: Promise<{ slug: st
         {brokers.length === 0 ? (
           <div className="bg-white rounded-3xl border border-slate-200 p-16 text-center max-w-xl mx-auto shadow-sm">
             <Users size={48} className="mx-auto text-slate-300 mb-4" />
-            <h3 className="text-lg font-bold text-slate-800">Nenhum corretor listado no momento</h3>
+            <h3 className="text-lg font-bold text-slate-800">Nenhum corretor ativo encontrado</h3>
             <p className="text-xs text-slate-500 mt-1">
-              Entre em contato diretamente com a nossa central de atendimento pelo telefone {storeData.phone}.
+              Entre em contato diretamente com a nossa central pelo telefone {storeData.phone}.
             </p>
             <Link
               href={`/loja/${slug}`}
