@@ -21,7 +21,7 @@ export const DEFAULT_LANDING_CONFIG = {
     loginButtonText: 'Acessar Plataforma'
   },
   hero: {
-    topBannerUrl: '/logo_page.jpg', // Segunda imagem com o logo maior em fundo preto logo abaixo da Navbar
+    topBannerUrl: '/IMob.png', // Segunda imagem com o logo maior em fundo preto logo abaixo da Navbar
     badgeText: 'Ecossistema SaaS Completo • Imobiliárias, Incorporadoras & Temporada',
     titleLine1: 'Tudo o que a sua Imobiliária e Incorporadora',
     titleHighlight: 'precisam num só lugar.',
@@ -284,7 +284,7 @@ export default function LandingPage() {
   )}`;
 
   const navLogoSrc = config.brand?.logoUrl || '/IMob (2).png';
-  const topBannerSrc = config.hero?.topBannerUrl || '/3.jpg';
+  const topBannerSrc = config.hero?.topBannerUrl || 'IMob.png';
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans selection:bg-blue-200 selection:text-blue-900">
