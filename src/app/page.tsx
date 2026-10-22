@@ -13,14 +13,15 @@ import {
 
 export const DEFAULT_LANDING_CONFIG = {
   brand: {
-    nameFirst: 'Zenix',
-    nameHighlight: 'Imob',
-    logoUrl: '',
+    nameFirst: 'ZENIX',
+    nameHighlight: 'IMOB',
+    logoUrl: '/logo._navebar_.png', // Caminho padrão na pasta public/ (ou URL editável no Master)
     whatsappNumber: '5511999999999',
     whatsappButtonText: 'Falar com Especialista',
     loginButtonText: 'Acessar Plataforma'
   },
   hero: {
+    topBannerUrl: '/logo_page.jpg', // Segunda imagem com o logo maior em fundo preto logo abaixo da Navbar
     badgeText: 'Ecossistema SaaS Completo • Imobiliárias, Incorporadoras & Temporada',
     titleLine1: 'Tudo o que a sua Imobiliária e Incorporadora',
     titleHighlight: 'precisam num só lugar.',
@@ -188,7 +189,7 @@ export const DEFAULT_LANDING_CONFIG = {
     {
       question: 'Posso editar todos os textos, números e imagens desta página inicial?',
       answer:
-        'Sim! Basta aceder ao Painel Master na opção "Editor da Landing Page" para alterar títulos, imagens, estatísticas, funcionalidades, perguntas frequentes e número de WhatsApp sem tocar numa única linha de código.'
+        'Sim! Basta aceder ao Painel Master na opção "Configurações > Landing Page (Site)" para alterar títulos, imagens, estatísticas, funcionalidades, perguntas frequentes e número de WhatsApp sem tocar numa única linha de código.'
     }
   ],
   ctaBottom: {
@@ -198,11 +199,36 @@ export const DEFAULT_LANDING_CONFIG = {
     buttonText: 'Acessar a Minha Conta Agora'
   },
   footer: {
-    copyrightText: 'Todos os direitos reservados. Plataforma SaaS para Gestão Imobiliária e Incorporação.',
+    copyrightText: 'Todos os direitos reservados. Sistema de Gestão Imobiliária e Rede de Franquias.',
     contactEmail: 'contato@zeniximob.com.br',
     instagramUrl: 'https://instagram.com'
   }
 };
+
+// Ícone Vetorial Oficial ZENIXIMOB (Hexágono Tecnológico em Degradê Azul/Ciano)
+function ZenixHexagonIcon({ className = 'w-11 h-11' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 120 130" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
+      <defs>
+        <linearGradient id="zenixGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="#0b245b" />
+          <stop offset="55%" stopColor="#125596" />
+          <stop offset="100%" stopColor="#16a3b8" />
+        </linearGradient>
+      </defs>
+      {/* Topo e Base do Hexágono */}
+      <path d="M60 6L95 26L83 34L60 20L24 41V55L12 62V34L60 6Z" fill="url(#zenixGrad)" />
+      <path d="M60 124L25 104L37 96L60 110L96 89V75L108 68V96L60 124Z" fill="url(#zenixGrad)" />
+      {/* Traços Tecnológicos Internos formando o Z */}
+      <path
+        d="M22 39H96L108 46V60L54 94H98L108 88V101L96 108H18L12 101V84L66 50H22V39Z"
+        fill="url(#zenixGrad)"
+      />
+      <circle cx="52" cy="58" r="8" fill="url(#zenixGrad)" />
+      <circle cx="68" cy="72" r="8" fill="url(#zenixGrad)" />
+    </svg>
+  );
+}
 
 export default function LandingPage() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -211,22 +237,34 @@ export default function LandingPage() {
   const [plans, setPlans] = useState<any[]>([]);
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
 
+  // Controla fallback caso as imagens ainda não estejam na pasta public/
+  const [navLogoError, setNavLogoError] = useState(false);
+  const [topBannerError, setTopBannerError] = useState(false);
+
   useEffect(() => {
-    // 1. Carrega imediatamente eventual cache local para evitar flicker
     const cached = localStorage.getItem('@ZenixImob:landingConfig');
     if (cached) {
       try {
         const parsed = JSON.parse(cached);
-        setConfig((prev: any) => ({ ...prev, ...parsed }));
+        setConfig((prev: any) => ({
+          ...prev,
+          ...parsed,
+          brand: { ...prev.brand, ...(parsed.brand || {}) },
+          hero: { ...prev.hero, ...(parsed.hero || {}) }
+        }));
       } catch {}
     }
 
-    // 2. Busca a configuração oficial salva no banco pelo Painel Master + Planos ativos
     api
       .get('/public/landing-page')
       .then((res) => {
         if (res.data?.config) {
-          setConfig((prev: any) => ({ ...prev, ...res.data.config }));
+          setConfig((prev: any) => ({
+            ...prev,
+            ...res.data.config,
+            brand: { ...prev.brand, ...(res.data.config.brand || {}) },
+            hero: { ...prev.hero, ...(res.data.config.hero || {}) }
+          }));
           localStorage.setItem('@ZenixImob:landingConfig', JSON.stringify(res.data.config));
         }
         if (Array.isArray(res.data?.plans)) {
@@ -245,31 +283,37 @@ export default function LandingPage() {
     'Olá! Gostaria de conhecer melhor a plataforma ZenixImob.'
   )}`;
 
+  const navLogoSrc = config.brand?.logoUrl || '/IMob (2).png';
+  const topBannerSrc = config.hero?.topBannerUrl || '/3.jpg';
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans selection:bg-blue-200 selection:text-blue-900">
       
       {/* ================================================================= */}
-      {/* NAVBAR FIXA                                                       */}
+      {/* 1. NAVBAR FIXA COM O LOGO IMob (2).png                            */}
       {/* ================================================================= */}
-      <nav className="fixed top-0 w-full bg-white/90 backdrop-blur-md border-b border-slate-200 z-50 transition-all">
+      <nav className="fixed top-0 w-full bg-white/95 backdrop-blur-md border-b border-slate-200 z-50 transition-all shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-20">
-            {/* Logo */}
-            <div className="flex items-center gap-2.5">
-              {config.brand?.logoUrl ? (
-                <img src={config.brand.logoUrl} alt="Logo" className="h-10 object-contain" />
+            {/* Logo Oficial da Navbar (IMob (2).png) */}
+            <Link href="/" className="flex items-center gap-3 focus:outline-none">
+              {!navLogoError && navLogoSrc ? (
+                <img
+                  src={navLogoSrc}
+                  alt="ZENIX IMOB"
+                  onError={() => setNavLogoError(true)}
+                  className="h-12 md:h-14 w-auto object-contain"
+                />
               ) : (
-                <>
-                  <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center font-black text-white shadow-lg shadow-blue-600/20">
-                    {(config.brand?.nameFirst || 'Z').charAt(0)}
+                <div className="flex items-center gap-2.5">
+                  <ZenixHexagonIcon className="w-11 h-11 shrink-0" />
+                  <div className="flex items-baseline tracking-tight">
+                    <span className="font-black text-2xl text-[#0b2447]">ZENIX</span>
+                    <span className="font-normal text-2xl text-[#1b4b79] ml-1">IMOB</span>
                   </div>
-                  <span className="font-bold text-2xl text-slate-800 tracking-tight">
-                    {config.brand?.nameFirst || 'Zenix'}
-                    <span className="text-blue-600">{config.brand?.nameHighlight || 'Imob'}</span>
-                  </span>
-                </>
+                </div>
               )}
-            </div>
+            </Link>
 
             {/* Menu Desktop */}
             <div className="hidden lg:flex items-center gap-7 font-semibold text-sm text-slate-600">
@@ -337,9 +381,39 @@ export default function LandingPage() {
       </nav>
 
       {/* ================================================================= */}
-      {/* HERO SECTION + PREVIEW DA PLATAFORMA + BARRA DE MÉTRICAS          */}
+      {/* 2. BANNER DE ABERTURA COM O LOGO MAIOR (3.jpg) ENTRE A NAVBAR     */}
+      {/*    E O CAMPO "Ecossistema SaaS Completo..."                       */}
       {/* ================================================================= */}
-      <section className="relative pt-32 pb-20 lg:pt-40 lg:pb-28 overflow-hidden">
+      <div className="pt-20 bg-black border-b border-slate-900">
+        <div className="max-w-6xl mx-auto px-4 py-10 md:py-16 flex flex-col items-center justify-center">
+          {!topBannerError && topBannerSrc ? (
+            <img
+              src={topBannerSrc}
+              alt="ZENIXIMOB - Sistema de Gestão Imobiliária e Rede de Franquias"
+              onError={() => setTopBannerError(true)}
+              className="w-full max-w-3xl max-h-[260px] md:max-h-[320px] object-contain mx-auto"
+            />
+          ) : (
+            /* Fallback fiel à segunda imagem (3.jpg) caso o arquivo ainda não esteja em /public */
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-6 md:gap-8 py-6 px-4 text-center sm:text-left">
+              <ZenixHexagonIcon className="w-24 h-24 md:w-32 md:h-32 shrink-0 drop-shadow-[0_0_25px_rgba(22,163,184,0.35)]" />
+              <div>
+                <div className="text-4xl sm:text-6xl md:text-7xl font-black tracking-wide bg-clip-text text-transparent bg-gradient-to-r from-[#0e3f91] via-[#1c64b5] to-[#3b7bc4]">
+                  ZENIXIMOB
+                </div>
+                <p className="text-[10px] sm:text-xs md:text-sm font-medium tracking-[0.22em] text-slate-400 uppercase mt-2">
+                  SISTEMA DE GESTÃO IMOBILIÁRIA E REDE DE FRANQUIAS
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ================================================================= */}
+      {/* 3. HERO SECTION + PREVIEW DA PLATAFORMA + BARRA DE MÉTRICAS       */}
+      {/* ================================================================= */}
+      <section className="relative pt-14 pb-20 lg:pt-16 lg:pb-28 overflow-hidden">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[450px] opacity-25 pointer-events-none">
           <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-indigo-500 blur-[110px] rounded-full"></div>
         </div>
@@ -733,13 +807,11 @@ export default function LandingPage() {
       {/* ================================================================= */}
       <footer className="bg-slate-900 text-slate-400 py-12 border-t border-slate-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-6">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center font-black text-white">
-              {(config.brand?.nameFirst || 'Z').charAt(0)}
-            </div>
+          <div className="flex items-center gap-2.5">
+            <ZenixHexagonIcon className="w-8 h-8 shrink-0" />
             <span className="font-bold text-xl text-white tracking-tight">
-              {config.brand?.nameFirst || 'Zenix'}
-              <span className="text-blue-500">{config.brand?.nameHighlight || 'Imob'}</span>
+              {config.brand?.nameFirst || 'ZENIX'}
+              <span className="text-blue-500">{config.brand?.nameHighlight || 'IMOB'}</span>
             </span>
           </div>
           <p className="text-xs sm:text-sm text-center md:text-left">
