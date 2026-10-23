@@ -15,13 +15,13 @@ export const DEFAULT_LANDING_CONFIG = {
   brand: {
     nameFirst: 'ZENIX',
     nameHighlight: 'IMOB',
-    logoUrl: '/logonavebar.png', // 1º Logo (Navbar fixa)
+    logoUrl: '/logonavebar.svg', 
     whatsappNumber: '5511999999999',
     whatsappButtonText: 'Falar com Especialista',
     loginButtonText: 'Acessar Plataforma'
   },
   hero: {
-    topBannerUrl: '/IMob (2)_2.png', // 2º Logo Maior
+    topBannerUrl: '/IMob.svg',
     badgeText: 'Ecossistema SaaS Completo • Imobiliárias, Incorporadoras & Temporada',
     titleLine1: 'Tudo o que a sua Imobiliária e Incorporadora',
     titleHighlight: 'precisam num só lugar.',
