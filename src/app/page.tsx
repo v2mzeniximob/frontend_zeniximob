@@ -15,13 +15,13 @@ export const DEFAULT_LANDING_CONFIG = {
   brand: {
     nameFirst: 'ZENIX',
     nameHighlight: 'IMOB',
-    logoUrl: '/logo._navebar_.png', // 1º Logo (Navbar fixa)
+    logoUrl: '/logo._navebar_.png', 
     whatsappNumber: '5511999999999',
     whatsappButtonText: 'Falar com Especialista',
     loginButtonText: 'Acessar Plataforma'
   },
   hero: {
-    topBannerUrl: '/IMob.svg', // 2º Logo Maior sem fundo (aceita /IMob.svg, /IMob.jpg ou URL externa)
+    topBannerUrl: '/IMob.svg', 
     badgeText: 'Ecossistema SaaS Completo • Imobiliárias, Incorporadoras & Temporada',
     titleLine1: 'Tudo o que a sua Imobiliária e Incorporadora',
     titleHighlight: 'precisam num só lugar.',
@@ -341,7 +341,7 @@ export default function LandingPage() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans selection:bg-blue-200 selection:text-blue-900">
       
-      {/* ================================================================= */}
+     {/* ================================================================= */}
       {/* 1. NAVBAR FIXA                                                    */}
       {/* ================================================================= */}
       <nav className="fixed top-0 w-full bg-white/95 backdrop-blur-md border-b border-slate-200 z-50 transition-all shadow-sm">
@@ -367,7 +367,6 @@ export default function LandingPage() {
               )}
             </Link>
 
-            {/* Menu Desktop */}
             <div className="hidden lg:flex items-center gap-7 font-semibold text-sm text-slate-600">
               <a href="#ecossistema" className="hover:text-blue-600 transition-colors">Ecossistema</a>
               <a href="#funcionalidades" className="hover:text-blue-600 transition-colors">23 Módulos</a>
@@ -378,7 +377,6 @@ export default function LandingPage() {
               <a href="#faq" className="hover:text-blue-600 transition-colors">Dúvidas</a>
             </div>
 
-            {/* CTAs Desktop */}
             <div className="hidden md:flex items-center gap-3">
               <a
                 href={whatsappUrl}
@@ -397,7 +395,6 @@ export default function LandingPage() {
               </Link>
             </div>
 
-            {/* Botão Mobile */}
             <button
               className="md:hidden text-slate-600 p-2"
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -407,7 +404,6 @@ export default function LandingPage() {
           </div>
         </div>
 
-        {/* Dropdown Mobile */}
         {isMobileMenuOpen && (
           <div className="md:hidden bg-white border-b border-slate-200 p-4 flex flex-col gap-3 animate-in slide-in-from-top-2">
             <a href="#ecossistema" onClick={() => setIsMobileMenuOpen(false)} className="font-semibold text-slate-700 p-2">Ecossistema</a>
