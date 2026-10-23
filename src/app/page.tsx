@@ -15,7 +15,7 @@ export const DEFAULT_LANDING_CONFIG = {
   brand: {
     nameFirst: 'ZENIX',
     nameHighlight: 'IMOB',
-    logoUrl: '/logo._navebar_.png', 
+    logoUrl: '/logonavebar.png', 
     whatsappNumber: '5511999999999',
     whatsappButtonText: 'Falar com Especialista',
     loginButtonText: 'Acessar Plataforma'
@@ -323,7 +323,7 @@ export default function LandingPage() {
     'Olá! Gostaria de conhecer melhor a plataforma ZenixImob.'
   )}`;
 
-  const navLogoSrc = config.brand?.logoUrl || '/logo_navbar.png';
+  const navLogoSrc = config.brand?.logoUrl || '/logonavebar.png';
 
   // Lista de caminhos possíveis para o 2º logo (SVG ou JPG sem fundo) na pasta public/
   const secondLogoCandidates = [
