@@ -26,9 +26,15 @@ export default function CondominiosPage() {
     hasGarage: false, hasCoveredGarage: false
   });
 
-  // Estado do Modal de Edição de Unidade
+  // Estados dos Modais de Edição Interna
   const [isUnitEditModalOpen, setIsUnitEditModalOpen] = useState(false);
   const [editingUnit, setEditingUnit] = useState<any | null>(null);
+
+  const [isBillEditModalOpen, setIsBillEditModalOpen] = useState(false);
+  const [editingBill, setEditingBill] = useState<any | null>(null);
+
+  const [isConsumptionEditModalOpen, setIsConsumptionEditModalOpen] = useState(false);
+  const [editingConsumption, setEditingConsumption] = useState<any | null>(null);
 
   // Modal de Detalhes / Gestão Avançada do Condomínio
   const [selectedCondo, setSelectedCondo] = useState<any | null>(null);
@@ -199,9 +205,44 @@ export default function CondominiosPage() {
       setIsUnitEditModalOpen(false);
       setEditingUnit(null);
       fetchInitialData();
-    } catch (err) {
-      alert('Erro ao atualizar unidade.');
-    }
+    } catch (err) { alert('Erro ao atualizar unidade.'); }
+  };
+
+  // Funções de Boletos
+  const handleUpdateBill = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingBill) return;
+    try {
+      await api.put(`/condominiums/bills/${editingBill.id}`, {
+        referenceMonth: editingBill.referenceMonth,
+        dueDate: editingBill.dueDate,
+        amount: Number(editingBill.amount),
+        status: editingBill.status
+      });
+      alert('Boleto atualizado com sucesso!');
+      setIsBillEditModalOpen(false);
+      setEditingBill(null);
+      fetchInitialData();
+    } catch (err) { alert('Erro ao atualizar boleto.'); }
+  };
+
+  // Funções de Consumo IA
+  const handleUpdateConsumption = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingConsumption) return;
+    try {
+      await api.put(`/condominiums/consumption/${editingConsumption.id}`, {
+        utilityType: editingConsumption.utilityType,
+        previousValue: Number(editingConsumption.previousValue),
+        currentValue: Number(editingConsumption.currentValue),
+        unitPrice: Number(editingConsumption.unitPrice),
+        referenceMonth: editingConsumption.referenceMonth
+      });
+      alert('Leitura de consumo atualizada com sucesso!');
+      setIsConsumptionEditModalOpen(false);
+      setEditingConsumption(null);
+      fetchInitialData();
+    } catch (err) { alert('Erro ao atualizar leitura.'); }
   };
 
   const handleAddExpense = async (e: React.FormEvent) => {
@@ -404,7 +445,7 @@ export default function CondominiosPage() {
                 { id: 'unidades', label: `Unidades (${selectedCondo.units?.length || 0})`, icon: Home },
                 { id: 'rateio', label: `Despesas (${selectedCondo.expenses?.length || 0})`, icon: DollarSign },
                 { id: 'boletos', label: `Boletos & Rateio (${selectedCondo.bills?.length || 0})`, icon: FileText },
-                { id: 'consumo', label: `Consumo IA`, icon: Zap },
+                { id: 'consumo', label: `Consumo IA (${selectedCondo.readings?.length || 0})`, icon: Zap },
                 { id: 'acordos', label: `Acordos`, icon: Calculator },
                 { id: 'reservas', label: `Áreas Comuns`, icon: Calendar },
                 { id: 'ocorrencias', label: `Ocorrências`, icon: AlertTriangle },
@@ -491,15 +532,7 @@ export default function CondominiosPage() {
                               <td className="p-3.5">{u.owner?.name || u.ownerName || 'Não vinculado'}</td>
                               <td className="p-3.5">{u.client?.name || u.tenantName || 'Nenhum'}</td>
                               <td className="p-3.5 text-right">
-                                <button 
-                                  onClick={() => {
-                                    setEditingUnit(u);
-                                    setIsUnitEditModalOpen(true);
-                                  }} 
-                                  className="text-indigo-600 font-bold hover:underline"
-                                >
-                                  Editar
-                                </button>
+                                <button onClick={() => { setEditingUnit(u); setIsUnitEditModalOpen(true); }} className="text-indigo-600 font-bold hover:underline">Editar</button>
                               </td>
                             </tr>
                           ))
@@ -622,7 +655,7 @@ export default function CondominiosPage() {
                                     Baixa Manual
                                   </button>
                                 )}
-                                <button onClick={() => alert('Editar boleto')} className="text-indigo-600 font-bold hover:underline">Editar</button>
+                                <button onClick={() => { setEditingBill(bill); setIsBillEditModalOpen(true); }} className="text-indigo-600 font-bold hover:underline">Editar</button>
                               </td>
                             </tr>
                           ))
@@ -633,7 +666,7 @@ export default function CondominiosPage() {
                 </div>
               )}
 
-              {/* ABA 4: CONSUMO COM IA */}
+              {/* ABA 4: CONSUMO COM IA (COM TABELA E EDIÇÃO) */}
               {activeTab === 'consumo' && (
                 <div className="space-y-6">
                   <form onSubmit={handleAddConsumption} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
@@ -666,9 +699,13 @@ export default function CondominiosPage() {
                       <label className="block text-xs font-bold text-slate-600 mb-1">Valor por m³ / kWh (R$)</label>
                       <input required type="number" step="0.01" value={consumptionForm.unitPrice} onChange={e => setConsumptionForm({...consumptionForm, unitPrice: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs" />
                     </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Mês Ref.</label>
+                      <input required type="text" value={consumptionForm.referenceMonth} onChange={e => setConsumptionForm({...consumptionForm, referenceMonth: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs" />
+                    </div>
                     <div className="sm:col-span-2">
-                      <label className="block text-xs font-bold text-slate-600 mb-1">Foto do Hidrômetro (Leitura por IA)</label>
-                      <input type="text" placeholder="URL da foto ou anexo" value={consumptionForm.photoUrl} onChange={e => setConsumptionForm({...consumptionForm, photoUrl: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs" />
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Foto / Anexo</label>
+                      <input type="text" placeholder="URL da foto" value={consumptionForm.photoUrl} onChange={e => setConsumptionForm({...consumptionForm, photoUrl: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs" />
                     </div>
                     <div>
                       <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2">
@@ -676,6 +713,41 @@ export default function CondominiosPage() {
                       </button>
                     </div>
                   </form>
+
+                  <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-100 text-slate-600 font-bold uppercase tracking-wider">
+                        <tr>
+                          <th className="p-3.5">Unidade</th>
+                          <th className="p-3.5">Tipo</th>
+                          <th className="p-3.5">Ref.</th>
+                          <th className="p-3.5">Anterior → Atual</th>
+                          <th className="p-3.5">Consumo</th>
+                          <th className="p-3.5">Total</th>
+                          <th className="p-3.5 text-right">Ações</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
+                        {(selectedCondo.readings || []).length === 0 ? (
+                          <tr><td colSpan={7} className="p-8 text-center text-slate-400">Nenhuma leitura de consumo registrada.</td></tr>
+                        ) : (
+                          (selectedCondo.readings || []).map((r: any) => (
+                            <tr key={r.id}>
+                              <td className="p-3.5 font-bold text-slate-900">{r.unit?.unitNumber}</td>
+                              <td className="p-3.5">{r.utilityType}</td>
+                              <td className="p-3.5">{r.referenceMonth}</td>
+                              <td className="p-3.5">{r.previousValue} → {r.currentValue}</td>
+                              <td className="p-3.5 font-bold">{r.consumption}</td>
+                              <td className="p-3.5 font-bold text-indigo-600">R$ {Number(r.totalAmount).toFixed(2)}</td>
+                              <td className="p-3.5 text-right">
+                                <button onClick={() => { setEditingConsumption(r); setIsConsumptionEditModalOpen(true); }} className="text-indigo-600 font-bold hover:underline">Editar</button>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               )}
 
@@ -722,7 +794,7 @@ export default function CondominiosPage() {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-slate-600 mb-1">Solicitante (Prop./Inq.)</label>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Solicitante</label>
                       <select required value={reservationForm.reservedBy} onChange={e => setReservationForm({...reservationForm, reservedBy: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs bg-white font-medium">
                         <option value="">Selecione o solicitante</option>
                         {allResidents.map((res: any) => (
@@ -994,6 +1066,88 @@ export default function CondominiosPage() {
                   Salvar Alterações da Unidade
                 </button>
               </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL: EDITAR BOLETO                                      */}
+      {/* ========================================================= */}
+      {isBillEditModalOpen && editingBill && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <h2 className="font-bold text-slate-800 flex items-center gap-2"><Edit size={18}/> Editar Boleto</h2>
+              <button onClick={() => setIsBillEditModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-600"><X size={18} /></button>
+            </div>
+            <form onSubmit={handleUpdateBill} className="p-6 space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-slate-600 mb-1">Mês de Referência</label>
+                <input required type="text" value={editingBill.referenceMonth} onChange={e => setEditingBill({...editingBill, referenceMonth: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl" />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-600 mb-1">Vencimento</label>
+                <input required type="date" value={editingBill.dueDate ? editingBill.dueDate.split('T')[0] : ''} onChange={e => setEditingBill({...editingBill, dueDate: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl" />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-600 mb-1">Valor Total (R$)</label>
+                <input required type="number" step="0.01" value={editingBill.amount} onChange={e => setEditingBill({...editingBill, amount: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl" />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-600 mb-1">Status</label>
+                <select value={editingBill.status} onChange={e => setEditingBill({...editingBill, status: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white">
+                  <option value="Pendente">Pendente</option>
+                  <option value="Pago">Pago</option>
+                  <option value="Atrasado">Atrasado</option>
+                </select>
+              </div>
+              <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition-all">
+                Salvar Alterações do Boleto
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL: EDITAR LEITURA DE CONSUMO                          */}
+      {/* ========================================================= */}
+      {isConsumptionEditModalOpen && editingConsumption && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <h2 className="font-bold text-slate-800 flex items-center gap-2"><Edit size={18}/> Editar Leitura de Consumo</h2>
+              <button onClick={() => setIsConsumptionEditModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-600"><X size={18} /></button>
+            </div>
+            <form onSubmit={handleUpdateConsumption} className="p-6 space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-slate-600 mb-1">Tipo de Utilidade</label>
+                <select value={editingConsumption.utilityType} onChange={e => setEditingConsumption({...editingConsumption, utilityType: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white">
+                  <option value="Água">Água</option>
+                  <option value="Gás">Gás</option>
+                  <option value="Energia">Energia</option>
+                </select>
+              </div>
+              <div>
+                <label className="block font-bold text-slate-600 mb-1">Mês de Referência</label>
+                <input required type="text" value={editingConsumption.referenceMonth} onChange={e => setEditingConsumption({...editingConsumption, referenceMonth: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl" />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-600 mb-1">Leitura Anterior</label>
+                <input required type="number" step="0.01" value={editingConsumption.previousValue} onChange={e => setEditingConsumption({...editingConsumption, previousValue: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl" />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-600 mb-1">Leitura Atual</label>
+                <input required type="number" step="0.01" value={editingConsumption.currentValue} onChange={e => setEditingConsumption({...editingConsumption, currentValue: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl" />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-600 mb-1">Valor por m³ / kWh (R$)</label>
+                <input required type="number" step="0.01" value={editingConsumption.unitPrice} onChange={e => setEditingConsumption({...editingConsumption, unitPrice: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl" />
+              </div>
+              <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition-all">
+                Salvar Alterações da Leitura
+              </button>
             </form>
           </div>
         </div>
