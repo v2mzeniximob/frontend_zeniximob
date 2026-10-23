@@ -323,7 +323,7 @@ export default function LandingPage() {
     'Olá! Gostaria de conhecer melhor a plataforma ZenixImob.'
   )}`;
 
-  const navLogoSrc = config.brand?.logoUrl || '/IMob (2).png';
+  const navLogoSrc = config.brand?.logoUrl || '/logo_navbar.png';
 
   // Lista de caminhos possíveis para o 2º logo (SVG ou JPG sem fundo) na pasta public/
   const secondLogoCandidates = [
@@ -342,7 +342,7 @@ export default function LandingPage() {
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans selection:bg-blue-200 selection:text-blue-900">
       
       {/* ================================================================= */}
-      {/* 1. NAVBAR FIXA COM O 1º LOGO: IMob (2).png                        */}
+      {/* 1. NAVBAR FIXA                                                    */}
       {/* ================================================================= */}
       <nav className="fixed top-0 w-full bg-white/95 backdrop-blur-md border-b border-slate-200 z-50 transition-all shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -434,30 +434,28 @@ export default function LandingPage() {
 
       {/* ================================================================= */}
       {/* 2. ESPAÇO DO 2º LOGO MAIOR (SEM FUNDO / SVG) ENTRE A NAVBAR FIXA  */}
-      {/*    E O SELO "Ecossistema SaaS Completo..."                        */}
       {/* ================================================================= */}
-      <section className="relative pt-28 pb-20 lg:pt-32 lg:pb-28 overflow-hidden">
+     <section className="relative pt-32 pb-20 lg:pt-36 lg:pb-28 overflow-hidden bg-slate-50">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[450px] opacity-20 pointer-events-none">
           <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-indigo-500 blur-[110px] rounded-full"></div>
         </div>
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
           
-          {/* IMAGEM DO SEGUNDO LOGO MAIOR (IMob.svg / IMob.jpg) SEM FUNDO */}
-          <div className="w-full max-w-3xl mx-auto mb-10 pt-2 pb-4 flex items-center justify-center">
+          {/* LOGO MAIOR AMPLIADO */}
+          <div className="w-full max-w-4xl mx-auto mb-12 pt-4 pb-6 flex items-center justify-center px-4">
             {currentSecondLogoSrc ? (
               <img
                 src={currentSecondLogoSrc}
                 alt="ZENIXIMOB - Sistema de Gestão Imobiliária e Rede de Franquias"
                 onError={() => setSecondLogoCandidateIndex((prev) => prev + 1)}
-                className="w-full max-w-2xl max-h-[200px] sm:max-h-[240px] md:max-h-[270px] object-contain mx-auto mix-blend-multiply"
+                className="w-full max-w-4xl max-h-[320px] sm:max-h-[380px] md:max-h-[450px] object-contain mx-auto mix-blend-multiply"
               />
             ) : (
-              <SecondLogoFullSvg className="w-full max-w-2xl h-auto mx-auto" />
+              <SecondLogoFullSvg className="w-full max-w-4xl h-auto mx-auto" />
             )}
           </div>
 
-          {/* CAMPO "Ecossistema SaaS Completo • Imobiliárias, Incorporadoras & Temporada" */}
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-xs sm:text-sm font-extrabold mb-6 shadow-sm">
             <span className="flex h-2 w-2 rounded-full bg-blue-600 animate-pulse"></span>
             {config.hero?.badgeText}
@@ -492,7 +490,6 @@ export default function LandingPage() {
             </a>
           </div>
 
-          {/* Métricas de Impacto Editáveis */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 max-w-5xl mx-auto mt-14">
             {(config.stats || []).map((st: any, idx: number) => (
               <div
@@ -506,7 +503,6 @@ export default function LandingPage() {
           </div>
         </div>
 
-        {/* Imagem Principal / Mockup do Dashboard Editável pelo Master */}
         <div className="max-w-6xl mx-auto mt-14 px-4 sm:px-6 relative">
           <div className="rounded-3xl border border-slate-200 bg-white p-3 md:p-4 shadow-2xl">
             <div className="rounded-2xl border border-slate-200 bg-slate-100 aspect-[16/9] overflow-hidden relative flex items-center justify-center">
