@@ -176,6 +176,11 @@ export const DEFAULT_LANDING_CONFIG = {
       answer:
         'Sim! Através de um dos nossos consultores, você solicita a criação de um plano de assinatura e marca exatamente quais dos 23 módulos (como Incorporadoras, Condomínios, Temporada, DIMOB, Fiscal, WhatsApp IA, etc.) ficam visíveis na barra lateral de cada imobiliária.'
     },
+     {
+      question: 'Posso liberar apenas alguns módulos para cada plano de assinatura?',
+      answer:
+        'Sim! Através de um dos nossos consultores, você solicita a criação de um plano de assinatura e marca exatamente quais dos 23 módulos (como Incorporadoras, Condomínios, Temporada, DIMOB, Fiscal, WhatsApp IA, etc.) ficam visíveis na barra lateral de cada imobiliária.'
+    },
     {
       question: 'Como funciona a Vitrine Pública e o Portal do Cliente de cada imobiliária?',
       answer:
