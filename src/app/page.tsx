@@ -176,11 +176,6 @@ export const DEFAULT_LANDING_CONFIG = {
       answer:
         'Sim! Através de um dos nossos consultores, você solicita a criação de um plano de assinatura e marca exatamente quais dos 23 módulos (como Incorporadoras, Condomínios, Temporada, DIMOB, Fiscal, WhatsApp IA, etc.) ficam visíveis na barra lateral de cada imobiliária.'
     },
-     {
-      question: 'Posso liberar apenas alguns módulos para cada plano de assinatura?',
-      answer:
-        'Sim! Através de um dos nossos consultores, você solicita a criação de um plano de assinatura e marca exatamente quais dos 23 módulos (como Incorporadoras, Condomínios, Temporada, DIMOB, Fiscal, WhatsApp IA, etc.) ficam visíveis na barra lateral de cada imobiliária.'
-    },
     {
       question: 'Como funciona a Vitrine Pública e o Portal do Cliente de cada imobiliária?',
       answer:
@@ -221,18 +216,8 @@ export default function LandingPage() {
   const [topLogoError, setTopLogoError] = useState(false);
 
   useEffect(() => {
-    const cached = localStorage.getItem('@ZenixImob:landingConfig');
-    if (cached) {
-      try {
-        const parsed = JSON.parse(cached);
-        setConfig((prev: any) => ({
-          ...prev,
-          ...parsed,
-          brand: { ...prev.brand, ...(parsed.brand || {}) },
-          hero: { ...prev.hero, ...(parsed.hero || {}) }
-        }));
-      } catch {}
-    }
+    // Limpa o cache antigo do localStorage para forçar o uso das novas FAQs padrão
+    localStorage.removeItem('@ZenixImob:landingConfig');
 
     api
       .get('/public/landing-page')
@@ -241,10 +226,11 @@ export default function LandingPage() {
           setConfig((prev: any) => ({
             ...prev,
             ...res.data.config,
+            // Garante que as novas FAQs sejam priorizadas caso o backend retorne dados antigos
+            faqs: res.data.config.faqs || DEFAULT_LANDING_CONFIG.faqs,
             brand: { ...prev.brand, ...(res.data.config.brand || {}) },
             hero: { ...prev.hero, ...(res.data.config.hero || {}) }
           }));
-          localStorage.setItem('@ZenixImob:landingConfig', JSON.stringify(res.data.config));
         }
         if (Array.isArray(res.data?.plans)) {
           setPlans(res.data.plans);
@@ -269,7 +255,7 @@ export default function LandingPage() {
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans selection:bg-blue-200 selection:text-blue-900">
       
       {/* ================================================================= */}
-      {/* 1. NAVBAR FIXA COM LOGÓTIPO DA NAVBAR DIMENSIONADO CORRETAMENTE     */}
+      {/* 1. NAVBAR FIXA                                                    */}
       {/* ================================================================= */}
       <nav className="fixed top-0 w-full bg-white/95 backdrop-blur-md border-b border-slate-200 z-50 transition-all shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -351,7 +337,7 @@ export default function LandingPage() {
       </nav>
 
       {/* ================================================================= */}
-      {/* 2. SEGUNDO LOGOTIPO DIMENSIONADO COM TAMANHO IDEAL (MENOR)        */}
+      {/* 2. LOGÓTIPO GRANDE E EM DESTAQUE NA PÁGINA                        */}
       {/* ================================================================= */}
       <section className="relative pt-32 pb-20 lg:pt-36 lg:pb-28 overflow-hidden bg-slate-50">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[450px] opacity-20 pointer-events-none">
