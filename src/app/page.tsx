@@ -64,7 +64,7 @@ export const DEFAULT_LANDING_CONFIG = {
       description:
         'Desenvolvido para construtoras, loteadoras e incorporadoras. Estude a viabilidade financeira de terrenos antes da compra, acompanhe o avanço físico-financeiro da obra e permita que o comprador personalize os acabamentos online.',
       imageUrl:
-        'https://images.unsplash.com/photo-1541888946425-d09bb18086f6?q=80&w=1600&auto=format&fit=crop',
+        'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSZu4ndtN0Uwv1SK8hA_Nd15SPhA1vFEs2Ne7KW8SPdzpZ2jeQ1s27B1Dc&s=10',
       bullets: [
         'Suporte a Múltiplos CNPJs (SPEs com Património de Afetação / RET) e Simulador de Viabilidade de Terrenos (Land Bank).',
         'Orçamento Executivo (SINAPI) com recálculo automático da Curva ABC (Classes A, B e C) e Controle de Estoque no Canteiro.',
