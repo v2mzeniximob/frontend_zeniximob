@@ -187,9 +187,9 @@ export const DEFAULT_LANDING_CONFIG = {
         '100% integrado. Quando você aprova uma medição de empreiteiro, ela pode ser lançada direto como despesa paga no DRE. E quando um comprador escolhe um Kit de Personalização de acabamento, o sistema gera a fatura do aditivo no contrato dele e emite a Ordem de Serviço para a engenharia.'
     },
     {
-      question: 'Posso editar todos os textos, números e imagens desta página inicial?',
+      question: 'Posso editar todos os textos, números e imagens do site criado para a minha imobiliária?',
       answer:
-        'Sim! Basta aceder ao Painel Master na opção "Configurações > Landing Page (Site)" para alterar títulos, imagens, estatísticas, funcionalidades, perguntas frequentes e número de WhatsApp sem tocar numa única linha de código.'
+        'Sim! Basta aceder ao Painel de Configurações  > Landing Page (Site)" para alterar títulos, imagens, número de WhatsApp sem tocar numa única linha de código.'
     }
   ],
   ctaBottom: {
