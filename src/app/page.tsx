@@ -189,7 +189,7 @@ export const DEFAULT_LANDING_CONFIG = {
     {
       question: 'Posso editar todos os textos, números e imagens do site criado para a minha imobiliária?',
       answer:
-        'Sim! Basta aceder ao Painel de Configurações > Landing Page (Site)" para alterar títulos, imagens, número de WhatsApp sem tocar numa única linha de código.'
+        'Sim! Basta aceder ao Painel de Configurações da sua imobiliária > Landing Page (Site)" para alterar títulos, imagens, número de WhatsApp sem tocar numa única linha de código.'
     }
   ],
   ctaBottom: {
