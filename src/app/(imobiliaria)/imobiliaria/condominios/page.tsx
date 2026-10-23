@@ -14,7 +14,7 @@ export default function CondominiosPage() {
   const [clientsList, setClientsList] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Estados dos Modais
+  // Estados dos Modais de Condomínio
   const [isCondoModalOpen, setIsCondoModalOpen] = useState(false);
   const [editingCondoId, setEditingCondoId] = useState<string | null>(null);
   const [isSavingCondo, setIsSavingCondo] = useState(false);
@@ -25,6 +25,10 @@ export default function CondominiosPage() {
     adminName: '', managerName: '', email: '', phone: '', towerOrBlock: '', privateArea: '', 
     hasGarage: false, hasCoveredGarage: false
   });
+
+  // Estado do Modal de Edição de Unidade
+  const [isUnitEditModalOpen, setIsUnitEditModalOpen] = useState(false);
+  const [editingUnit, setEditingUnit] = useState<any | null>(null);
 
   // Modal de Detalhes / Gestão Avançada do Condomínio
   const [selectedCondo, setSelectedCondo] = useState<any | null>(null);
@@ -38,7 +42,6 @@ export default function CondominiosPage() {
   const [agreementForm, setAgreementForm] = useState({ unitId: '', totalDebt: '', installments: '3' });
   const [settingsForm, setSettingsForm] = useState({ finePercent: 2.0, interestPercent: 1.0, calcType: 'PRO_RATA' });
 
-  // Agendamento com seletor unificado de Proprietários + Inquilinos
   const [reservationForm, setReservationForm] = useState({ areaName: 'Salão de Festas', reservedBy: '', reservationDate: '', notes: '' });
   const [occurrenceForm, setOccurrenceForm] = useState({ title: '', description: '', reportedBy: '', priority: 'Normal' });
   const [assemblyForm, setAssemblyForm] = useState({ title: '', assemblyDate: '', description: '', status: 'Agendada', minutesUrl: '' });
@@ -171,7 +174,7 @@ export default function CondominiosPage() {
     } catch (err) { alert('Erro ao alterar status do condomínio.'); }
   };
 
-  // Funções de Cadastro
+  // Funções de Unidades
   const handleAddUnit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -179,6 +182,26 @@ export default function CondominiosPage() {
       setUnitForm({ unitNumber: '', block: '', floor: '', fractionIdeal: '1.0', ownerId: '', clientId: '' });
       fetchInitialData();
     } catch (err) { alert('Erro ao cadastrar unidade.'); }
+  };
+
+  const handleUpdateUnit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUnit) return;
+    try {
+      await api.put(`/condominiums/units/${editingUnit.id}`, {
+        unitNumber: editingUnit.unitNumber,
+        block: editingUnit.block,
+        fractionIdeal: Number(editingUnit.fractionIdeal),
+        ownerId: editingUnit.ownerId || null,
+        clientId: editingUnit.clientId || null
+      });
+      alert('Unidade atualizada com sucesso!');
+      setIsUnitEditModalOpen(false);
+      setEditingUnit(null);
+      fetchInitialData();
+    } catch (err) {
+      alert('Erro ao atualizar unidade.');
+    }
   };
 
   const handleAddExpense = async (e: React.FormEvent) => {
@@ -270,7 +293,6 @@ export default function CondominiosPage() {
     return <div className="p-12 flex justify-center text-slate-500"><Loader2 className="animate-spin" size={32} /></div>;
   }
 
-  // Lista unificada para o campo Solicitante (Proprietários + Inquilinos)
   const allResidents = [
     ...ownersList.map((o: any) => ({ id: o.id, name: `${o.name} (Proprietário)` })),
     ...clientsList.map((c: any) => ({ id: c.id, name: `${c.name} (Inquilino)` }))
@@ -455,13 +477,12 @@ export default function CondominiosPage() {
                           <th className="p-3.5">Fração Ideal</th>
                           <th className="p-3.5">Proprietário</th>
                           <th className="p-3.5">Inquilino</th>
-                          <th className="p-3.5 text-center">Status</th>
                           <th className="p-3.5 text-right">Ações</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
                         {(selectedCondo.units || []).length === 0 ? (
-                          <tr><td colSpan={6} className="p-8 text-center text-slate-400">Nenhuma unidade cadastrada.</td></tr>
+                          <tr><td colSpan={5} className="p-8 text-center text-slate-400">Nenhuma unidade cadastrada.</td></tr>
                         ) : (
                           (selectedCondo.units || []).map((u: any) => (
                             <tr key={u.id}>
@@ -469,13 +490,16 @@ export default function CondominiosPage() {
                               <td className="p-3.5">{u.fractionIdeal}</td>
                               <td className="p-3.5">{u.owner?.name || u.ownerName || 'Não vinculado'}</td>
                               <td className="p-3.5">{u.client?.name || u.tenantName || 'Nenhum'}</td>
-                              <td className="p-3.5 text-center">
-                                <button onClick={() => alert('Alterar status da unidade')} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase border bg-emerald-50 text-emerald-700 border-emerald-200">
-                                  Ativo
+                              <td className="p-3.5 text-right">
+                                <button 
+                                  onClick={() => {
+                                    setEditingUnit(u);
+                                    setIsUnitEditModalOpen(true);
+                                  }} 
+                                  className="text-indigo-600 font-bold hover:underline"
+                                >
+                                  Editar
                                 </button>
-                              </td>
-                              <td className="p-3.5 text-right flex items-center justify-end gap-2">
-                                <button onClick={() => alert('Editar unidade')} className="text-indigo-600 font-bold hover:underline">Editar</button>
                               </td>
                             </tr>
                           ))
@@ -530,7 +554,7 @@ export default function CondominiosPage() {
                               <td className="p-3.5"><span className="bg-slate-100 px-2 py-0.5 rounded font-bold">{exp.category}</span></td>
                               <td className="p-3.5">{new Date(exp.dueDate).toLocaleDateString('pt-BR')}</td>
                               <td className="p-3.5 font-bold text-indigo-600">R$ {Number(exp.amount).toFixed(2)}</td>
-                              <td className="p-3.5 text-right flex items-center justify-end gap-2">
+                              <td className="p-3.5 text-right">
                                 <button onClick={() => alert('Editar despesa')} className="text-indigo-600 font-bold hover:underline">Editar</button>
                               </td>
                             </tr>
@@ -685,7 +709,7 @@ export default function CondominiosPage() {
                 </div>
               )}
 
-              {/* ABA 6: RESERVAS (COM SELETOR DE PROPRIETÁRIOS E INQUILINOS) */}
+              {/* ABA 6: RESERVAS */}
               {activeTab === 'reservas' && (
                 <div className="space-y-6">
                   <form onSubmit={handleAddReservation} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm grid grid-cols-1 sm:grid-cols-5 gap-3 items-end">
@@ -925,6 +949,57 @@ export default function CondominiosPage() {
       )}
 
       {/* ========================================================= */}
+      {/* MODAL: EDITAR UNIDADE                                     */}
+      {/* ========================================================= */}
+      {isUnitEditModalOpen && editingUnit && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <h2 className="font-bold text-slate-800 flex items-center gap-2"><Edit size={18}/> Editar Unidade {editingUnit.unitNumber}</h2>
+              <button onClick={() => setIsUnitEditModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-600"><X size={18} /></button>
+            </div>
+            <form onSubmit={handleUpdateUnit} className="p-6 space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-slate-600 mb-1">Nº Unidade</label>
+                <input required type="text" value={editingUnit.unitNumber} onChange={e => setEditingUnit({...editingUnit, unitNumber: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl" />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-600 mb-1">Bloco / Torre</label>
+                <input type="text" value={editingUnit.block || ''} onChange={e => setEditingUnit({...editingUnit, block: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl" />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-600 mb-1">Fração Ideal</label>
+                <input type="number" step="0.01" value={editingUnit.fractionIdeal} onChange={e => setEditingUnit({...editingUnit, fractionIdeal: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl" />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-600 mb-1">Proprietário</label>
+                <select value={editingUnit.ownerId || ''} onChange={e => setEditingUnit({...editingUnit, ownerId: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white">
+                  <option value="">Selecione proprietário</option>
+                  {ownersList.map((o: any) => (
+                    <option key={o.id} value={o.id}>{o.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block font-bold text-slate-600 mb-1">Inquilino</label>
+                <select value={editingUnit.clientId || ''} onChange={e => setEditingUnit({...editingUnit, clientId: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white">
+                  <option value="">Selecione inquilino</option>
+                  {clientsList.map((c: any) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="pt-2">
+                <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition-all">
+                  Salvar Alterações da Unidade
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
       {/* MODAL: CADASTRO / EDIÇÃO DE CONDOMÍNIO                     */}
       {/* ========================================================= */}
       {isCondoModalOpen && (
@@ -995,6 +1070,7 @@ export default function CondominiosPage() {
           </div>
         </div>
       )}
+
     </div>
   );
 }
