@@ -257,26 +257,28 @@ export default function LandingPage() {
     'Olá! Gostaria de conhecer melhor a plataforma ZenixImob.'
   )}`;
 
-  const navLogoSrc = config.brand?.logoUrl || '/logonavebar.png';
-  const topLogoSrc = config.hero?.topBannerUrl || '/IMob (2)_2.png';
+  const navLogoSrc = config.brand?.logoUrl || '/logonavebar.svg';
+  const topLogoSrc = config.hero?.topBannerUrl || '/IMob.svg';
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans selection:bg-blue-200 selection:text-blue-900">
       
       {/* ================================================================= */}
-      {/* 1. NAVBAR FIXA COM LOGÓTIPO DA NAVBAR AMPLIADO                    */}
+      {/* 1. NAVBAR FIXA COM LOGÓTIPO DA NAVBAR DIMENSIONADO CORRETAMENTE     */}
       {/* ================================================================= */}
       <nav className="fixed top-0 w-full bg-white/95 backdrop-blur-md border-b border-slate-200 z-50 transition-all shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-24">
+          <div className="flex justify-between items-center h-20">
             <Link href="/" className="flex items-center gap-3 focus:outline-none py-1">
               {!navLogoError && navLogoSrc ? (
-                <img
-                  src={navLogoSrc}
-                  alt="ZENIX IMOB"
-                  onError={() => setNavLogoError(true)}
-                  className="h-16 sm:h-20 md:h-24 w-auto max-w-[280px] object-contain mix-blend-multiply scale-125 origin-left"
-                />
+                <div className="flex items-center">
+                  <img
+                    src={navLogoSrc}
+                    alt="ZENIX IMOB"
+                    onError={() => setNavLogoError(true)}
+                    className="w-40 sm:w-48 md:w-56 h-auto object-contain mix-blend-multiply"
+                  />
+                </div>
               ) : (
                 <span className="font-black text-3xl text-[#0b2447]">ZENIX<span className="text-[#1b4b79] ml-1">IMOB</span></span>
               )}
@@ -344,25 +346,25 @@ export default function LandingPage() {
       </nav>
 
       {/* ================================================================= */}
-      {/* 2. LOGÓTIPO GRANDE E EM DESTAQUE NA PÁGINA                        */}
+      {/* 2. SEGUNDO LOGOTIPO DIMENSIONADO COM TAMANHO IDEAL (MENOR)        */}
       {/* ================================================================= */}
-      <section className="relative pt-36 pb-20 lg:pt-40 lg:pb-28 overflow-hidden bg-slate-50">
+      <section className="relative pt-32 pb-20 lg:pt-36 lg:pb-28 overflow-hidden bg-slate-50">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[450px] opacity-20 pointer-events-none">
           <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-indigo-500 blur-[110px] rounded-full"></div>
         </div>
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
           
-          <div className="w-full max-w-5xl mx-auto mb-12 pt-6 pb-8 flex items-center justify-center px-4">
+          <div className="w-full max-w-3xl mx-auto mb-10 pt-4 pb-4 flex items-center justify-center px-4">
             {!topLogoError && topLogoSrc ? (
               <img
                 src={topLogoSrc}
                 alt="ZENIXIMOB - Sistema de Gestão Imobiliária e Rede de Franquias"
                 onError={() => setTopLogoError(true)}
-                className="w-full max-w-5xl max-h-[380px] sm:max-h-[460px] md:max-h-[560px] object-contain mx-auto mix-blend-multiply"
+                className="w-full max-w-2xl sm:max-w-3xl max-h-[220px] sm:max-h-[280px] md:max-h-[340px] object-contain mx-auto mix-blend-multiply"
               />
             ) : (
-              <div className="text-5xl sm:text-7xl font-black text-[#0b2447]">ZENIXIMOB</div>
+              <div className="text-4xl sm:text-6xl font-black text-[#0b2447]">ZENIXIMOB</div>
             )}
           </div>
 
