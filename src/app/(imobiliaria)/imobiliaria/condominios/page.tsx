@@ -30,6 +30,9 @@ export default function CondominiosPage() {
   const [isUnitEditModalOpen, setIsUnitEditModalOpen] = useState(false);
   const [editingUnit, setEditingUnit] = useState<any | null>(null);
 
+  const [isExpenseEditModalOpen, setIsExpenseEditModalOpen] = useState(false);
+  const [editingExpense, setEditingExpense] = useState<any | null>(null);
+
   const [isBillEditModalOpen, setIsBillEditModalOpen] = useState(false);
   const [editingBill, setEditingBill] = useState<any | null>(null);
 
@@ -208,6 +211,33 @@ export default function CondominiosPage() {
     } catch (err) { alert('Erro ao atualizar unidade.'); }
   };
 
+  // Funções de Despesas
+  const handleAddExpense = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await api.post(`/condominiums/${selectedCondo.id}/expenses`, expenseForm);
+      setExpenseForm({ description: '', amount: '', dueDate: '', category: 'Manutenção' });
+      fetchInitialData();
+    } catch (err) { alert('Erro ao lançar despesa.'); }
+  };
+
+  const handleUpdateExpense = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingExpense) return;
+    try {
+      await api.put(`/condominiums/expenses/${editingExpense.id}`, {
+        description: editingExpense.description,
+        amount: Number(editingExpense.amount),
+        dueDate: editingExpense.dueDate,
+        category: editingExpense.category
+      });
+      alert('Despesa atualizada com sucesso!');
+      setIsExpenseEditModalOpen(false);
+      setEditingExpense(null);
+      fetchInitialData();
+    } catch (err) { alert('Erro ao atualizar despesa.'); }
+  };
+
   // Funções de Boletos
   const handleUpdateBill = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -243,15 +273,6 @@ export default function CondominiosPage() {
       setEditingConsumption(null);
       fetchInitialData();
     } catch (err) { alert('Erro ao atualizar leitura.'); }
-  };
-
-  const handleAddExpense = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      await api.post(`/condominiums/${selectedCondo.id}/expenses`, expenseForm);
-      setExpenseForm({ description: '', amount: '', dueDate: '', category: 'Manutenção' });
-      fetchInitialData();
-    } catch (err) { alert('Erro ao lançar despesa.'); }
   };
 
   const handleGenerateBills = async (e: React.FormEvent) => {
@@ -588,7 +609,7 @@ export default function CondominiosPage() {
                               <td className="p-3.5">{new Date(exp.dueDate).toLocaleDateString('pt-BR')}</td>
                               <td className="p-3.5 font-bold text-indigo-600">R$ {Number(exp.amount).toFixed(2)}</td>
                               <td className="p-3.5 text-right">
-                                <button onClick={() => alert('Editar despesa')} className="text-indigo-600 font-bold hover:underline">Editar</button>
+                                <button onClick={() => { setEditingExpense(exp); setIsExpenseEditModalOpen(true); }} className="text-indigo-600 font-bold hover:underline">Editar</button>
                               </td>
                             </tr>
                           ))
@@ -666,7 +687,7 @@ export default function CondominiosPage() {
                 </div>
               )}
 
-              {/* ABA 4: CONSUMO COM IA (COM TABELA E EDIÇÃO) */}
+              {/* ABA 4: CONSUMO COM IA */}
               {activeTab === 'consumo' && (
                 <div className="space-y-6">
                   <form onSubmit={handleAddConsumption} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
@@ -794,7 +815,7 @@ export default function CondominiosPage() {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-slate-600 mb-1">Solicitante</label>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Solicitante (Prop./Inq.)</label>
                       <select required value={reservationForm.reservedBy} onChange={e => setReservationForm({...reservationForm, reservedBy: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs bg-white font-medium">
                         <option value="">Selecione o solicitante</option>
                         {allResidents.map((res: any) => (
@@ -1061,11 +1082,44 @@ export default function CondominiosPage() {
                   ))}
                 </select>
               </div>
-              <div className="pt-2">
-                <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition-all">
-                  Salvar Alterações da Unidade
-                </button>
+              <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition-all">
+                Salvar Alterações
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL: EDITAR DESPESA                                     */}
+      {/* ========================================================= */}
+      {isExpenseEditModalOpen && editingExpense && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <h2 className="font-bold text-slate-800 flex items-center gap-2"><Edit size={18}/> Editar Despesa</h2>
+              <button onClick={() => setIsExpenseEditModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-600"><X size={18} /></button>
+            </div>
+            <form onSubmit={handleUpdateExpense} className="p-6 space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-slate-600 mb-1">Descrição</label>
+                <input required type="text" value={editingExpense.description} onChange={e => setEditingExpense({...editingExpense, description: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl" />
               </div>
+              <div>
+                <label className="block font-bold text-slate-600 mb-1">Categoria</label>
+                <input required type="text" value={editingExpense.category} onChange={e => setEditingExpense({...editingExpense, category: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl" />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-600 mb-1">Vencimento</label>
+                <input required type="date" value={editingExpense.dueDate ? editingExpense.dueDate.split('T')[0] : ''} onChange={e => setEditingExpense({...editingExpense, dueDate: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl" />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-600 mb-1">Valor (R$)</label>
+                <input required type="number" step="0.01" value={editingExpense.amount} onChange={e => setEditingExpense({...editingExpense, amount: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl" />
+              </div>
+              <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition-all">
+                Salvar Alterações da Despesa
+              </button>
             </form>
           </div>
         </div>
