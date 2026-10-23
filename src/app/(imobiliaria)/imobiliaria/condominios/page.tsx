@@ -995,7 +995,6 @@ export default function CondominiosPage() {
           </div>
         </div>
       )}
-
     </div>
   );
 }
