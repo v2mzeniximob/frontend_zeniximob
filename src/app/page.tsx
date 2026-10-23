@@ -216,9 +216,6 @@ export default function LandingPage() {
   const [topLogoError, setTopLogoError] = useState(false);
 
   useEffect(() => {
-    // Limpa o cache antigo do localStorage para forçar o uso das novas FAQs padrão
-    localStorage.removeItem('@ZenixImob:landingConfig');
-
     api
       .get('/public/landing-page')
       .then((res) => {
@@ -226,8 +223,8 @@ export default function LandingPage() {
           setConfig((prev: any) => ({
             ...prev,
             ...res.data.config,
-            // Garante que as novas FAQs sejam priorizadas caso o backend retorne dados antigos
-            faqs: res.data.config.faqs || DEFAULT_LANDING_CONFIG.faqs,
+            // Força sempre as FAQs corretas independentemente do que venha salvo no banco de dados
+            faqs: DEFAULT_LANDING_CONFIG.faqs,
             brand: { ...prev.brand, ...(res.data.config.brand || {}) },
             hero: { ...prev.hero, ...(res.data.config.hero || {}) }
           }));
@@ -250,6 +247,9 @@ export default function LandingPage() {
 
   const navLogoSrc = config.brand?.logoUrl || '/logonavebar.svg';
   const topLogoSrc = config.hero?.topBannerUrl || '/IMob.svg';
+
+  // Garante que o array de FAQs exibido seja sempre o atualizado
+  const faqsList = DEFAULT_LANDING_CONFIG.faqs;
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans selection:bg-blue-200 selection:text-blue-900">
@@ -337,7 +337,7 @@ export default function LandingPage() {
       </nav>
 
       {/* ================================================================= */}
-      {/* 2. LOGÓTIPO GRANDE E EM DESTAQUE NA PÁGINA                        */}
+      {/* 2. SEGUNDO LOGOTIPO COM TAMANHO EQUILIBRADO                       */}
       {/* ================================================================= */}
       <section className="relative pt-32 pb-20 lg:pt-36 lg:pb-28 overflow-hidden bg-slate-50">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[450px] opacity-20 pointer-events-none">
@@ -346,13 +346,13 @@ export default function LandingPage() {
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
           
-          <div className="w-full max-w-3xl mx-auto mb-10 pt-4 pb-4 flex items-center justify-center px-4">
+          <div className="w-full max-w-2xl mx-auto mb-10 pt-4 pb-4 flex items-center justify-center px-4">
             {!topLogoError && topLogoSrc ? (
               <img
                 src={topLogoSrc}
                 alt="ZENIXIMOB - Sistema de Gestão Imobiliária e Rede de Franquias"
                 onError={() => setTopLogoError(true)}
-                className="w-full max-w-2xl sm:max-w-3xl max-h-[220px] sm:max-h-[280px] md:max-h-[340px] object-contain mx-auto mix-blend-multiply"
+                className="w-full max-w-xl sm:max-w-2xl max-h-[180px] sm:max-h-[220px] md:max-h-[260px] object-contain mx-auto mix-blend-multiply"
               />
             ) : (
               <div className="text-4xl sm:text-6xl font-black text-[#0b2447]">ZENIXIMOB</div>
@@ -666,7 +666,7 @@ export default function LandingPage() {
       )}
 
       {/* ================================================================= */}
-      {/* FAQ                                                               */}
+      {/* FAQ — PERGUNTAS FREQUENTES                                        */}
       {/* ================================================================= */}
       <section id="faq" className="py-20 bg-white border-t border-slate-200">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
@@ -678,7 +678,7 @@ export default function LandingPage() {
           </div>
 
           <div className="space-y-3">
-            {(config.faqs || []).map((faq: any, i: number) => {
+            {faqsList.map((faq: any, i: number) => {
               const isOpen = openFaqIndex === i;
               return (
                 <div
