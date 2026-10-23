@@ -4,12 +4,14 @@ import { useState, useEffect } from 'react';
 import { api } from '../../../../lib/api';
 import { 
   Building2, Plus, Edit, X, CheckCircle2, Loader2, Home, 
-  MapPin, DollarSign, Users, Calendar, AlertTriangle, FileText, Send, Zap, Calculator
+  MapPin, DollarSign, Users, Calendar, AlertTriangle, FileText, Send, Zap, Calculator, Power
 } from 'lucide-react';
 import { maskCep, maskCnpj, maskPhone } from '@/src/utils/mask';
 
 export default function CondominiosPage() {
   const [condominiums, setCondominiums] = useState<any[]>([]);
+  const [ownersList, setOwnersList] = useState<any[]>([]);
+  const [clientsList, setClientsList] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Estados dos Modais
@@ -29,28 +31,37 @@ export default function CondominiosPage() {
   const [activeTab, setActiveTab] = useState<'unidades' | 'rateio' | 'boletos' | 'consumo' | 'acordos' | 'reservas' | 'ocorrencias' | 'assembleias' | 'config'>('unidades');
 
   // Estados para cadastros internos
-  const [unitForm, setUnitForm] = useState({ unitNumber: '', block: '', floor: '', fractionIdeal: '1.0', ownerName: '', tenantName: '' });
+  const [unitForm, setUnitForm] = useState({ unitNumber: '', block: '', floor: '', fractionIdeal: '1.0', ownerId: '', clientId: '' });
   const [expenseForm, setExpenseForm] = useState({ description: '', amount: '', dueDate: '', category: 'Manutenção' });
   const [billGenForm, setBillGenForm] = useState({ referenceMonth: '10/2026', dueDate: '', baseAmount: '' });
   const [consumptionForm, setConsumptionForm] = useState({ unitId: '', utilityType: 'Água', previousValue: '', currentValue: '', unitPrice: '', referenceMonth: '10/2026', photoUrl: '' });
   const [agreementForm, setAgreementForm] = useState({ unitId: '', totalDebt: '', installments: '3' });
   const [settingsForm, setSettingsForm] = useState({ finePercent: 2.0, interestPercent: 1.0, calcType: 'PRO_RATA' });
 
+  // Agendamento com seletor unificado de Proprietários + Inquilinos
   const [reservationForm, setReservationForm] = useState({ areaName: 'Salão de Festas', reservedBy: '', reservationDate: '', notes: '' });
   const [occurrenceForm, setOccurrenceForm] = useState({ title: '', description: '', reportedBy: '', priority: 'Normal' });
   const [assemblyForm, setAssemblyForm] = useState({ title: '', assemblyDate: '', description: '', status: 'Agendada', minutesUrl: '' });
 
   useEffect(() => {
-    fetchCondominiums();
+    fetchInitialData();
   }, []);
 
-  const fetchCondominiums = async () => {
+  const fetchInitialData = async () => {
     setIsLoading(true);
     try {
-      const res = await api.get('/condominiums');
-      setCondominiums(res.data || []);
+      const [condoRes, ownersRes, clientsRes] = await Promise.all([
+        api.get('/condominiums'),
+        api.get('/owners').catch(() => ({ data: [] })),
+        api.get('/clients').catch(() => ({ data: [] }))
+      ]);
+
+      setCondominiums(condoRes.data || []);
+      setOwnersList(ownersRes.data || []);
+      setClientsList(clientsRes.data || []);
+
       if (selectedCondo) {
-        const updated = res.data.find((c: any) => c.id === selectedCondo.id);
+        const updated = condoRes.data.find((c: any) => c.id === selectedCondo.id);
         if (updated) {
           setSelectedCondo(updated);
           if (updated.settings) {
@@ -63,7 +74,7 @@ export default function CondominiosPage() {
         }
       }
     } catch (error) {
-      console.error('Erro ao buscar condomínios:', error);
+      console.error('Erro ao buscar dados:', error);
     } finally {
       setIsLoading(false);
     }
@@ -145,7 +156,7 @@ export default function CondominiosPage() {
         alert('Condomínio cadastrado com sucesso!');
       }
       setIsCondoModalOpen(false);
-      fetchCondominiums();
+      fetchInitialData();
     } catch (error: any) {
       alert(error.response?.data?.error || 'Erro ao salvar condomínio.');
     } finally {
@@ -153,13 +164,20 @@ export default function CondominiosPage() {
     }
   };
 
-  // Funções de Gestão Interna Avançada
+  const handleToggleCondoStatus = async (id: string) => {
+    try {
+      await api.patch(`/condominiums/${id}/status`);
+      fetchInitialData();
+    } catch (err) { alert('Erro ao alterar status do condomínio.'); }
+  };
+
+  // Funções de Cadastro
   const handleAddUnit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       await api.post(`/condominiums/${selectedCondo.id}/units`, unitForm);
-      setUnitForm({ unitNumber: '', block: '', floor: '', fractionIdeal: '1.0', ownerName: '', tenantName: '' });
-      fetchCondominiums();
+      setUnitForm({ unitNumber: '', block: '', floor: '', fractionIdeal: '1.0', ownerId: '', clientId: '' });
+      fetchInitialData();
     } catch (err) { alert('Erro ao cadastrar unidade.'); }
   };
 
@@ -168,7 +186,7 @@ export default function CondominiosPage() {
     try {
       await api.post(`/condominiums/${selectedCondo.id}/expenses`, expenseForm);
       setExpenseForm({ description: '', amount: '', dueDate: '', category: 'Manutenção' });
-      fetchCondominiums();
+      fetchInitialData();
     } catch (err) { alert('Erro ao lançar despesa.'); }
   };
 
@@ -178,14 +196,14 @@ export default function CondominiosPage() {
       await api.post(`/condominiums/${selectedCondo.id}/bills/generate`, billGenForm);
       alert('Boletos mensais gerados com sucesso por rateio!');
       setBillGenForm({ referenceMonth: '10/2026', dueDate: '', baseAmount: '' });
-      fetchCondominiums();
+      fetchInitialData();
     } catch (err) { alert('Erro ao gerar cobranças mensais.'); }
   };
 
   const handlePayBill = async (billId: string) => {
     try {
       await api.patch(`/condominiums/bills/${billId}/pay`, { paymentMethod: 'Baixa Manual' });
-      fetchCondominiums();
+      fetchInitialData();
     } catch (err) { alert('Erro ao dar baixa no boleto.'); }
   };
 
@@ -195,7 +213,7 @@ export default function CondominiosPage() {
       await api.post(`/condominiums/${selectedCondo.id}/consumption`, consumptionForm);
       alert('Leitura registrada com sucesso!');
       setConsumptionForm({ unitId: '', utilityType: 'Água', previousValue: '', currentValue: '', unitPrice: '', referenceMonth: '10/2026', photoUrl: '' });
-      fetchCondominiums();
+      fetchInitialData();
     } catch (err) { alert('Erro ao registrar leitura de consumo.'); }
   };
 
@@ -205,7 +223,7 @@ export default function CondominiosPage() {
       await api.post(`/condominiums/${selectedCondo.id}/agreements`, agreementForm);
       alert('Acordo formalizado e parcelas geradas!');
       setAgreementForm({ unitId: '', totalDebt: '', installments: '3' });
-      fetchCondominiums();
+      fetchInitialData();
     } catch (err) { alert('Erro ao registrar acordo.'); }
   };
 
@@ -214,7 +232,7 @@ export default function CondominiosPage() {
     try {
       await api.put(`/condominiums/${selectedCondo.id}/settings`, settingsForm);
       alert('Configurações de juros e multa atualizadas!');
-      fetchCondominiums();
+      fetchInitialData();
     } catch (err) { alert('Erro ao salvar configurações.'); }
   };
 
@@ -222,8 +240,9 @@ export default function CondominiosPage() {
     e.preventDefault();
     try {
       await api.post(`/condominiums/${selectedCondo.id}/reservations`, reservationForm);
+      alert('Reserva agendada com sucesso!');
       setReservationForm({ areaName: 'Salão de Festas', reservedBy: '', reservationDate: '', notes: '' });
-      fetchCondominiums();
+      fetchInitialData();
     } catch (err) { alert('Erro ao registrar reserva.'); }
   };
 
@@ -231,8 +250,9 @@ export default function CondominiosPage() {
     e.preventDefault();
     try {
       await api.post(`/condominiums/${selectedCondo.id}/occurrences`, occurrenceForm);
+      alert('Ocorrência registrada!');
       setOccurrenceForm({ title: '', description: '', reportedBy: '', priority: 'Normal' });
-      fetchCondominiums();
+      fetchInitialData();
     } catch (err) { alert('Erro ao registrar ocorrência.'); }
   };
 
@@ -240,15 +260,21 @@ export default function CondominiosPage() {
     e.preventDefault();
     try {
       await api.post(`/condominiums/${selectedCondo.id}/assemblies`, assemblyForm);
-      alert('Assembleia / Reunião cadastrada e publicada no portal com sucesso!');
+      alert('Assembleia / Reunião cadastrada e publicada no portal!');
       setAssemblyForm({ title: '', assemblyDate: '', description: '', status: 'Agendada', minutesUrl: '' });
-      fetchCondominiums();
+      fetchInitialData();
     } catch (err) { alert('Erro ao cadastrar assembleia.'); }
   };
 
   if (isLoading) {
     return <div className="p-12 flex justify-center text-slate-500"><Loader2 className="animate-spin" size={32} /></div>;
   }
+
+  // Lista unificada para o campo Solicitante (Proprietários + Inquilinos)
+  const allResidents = [
+    ...ownersList.map((o: any) => ({ id: o.id, name: `${o.name} (Proprietário)` })),
+    ...clientsList.map((c: any) => ({ id: c.id, name: `${c.name} (Inquilino)` }))
+  ];
 
   return (
     <div className="p-8 max-w-[1600px] mx-auto font-sans">
@@ -304,9 +330,9 @@ export default function CondominiosPage() {
                     </span>
                   </td>
                   <td className="p-4 text-center">
-                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase border ${c.isActive ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>
-                      {c.isActive ? 'Ativo' : 'Inativo'}
-                    </span>
+                    <button onClick={() => handleToggleCondoStatus(c.id)} className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase border transition-all ${c.isActive ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' : 'bg-slate-100 text-slate-500 border-slate-300 hover:bg-slate-200'}`}>
+                      <Power size={10}/> {c.isActive ? 'Ativo' : 'Inativo'}
+                    </button>
                   </td>
                   <td className="p-4 text-right">
                     <div className="flex items-center justify-end gap-2">
@@ -398,11 +424,21 @@ export default function CondominiosPage() {
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-slate-600 mb-1">Proprietário</label>
-                      <input type="text" placeholder="Nome do dono" value={unitForm.ownerName} onChange={e => setUnitForm({...unitForm, ownerName: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs" />
+                      <select value={unitForm.ownerId} onChange={e => setUnitForm({...unitForm, ownerId: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs bg-white">
+                        <option value="">Selecione proprietário</option>
+                        {ownersList.map((o: any) => (
+                          <option key={o.id} value={o.id}>{o.name}</option>
+                        ))}
+                      </select>
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-slate-600 mb-1">Inquilino</label>
-                      <input type="text" placeholder="Inquilino" value={unitForm.tenantName} onChange={e => setUnitForm({...unitForm, tenantName: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs" />
+                      <select value={unitForm.clientId} onChange={e => setUnitForm({...unitForm, clientId: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs bg-white">
+                        <option value="">Selecione inquilino</option>
+                        {clientsList.map((c: any) => (
+                          <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                      </select>
                     </div>
                     <div>
                       <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2">
@@ -419,18 +455,22 @@ export default function CondominiosPage() {
                           <th className="p-3.5">Fração Ideal</th>
                           <th className="p-3.5">Proprietário</th>
                           <th className="p-3.5">Inquilino</th>
+                          <th className="p-3.5 text-right">Ações</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
                         {(selectedCondo.units || []).length === 0 ? (
-                          <tr><td colSpan={4} className="p-8 text-center text-slate-400">Nenhuma unidade cadastrada.</td></tr>
+                          <tr><td colSpan={5} className="p-8 text-center text-slate-400">Nenhuma unidade cadastrada.</td></tr>
                         ) : (
                           (selectedCondo.units || []).map((u: any) => (
                             <tr key={u.id}>
                               <td className="p-3.5 font-bold text-slate-900">{u.unitNumber} {u.block ? `(${u.block})` : ''}</td>
                               <td className="p-3.5">{u.fractionIdeal}</td>
-                              <td className="p-3.5">{u.ownerName || 'Não informado'}</td>
-                              <td className="p-3.5">{u.tenantName || 'Nenhum'}</td>
+                              <td className="p-3.5">{u.owner?.name || u.ownerName || 'Não vinculado'}</td>
+                              <td className="p-3.5">{u.client?.name || u.tenantName || 'Nenhum'}</td>
+                              <td className="p-3.5 text-right">
+                                <button onClick={() => alert('Função de edição rápida de unidade')} className="text-indigo-600 font-bold hover:underline">Editar</button>
+                              </td>
                             </tr>
                           ))
                         )}
@@ -471,11 +511,12 @@ export default function CondominiosPage() {
                           <th className="p-3.5">Categoria</th>
                           <th className="p-3.5">Vencimento</th>
                           <th className="p-3.5">Valor</th>
+                          <th className="p-3.5 text-right">Ações</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
                         {(selectedCondo.expenses || []).length === 0 ? (
-                          <tr><td colSpan={4} className="p-8 text-center text-slate-400">Nenhuma despesa lançada.</td></tr>
+                          <tr><td colSpan={5} className="p-8 text-center text-slate-400">Nenhuma despesa lançada.</td></tr>
                         ) : (
                           (selectedCondo.expenses || []).map((exp: any) => (
                             <tr key={exp.id}>
@@ -483,6 +524,9 @@ export default function CondominiosPage() {
                               <td className="p-3.5"><span className="bg-slate-100 px-2 py-0.5 rounded font-bold">{exp.category}</span></td>
                               <td className="p-3.5">{new Date(exp.dueDate).toLocaleDateString('pt-BR')}</td>
                               <td className="p-3.5 font-bold text-indigo-600">R$ {Number(exp.amount).toFixed(2)}</td>
+                              <td className="p-3.5 text-right">
+                                <button onClick={() => alert('Editar despesa')} className="text-indigo-600 font-bold hover:underline">Editar</button>
+                              </td>
                             </tr>
                           ))
                         )}
@@ -542,7 +586,7 @@ export default function CondominiosPage() {
                                   {bill.status}
                                 </span>
                               </td>
-                              <td className="p-3.5 text-right">
+                              <td className="p-3.5 text-right flex items-center justify-end gap-2">
                                 {bill.status !== 'Pago' && (
                                   <button onClick={() => handlePayBill(bill.id)} className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 px-3 py-1 rounded-lg font-bold text-xs">
                                     Baixa Manual
@@ -634,7 +678,7 @@ export default function CondominiosPage() {
                 </div>
               )}
 
-              {/* ABA 6: RESERVAS */}
+              {/* ABA 6: RESERVAS (COM SELETOR DE PROPRIETÁRIOS E INQUILINOS) */}
               {activeTab === 'reservas' && (
                 <div className="space-y-6">
                   <form onSubmit={handleAddReservation} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm grid grid-cols-1 sm:grid-cols-5 gap-3 items-end">
@@ -647,8 +691,13 @@ export default function CondominiosPage() {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-slate-600 mb-1">Solicitante</label>
-                      <input required type="text" value={reservationForm.reservedBy} onChange={e => setReservationForm({...reservationForm, reservedBy: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs" />
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Solicitante (Proprietário / Inquilino)</label>
+                      <select required value={reservationForm.reservedBy} onChange={e => setReservationForm({...reservationForm, reservedBy: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs bg-white font-medium">
+                        <option value="">Selecione o solicitante</option>
+                        {allResidents.map((res: any) => (
+                          <option key={res.id} value={res.name}>{res.name}</option>
+                        ))}
+                      </select>
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-slate-600 mb-1">Data & Hora</label>
@@ -672,17 +721,21 @@ export default function CondominiosPage() {
                           <th className="p-3.5">Área</th>
                           <th className="p-3.5">Solicitante</th>
                           <th className="p-3.5">Data</th>
+                          <th className="p-3.5 text-right">Ações</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
                         {(selectedCondo.reservations || []).length === 0 ? (
-                          <tr><td colSpan={3} className="p-8 text-center text-slate-400">Nenhuma reserva registrada.</td></tr>
+                          <tr><td colSpan={4} className="p-8 text-center text-slate-400">Nenhuma reserva registrada.</td></tr>
                         ) : (
                           (selectedCondo.reservations || []).map((resv: any) => (
                             <tr key={resv.id}>
                               <td className="p-3.5 font-bold text-slate-900">{resv.areaName}</td>
                               <td className="p-3.5">{resv.reservedBy}</td>
                               <td className="p-3.5">{new Date(resv.reservationDate).toLocaleString('pt-BR')}</td>
+                              <td className="p-3.5 text-right">
+                                <button onClick={() => alert('Editar reserva')} className="text-indigo-600 font-bold hover:underline">Editar</button>
+                              </td>
                             </tr>
                           ))
                         )}
@@ -706,7 +759,12 @@ export default function CondominiosPage() {
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-slate-600 mb-1">Reportado Por</label>
-                      <input required type="text" value={occurrenceForm.reportedBy} onChange={e => setOccurrenceForm({...occurrenceForm, reportedBy: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs" />
+                      <select required value={occurrenceForm.reportedBy} onChange={e => setOccurrenceForm({...occurrenceForm, reportedBy: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs bg-white font-medium">
+                        <option value="">Selecione o morador</option>
+                        {allResidents.map((res: any) => (
+                          <option key={res.id} value={res.name}>{res.name}</option>
+                        ))}
+                      </select>
                     </div>
                     <div>
                       <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2">
@@ -722,17 +780,21 @@ export default function CondominiosPage() {
                           <th className="p-3.5">Assunto</th>
                           <th className="p-3.5">Descrição</th>
                           <th className="p-3.5">Reportado Por</th>
+                          <th className="p-3.5 text-right">Ações</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
                         {(selectedCondo.occurrences || []).length === 0 ? (
-                          <tr><td colSpan={3} className="p-8 text-center text-slate-400">Nenhuma ocorrência registrada.</td></tr>
+                          <tr><td colSpan={4} className="p-8 text-center text-slate-400">Nenhuma ocorrência registrada.</td></tr>
                         ) : (
                           (selectedCondo.occurrences || []).map((occ: any) => (
                             <tr key={occ.id}>
                               <td className="p-3.5 font-bold text-slate-900">{occ.title}</td>
                               <td className="p-3.5 text-slate-600">{occ.description}</td>
                               <td className="p-3.5">{occ.reportedBy}</td>
+                              <td className="p-3.5 text-right">
+                                <button onClick={() => alert('Editar ocorrência')} className="text-indigo-600 font-bold hover:underline">Editar</button>
+                              </td>
                             </tr>
                           ))
                         )}
@@ -803,7 +865,7 @@ export default function CondominiosPage() {
                                   {asm.status}
                                 </span>
                               </td>
-                              <td className="p-3.5 text-right">
+                              <td className="p-3.5 text-right flex items-center justify-end gap-3">
                                 {asm.minutesUrl ? (
                                   <a href={asm.minutesUrl} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline font-bold">
                                     Ver Ata
@@ -811,6 +873,7 @@ export default function CondominiosPage() {
                                 ) : (
                                   <span className="text-slate-400">Pendente</span>
                                 )}
+                                <button onClick={() => alert('Editar assembleia')} className="text-indigo-600 font-bold hover:underline">Editar</button>
                               </td>
                             </tr>
                           ))
