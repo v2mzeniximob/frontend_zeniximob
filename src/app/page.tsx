@@ -174,7 +174,7 @@ export const DEFAULT_LANDING_CONFIG = {
     {
       question: 'Posso liberar apenas alguns módulos para cada plano de assinatura?',
       answer:
-        'Sim! Através do Painel Master, você cria quantos planos desejar e marca exatamente quais dos 23 módulos (como Incorporadoras, Condomínios, Temporada, DIMOB, Fiscal, WhatsApp IA, etc.) ficam visíveis na barra lateral de cada imobiliária.'
+        'Sim! Através de um dos nossos consultores, você solicita a criação de um plano de assinatura e marca exatamente quais dos 23 módulos (como Incorporadoras, Condomínios, Temporada, DIMOB, Fiscal, WhatsApp IA, etc.) ficam visíveis na barra lateral de cada imobiliária.'
     },
     {
       question: 'Como funciona a Vitrine Pública e o Portal do Cliente de cada imobiliária?',
@@ -344,16 +344,16 @@ export default function LandingPage() {
       {/* ================================================================= */}
       {/* 1. NAVBAR FIXA                                                    */}
       {/* ================================================================= */}
-   <nav className="fixed top-0 w-full bg-white/95 backdrop-blur-md border-b border-slate-200 z-50 transition-all shadow-sm">
+      <nav className="fixed top-0 w-full bg-white/95 backdrop-blur-md border-b border-slate-200 z-50 transition-all shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-24">
+          <div className="flex justify-between items-center h-28">
             <Link href="/" className="flex items-center gap-3 focus:outline-none py-2">
               {!navLogoError && navLogoSrc ? (
                 <img
                   src={navLogoSrc}
                   alt="ZENIX IMOB"
                   onError={() => setNavLogoError(true)}
-                  className="h-14 sm:h-16 md:h-20 w-auto object-contain mix-blend-multiply"
+                  className="h-20 sm:h-24 md:h-28 w-auto object-contain mix-blend-multiply"
                 />
               ) : (
                 <span className="font-black text-3xl text-[#0b2447]">ZENIX<span className="text-[#1b4b79] ml-1">IMOB</span></span>
