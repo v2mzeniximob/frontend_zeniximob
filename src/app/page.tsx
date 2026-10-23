@@ -344,19 +344,19 @@ export default function LandingPage() {
       {/* ================================================================= */}
       {/* 1. NAVBAR FIXA                                                    */}
       {/* ================================================================= */}
-      <nav className="fixed top-0 w-full bg-white/95 backdrop-blur-md border-b border-slate-200 z-50 transition-all shadow-sm">
+   <nav className="fixed top-0 w-full bg-white/95 backdrop-blur-md border-b border-slate-200 z-50 transition-all shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-20">
-            <Link href="/" className="flex items-center gap-3 focus:outline-none">
+          <div className="flex justify-between items-center h-24">
+            <Link href="/" className="flex items-center gap-3 focus:outline-none py-2">
               {!navLogoError && navLogoSrc ? (
                 <img
                   src={navLogoSrc}
                   alt="ZENIX IMOB"
                   onError={() => setNavLogoError(true)}
-                  className="h-10 md:h-12 w-auto object-contain mix-blend-multiply"
+                  className="h-14 sm:h-16 md:h-20 w-auto object-contain mix-blend-multiply"
                 />
               ) : (
-                <span className="font-black text-2xl text-[#0b2447]">ZENIX<span className="text-[#1b4b79] ml-1">IMOB</span></span>
+                <span className="font-black text-3xl text-[#0b2447]">ZENIX<span className="text-[#1b4b79] ml-1">IMOB</span></span>
               )}
             </Link>
 
