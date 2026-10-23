@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { api } from '../../../../lib/api';
 import { 
   Building2, Plus, Edit, X, CheckCircle2, Loader2, Home, 
-  MapPin, DollarSign, Users, Calendar, AlertTriangle, FileText, Send
+  MapPin, DollarSign, Users, Calendar, AlertTriangle, FileText, Send, Zap, Calculator
 } from 'lucide-react';
 import { maskCep, maskCnpj, maskPhone } from '@/src/utils/mask';
 
@@ -24,15 +24,21 @@ export default function CondominiosPage() {
     hasGarage: false, hasCoveredGarage: false
   });
 
-  // Modal de Detalhes / Gestão Avançada do Condomínio (Unidades, Rateio, Reservas, Ocorrências)
+  // Modal de Detalhes / Gestão Avançada do Condomínio
   const [selectedCondo, setSelectedCondo] = useState<any | null>(null);
-  const [activeTab, setActiveTab] = useState<'unidades' | 'rateio' | 'reservas' | 'ocorrencias'>('unidades');
+  const [activeTab, setActiveTab] = useState<'unidades' | 'rateio' | 'boletos' | 'consumo' | 'acordos' | 'reservas' | 'ocorrencias' | 'assembleias' | 'config'>('unidades');
 
   // Estados para cadastros internos
   const [unitForm, setUnitForm] = useState({ unitNumber: '', block: '', floor: '', fractionIdeal: '1.0', ownerName: '', tenantName: '' });
   const [expenseForm, setExpenseForm] = useState({ description: '', amount: '', dueDate: '', category: 'Manutenção' });
+  const [billGenForm, setBillGenForm] = useState({ referenceMonth: '10/2026', dueDate: '', baseAmount: '' });
+  const [consumptionForm, setConsumptionForm] = useState({ unitId: '', utilityType: 'Água', previousValue: '', currentValue: '', unitPrice: '', referenceMonth: '10/2026', photoUrl: '' });
+  const [agreementForm, setAgreementForm] = useState({ unitId: '', totalDebt: '', installments: '3' });
+  const [settingsForm, setSettingsForm] = useState({ finePercent: 2.0, interestPercent: 1.0, calcType: 'PRO_RATA' });
+
   const [reservationForm, setReservationForm] = useState({ areaName: 'Salão de Festas', reservedBy: '', reservationDate: '', notes: '' });
   const [occurrenceForm, setOccurrenceForm] = useState({ title: '', description: '', reportedBy: '', priority: 'Normal' });
+  const [assemblyForm, setAssemblyForm] = useState({ title: '', assemblyDate: '', description: '', status: 'Agendada', minutesUrl: '' });
 
   useEffect(() => {
     fetchCondominiums();
@@ -45,7 +51,16 @@ export default function CondominiosPage() {
       setCondominiums(res.data || []);
       if (selectedCondo) {
         const updated = res.data.find((c: any) => c.id === selectedCondo.id);
-        if (updated) setSelectedCondo(updated);
+        if (updated) {
+          setSelectedCondo(updated);
+          if (updated.settings) {
+            setSettingsForm({
+              finePercent: updated.settings.finePercent ?? 2.0,
+              interestPercent: updated.settings.interestPercent ?? 1.0,
+              calcType: updated.settings.calcType ?? 'PRO_RATA'
+            });
+          }
+        }
       }
     } catch (error) {
       console.error('Erro ao buscar condomínios:', error);
@@ -138,7 +153,7 @@ export default function CondominiosPage() {
     }
   };
 
-  // Funções de Gestão Interna (Unidades, Despesas, Reservas, Ocorrências)
+  // Funções de Gestão Interna Avançada
   const handleAddUnit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -155,6 +170,52 @@ export default function CondominiosPage() {
       setExpenseForm({ description: '', amount: '', dueDate: '', category: 'Manutenção' });
       fetchCondominiums();
     } catch (err) { alert('Erro ao lançar despesa.'); }
+  };
+
+  const handleGenerateBills = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await api.post(`/condominiums/${selectedCondo.id}/bills/generate`, billGenForm);
+      alert('Boletos mensais gerados com sucesso por rateio!');
+      setBillGenForm({ referenceMonth: '10/2026', dueDate: '', baseAmount: '' });
+      fetchCondominiums();
+    } catch (err) { alert('Erro ao gerar cobranças mensais.'); }
+  };
+
+  const handlePayBill = async (billId: string) => {
+    try {
+      await api.patch(`/condominiums/bills/${billId}/pay`, { paymentMethod: 'Baixa Manual' });
+      fetchCondominiums();
+    } catch (err) { alert('Erro ao dar baixa no boleto.'); }
+  };
+
+  const handleAddConsumption = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await api.post(`/condominiums/${selectedCondo.id}/consumption`, consumptionForm);
+      alert('Leitura registrada com sucesso!');
+      setConsumptionForm({ unitId: '', utilityType: 'Água', previousValue: '', currentValue: '', unitPrice: '', referenceMonth: '10/2026', photoUrl: '' });
+      fetchCondominiums();
+    } catch (err) { alert('Erro ao registrar leitura de consumo.'); }
+  };
+
+  const handleCreateAgreement = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await api.post(`/condominiums/${selectedCondo.id}/agreements`, agreementForm);
+      alert('Acordo formalizado e parcelas geradas!');
+      setAgreementForm({ unitId: '', totalDebt: '', installments: '3' });
+      fetchCondominiums();
+    } catch (err) { alert('Erro ao registrar acordo.'); }
+  };
+
+  const handleSaveSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await api.put(`/condominiums/${selectedCondo.id}/settings`, settingsForm);
+      alert('Configurações de juros e multa atualizadas!');
+      fetchCondominiums();
+    } catch (err) { alert('Erro ao salvar configurações.'); }
   };
 
   const handleAddReservation = async (e: React.FormEvent) => {
@@ -175,6 +236,16 @@ export default function CondominiosPage() {
     } catch (err) { alert('Erro ao registrar ocorrência.'); }
   };
 
+  const handleAddAssembly = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await api.post(`/condominiums/${selectedCondo.id}/assemblies`, assemblyForm);
+      alert('Assembleia / Reunião cadastrada e publicada no portal com sucesso!');
+      setAssemblyForm({ title: '', assemblyDate: '', description: '', status: 'Agendada', minutesUrl: '' });
+      fetchCondominiums();
+    } catch (err) { alert('Erro ao cadastrar assembleia.'); }
+  };
+
   if (isLoading) {
     return <div className="p-12 flex justify-center text-slate-500"><Loader2 className="animate-spin" size={32} /></div>;
   }
@@ -187,9 +258,9 @@ export default function CondominiosPage() {
         <div>
           <h1 className="text-3xl font-bold text-slate-800 flex items-center gap-3">
             <Building2 className="text-indigo-600 bg-indigo-50 p-2 rounded-xl" size={40} />
-            Administração Condominial
+            Administração Condominial Avançada
           </h1>
-          <p className="text-slate-500 mt-1 text-sm">Gestão completa de condomínios, unidades, rateio de despesas, áreas comuns e livro de ocorrências.</p>
+          <p className="text-slate-500 mt-1 text-sm">Gestão completa de condomínios, boletos, rateios por fração ideal, leitura por IA e acordos de inadimplência.</p>
         </div>
         <button onClick={() => handleOpenCondoModal()} className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-all shadow-sm text-sm">
           <Plus size={18} /> Novo Condomínio
@@ -204,7 +275,7 @@ export default function CondominiosPage() {
               <th className="p-4">Condomínio / CNPJ</th>
               <th className="p-4">Endereço</th>
               <th className="p-4">Administração / Síndico</th>
-              <th className="p-4 text-center">Unidades & Imóveis</th>
+              <th className="p-4 text-center">Unidades</th>
               <th className="p-4 text-center">Status</th>
               <th className="p-4 text-right">Gestão Completa</th>
             </tr>
@@ -229,7 +300,7 @@ export default function CondominiosPage() {
                   </td>
                   <td className="p-4 text-center">
                     <span className="bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full text-xs font-bold border border-indigo-100">
-                      {c.units?.length || 0} Unidades | {c.properties?.length || 0} Imóveis
+                      {c.units?.length || 0} Unidades
                     </span>
                   </td>
                   <td className="p-4 text-center">
@@ -239,7 +310,16 @@ export default function CondominiosPage() {
                   </td>
                   <td className="p-4 text-right">
                     <div className="flex items-center justify-end gap-2">
-                      <button onClick={() => setSelectedCondo(c)} className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold px-3 py-1.5 rounded-xl text-xs transition-colors flex items-center gap-1.5">
+                      <button onClick={() => {
+                        setSelectedCondo(c);
+                        if (c.settings) {
+                          setSettingsForm({
+                            finePercent: c.settings.finePercent ?? 2.0,
+                            interestPercent: c.settings.interestPercent ?? 1.0,
+                            calcType: c.settings.calcType ?? 'PRO_RATA'
+                          });
+                        }
+                      }} className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold px-3 py-1.5 rounded-xl text-xs transition-colors flex items-center gap-1.5">
                         <Building2 size={14}/> Abrir Painel
                       </button>
                       <button onClick={() => handleOpenCondoModal(c)} className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors" title="Editar">
@@ -255,11 +335,11 @@ export default function CondominiosPage() {
       </div>
 
       {/* ========================================================= */}
-      {/* MODAL: PAINEL DE GESTÃO DO CONDOMÍNIO (UNIDADES, RATEIO, ETC) */}
+      {/* MODAL: PAINEL DE GESTÃO DO CONDOMÍNIO (ABAS COMPLETAS)     */}
       {/* ========================================================= */}
       {selectedCondo && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-5xl h-[85vh] flex flex-col animate-in zoom-in-95 duration-200 overflow-hidden">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-6xl h-[90vh] flex flex-col animate-in zoom-in-95 duration-200 overflow-hidden">
             
             {/* Header do Painel */}
             <div className="px-8 py-6 bg-slate-900 text-white flex justify-between items-center shrink-0">
@@ -271,12 +351,17 @@ export default function CondominiosPage() {
             </div>
 
             {/* Abas do Condomínio */}
-            <div className="flex gap-4 px-8 border-b border-slate-200 bg-slate-50 shrink-0">
+            <div className="flex gap-2 px-8 border-b border-slate-200 bg-slate-50 shrink-0 overflow-x-auto">
               {[
                 { id: 'unidades', label: `Unidades (${selectedCondo.units?.length || 0})`, icon: Home },
-                { id: 'rateio', label: `Despesas & Rateio (${selectedCondo.expenses?.length || 0})`, icon: DollarSign },
-                { id: 'reservas', label: `Áreas Comuns (${selectedCondo.reservations?.length || 0})`, icon: Calendar },
-                { id: 'ocorrencias', label: `Ocorrências (${selectedCondo.occurrences?.length || 0})`, icon: AlertTriangle },
+                { id: 'rateio', label: `Despesas (${selectedCondo.expenses?.length || 0})`, icon: DollarSign },
+                { id: 'boletos', label: `Boletos & Rateio (${selectedCondo.bills?.length || 0})`, icon: FileText },
+                { id: 'consumo', label: `Consumo IA`, icon: Zap },
+                { id: 'acordos', label: `Acordos`, icon: Calculator },
+                { id: 'reservas', label: `Áreas Comuns`, icon: Calendar },
+                { id: 'ocorrencias', label: `Ocorrências`, icon: AlertTriangle },
+                { id: 'assembleias', label: `Reuniões & Atas`, icon: Users },
+                { id: 'config', label: `Juros & Multas`, icon: Edit },
               ].map(tab => {
                 const Icon = tab.icon;
                 const isActive = activeTab === tab.id;
@@ -284,9 +369,9 @@ export default function CondominiosPage() {
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id as any)}
-                    className={`py-4 font-bold text-xs flex items-center gap-2 border-b-2 transition-colors ${isActive ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+                    className={`py-4 px-3 font-bold text-xs flex items-center gap-1.5 border-b-2 whitespace-nowrap transition-colors ${isActive ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
                   >
-                    <Icon size={16}/> {tab.label}
+                    <Icon size={15}/> {tab.label}
                   </button>
                 );
               })}
@@ -316,12 +401,12 @@ export default function CondominiosPage() {
                       <input type="text" placeholder="Nome do dono" value={unitForm.ownerName} onChange={e => setUnitForm({...unitForm, ownerName: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs" />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-slate-600 mb-1">Inquilino (Opcional)</label>
-                      <input type="text" placeholder="Nome do inquilino" value={unitForm.tenantName} onChange={e => setUnitForm({...unitForm, tenantName: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs" />
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Inquilino</label>
+                      <input type="text" placeholder="Inquilino" value={unitForm.tenantName} onChange={e => setUnitForm({...unitForm, tenantName: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs" />
                     </div>
                     <div>
                       <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2">
-                        <Plus size={16}/> Adicionar Unidade
+                        <Plus size={16}/> Adicionar
                       </button>
                     </div>
                   </form>
@@ -330,7 +415,7 @@ export default function CondominiosPage() {
                     <table className="w-full text-left text-xs">
                       <thead className="bg-slate-100 text-slate-600 font-bold uppercase tracking-wider">
                         <tr>
-                          <th className="p-3.5">Unidade / Bloco</th>
+                          <th className="p-3.5">Unidade</th>
                           <th className="p-3.5">Fração Ideal</th>
                           <th className="p-3.5">Proprietário</th>
                           <th className="p-3.5">Inquilino</th>
@@ -338,7 +423,7 @@ export default function CondominiosPage() {
                       </thead>
                       <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
                         {(selectedCondo.units || []).length === 0 ? (
-                          <tr><td colSpan={4} className="p-8 text-center text-slate-400">Nenhuma unidade cadastrada neste condomínio.</td></tr>
+                          <tr><td colSpan={4} className="p-8 text-center text-slate-400">Nenhuma unidade cadastrada.</td></tr>
                         ) : (
                           (selectedCondo.units || []).map((u: any) => (
                             <tr key={u.id}>
@@ -355,17 +440,17 @@ export default function CondominiosPage() {
                 </div>
               )}
 
-              {/* ABA 2: RATEIO DE DESPESAS */}
+              {/* ABA 2: DESPESAS */}
               {activeTab === 'rateio' && (
                 <div className="space-y-6">
                   <form onSubmit={handleAddExpense} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm grid grid-cols-1 sm:grid-cols-5 gap-3 items-end">
                     <div className="sm:col-span-2">
-                      <label className="block text-xs font-bold text-slate-600 mb-1">Descrição da Despesa</label>
-                      <input required type="text" placeholder="Ex: Conta de Água da Área Comum" value={expenseForm.description} onChange={e => setExpenseForm({...expenseForm, description: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs" />
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Descrição</label>
+                      <input required type="text" placeholder="Ex: Manutenção de Elevadores" value={expenseForm.description} onChange={e => setExpenseForm({...expenseForm, description: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs" />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-slate-600 mb-1">Valor Total (R$)</label>
-                      <input required type="number" step="0.01" placeholder="0.00" value={expenseForm.amount} onChange={e => setExpenseForm({...expenseForm, amount: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs" />
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Valor (R$)</label>
+                      <input required type="number" step="0.01" value={expenseForm.amount} onChange={e => setExpenseForm({...expenseForm, amount: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs" />
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-slate-600 mb-1">Vencimento</label>
@@ -385,7 +470,7 @@ export default function CondominiosPage() {
                           <th className="p-3.5">Descrição</th>
                           <th className="p-3.5">Categoria</th>
                           <th className="p-3.5">Vencimento</th>
-                          <th className="p-3.5">Valor Total</th>
+                          <th className="p-3.5">Valor</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
@@ -407,7 +492,149 @@ export default function CondominiosPage() {
                 </div>
               )}
 
-              {/* ABA 3: ÁREAS COMUNS E RESERVAS */}
+              {/* ABA 3: BOLETOS & RATEIO AUTOMÁTICO */}
+              {activeTab === 'boletos' && (
+                <div className="space-y-6">
+                  <form onSubmit={handleGenerateBills} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Mês de Referência</label>
+                      <input required type="text" placeholder="Ex: 10/2026" value={billGenForm.referenceMonth} onChange={e => setBillGenForm({...billGenForm, referenceMonth: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Vencimento dos Boletos</label>
+                      <input required type="date" value={billGenForm.dueDate} onChange={e => setBillGenForm({...billGenForm, dueDate: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Valor Total a Ratear (R$)</label>
+                      <input required type="number" step="0.01" placeholder="Ex: 15000.00" value={billGenForm.baseAmount} onChange={e => setBillGenForm({...billGenForm, baseAmount: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs" />
+                    </div>
+                    <div>
+                      <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2">
+                        <DollarSign size={16}/> Gerar Boletos por Rateio
+                      </button>
+                    </div>
+                  </form>
+
+                  <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-100 text-slate-600 font-bold uppercase tracking-wider">
+                        <tr>
+                          <th className="p-3.5">Unidade</th>
+                          <th className="p-3.5">Referência</th>
+                          <th className="p-3.5">Vencimento</th>
+                          <th className="p-3.5">Valor</th>
+                          <th className="p-3.5 text-center">Status</th>
+                          <th className="p-3.5 text-right">Ação</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
+                        {(selectedCondo.bills || []).length === 0 ? (
+                          <tr><td colSpan={6} className="p-8 text-center text-slate-400">Nenhum boleto gerado.</td></tr>
+                        ) : (
+                          (selectedCondo.bills || []).map((bill: any) => (
+                            <tr key={bill.id}>
+                              <td className="p-3.5 font-bold text-slate-900">{bill.unit?.unitNumber}</td>
+                              <td className="p-3.5">{bill.referenceMonth}</td>
+                              <td className="p-3.5">{new Date(bill.dueDate).toLocaleDateString('pt-BR')}</td>
+                              <td className="p-3.5 font-bold text-indigo-600">R$ {Number(bill.amount).toFixed(2)}</td>
+                              <td className="p-3.5 text-center">
+                                <span className={`px-2 py-0.5 rounded font-bold text-[10px] ${bill.status === 'Pago' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                                  {bill.status}
+                                </span>
+                              </td>
+                              <td className="p-3.5 text-right">
+                                {bill.status !== 'Pago' && (
+                                  <button onClick={() => handlePayBill(bill.id)} className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 px-3 py-1 rounded-lg font-bold text-xs">
+                                    Baixa Manual
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* ABA 4: CONSUMO COM IA */}
+              {activeTab === 'consumo' && (
+                <div className="space-y-6">
+                  <form onSubmit={handleAddConsumption} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Unidade</label>
+                      <select required value={consumptionForm.unitId} onChange={e => setConsumptionForm({...consumptionForm, unitId: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs bg-white">
+                        <option value="">Selecione a unidade</option>
+                        {(selectedCondo.units || []).map((u: any) => (
+                          <option key={u.id} value={u.id}>{u.unitNumber}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Tipo</label>
+                      <select value={consumptionForm.utilityType} onChange={e => setConsumptionForm({...consumptionForm, utilityType: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs bg-white">
+                        <option value="Água">Água</option>
+                        <option value="Gás">Gás</option>
+                        <option value="Energia">Energia</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Leitura Anterior</label>
+                      <input required type="number" step="0.01" value={consumptionForm.previousValue} onChange={e => setConsumptionForm({...consumptionForm, previousValue: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Leitura Atual</label>
+                      <input required type="number" step="0.01" value={consumptionForm.currentValue} onChange={e => setConsumptionForm({...consumptionForm, currentValue: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Valor por m³ / kWh (R$)</label>
+                      <input required type="number" step="0.01" value={consumptionForm.unitPrice} onChange={e => setConsumptionForm({...consumptionForm, unitPrice: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs" />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Foto do Hidrômetro (Leitura por IA)</label>
+                      <input type="text" placeholder="URL da foto ou anexo" value={consumptionForm.photoUrl} onChange={e => setConsumptionForm({...consumptionForm, photoUrl: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs" />
+                    </div>
+                    <div>
+                      <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2">
+                        <Zap size={16}/> Registrar Consumo
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              )}
+
+              {/* ABA 5: ACORDOS */}
+              {activeTab === 'acordos' && (
+                <div className="space-y-6">
+                  <form onSubmit={handleCreateAgreement} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Unidade Inadimplente</label>
+                      <select required value={agreementForm.unitId} onChange={e => setAgreementForm({...agreementForm, unitId: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs bg-white">
+                        <option value="">Selecione a unidade</option>
+                        {(selectedCondo.units || []).map((u: any) => (
+                          <option key={u.id} value={u.id}>{u.unitNumber}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Valor Total da Dívida (R$)</label>
+                      <input required type="number" step="0.01" value={agreementForm.totalDebt} onChange={e => setAgreementForm({...agreementForm, totalDebt: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Nº de Parcelas</label>
+                      <input required type="number" min="1" max="24" value={agreementForm.installments} onChange={e => setAgreementForm({...agreementForm, installments: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs" />
+                    </div>
+                    <div>
+                      <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2">
+                        <Calculator size={16}/> Formalizar Acordo
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              )}
+
+              {/* ABA 6: RESERVAS */}
               {activeTab === 'reservas' && (
                 <div className="space-y-6">
                   <form onSubmit={handleAddReservation} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm grid grid-cols-1 sm:grid-cols-5 gap-3 items-end">
@@ -417,20 +644,19 @@ export default function CondominiosPage() {
                         <option value="Salão de Festas">Salão de Festas</option>
                         <option value="Churrasqueira">Churrasqueira</option>
                         <option value="Quadra Esportiva">Quadra Esportiva</option>
-                        <option value="Espaço Gourmet">Espaço Gourmet</option>
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-slate-600 mb-1">Morador / Solicitante</label>
-                      <input required type="text" placeholder="Nome do condômino" value={reservationForm.reservedBy} onChange={e => setReservationForm({...reservationForm, reservedBy: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs" />
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Solicitante</label>
+                      <input required type="text" value={reservationForm.reservedBy} onChange={e => setReservationForm({...reservationForm, reservedBy: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs" />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-slate-600 mb-1">Data da Reserva</label>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Data & Hora</label>
                       <input required type="datetime-local" value={reservationForm.reservationDate} onChange={e => setReservationForm({...reservationForm, reservationDate: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs" />
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-slate-600 mb-1">Observações</label>
-                      <input type="text" placeholder="Ex: Cota de limpeza" value={reservationForm.notes} onChange={e => setReservationForm({...reservationForm, notes: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs" />
+                      <input type="text" value={reservationForm.notes} onChange={e => setReservationForm({...reservationForm, notes: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs" />
                     </div>
                     <div>
                       <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2">
@@ -445,20 +671,18 @@ export default function CondominiosPage() {
                         <tr>
                           <th className="p-3.5">Área</th>
                           <th className="p-3.5">Solicitante</th>
-                          <th className="p-3.5">Data & Hora</th>
-                          <th className="p-3.5">Status</th>
+                          <th className="p-3.5">Data</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
                         {(selectedCondo.reservations || []).length === 0 ? (
-                          <tr><td colSpan={4} className="p-8 text-center text-slate-400">Nenhuma reserva registrada.</td></tr>
+                          <tr><td colSpan={3} className="p-8 text-center text-slate-400">Nenhuma reserva registrada.</td></tr>
                         ) : (
                           (selectedCondo.reservations || []).map((resv: any) => (
                             <tr key={resv.id}>
                               <td className="p-3.5 font-bold text-slate-900">{resv.areaName}</td>
                               <td className="p-3.5">{resv.reservedBy}</td>
                               <td className="p-3.5">{new Date(resv.reservationDate).toLocaleString('pt-BR')}</td>
-                              <td className="p-3.5"><span className="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-bold">Confirmado</span></td>
                             </tr>
                           ))
                         )}
@@ -468,21 +692,21 @@ export default function CondominiosPage() {
                 </div>
               )}
 
-              {/* ABA 4: OCORRÊNCIAS */}
+              {/* ABA 7: OCORRÊNCIAS */}
               {activeTab === 'ocorrencias' && (
                 <div className="space-y-6">
                   <form onSubmit={handleAddOccurrence} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm grid grid-cols-1 sm:grid-cols-5 gap-3 items-end">
                     <div>
-                      <label className="block text-xs font-bold text-slate-600 mb-1">Título / Assunto</label>
-                      <input required type="text" placeholder="Ex: Barulho excessivo" value={occurrenceForm.title} onChange={e => setOccurrenceForm({...occurrenceForm, title: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs" />
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Assunto</label>
+                      <input required type="text" value={occurrenceForm.title} onChange={e => setOccurrenceForm({...occurrenceForm, title: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs" />
                     </div>
                     <div className="sm:col-span-2">
                       <label className="block text-xs font-bold text-slate-600 mb-1">Descrição</label>
-                      <input required type="text" placeholder="Detalhes da ocorrência..." value={occurrenceForm.description} onChange={e => setOccurrenceForm({...occurrenceForm, description: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs" />
+                      <input required type="text" value={occurrenceForm.description} onChange={e => setOccurrenceForm({...occurrenceForm, description: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs" />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-slate-600 mb-1">Reportado por</label>
-                      <input required type="text" placeholder="Nome / Unidade" value={occurrenceForm.reportedBy} onChange={e => setOccurrenceForm({...occurrenceForm, reportedBy: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs" />
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Reportado Por</label>
+                      <input required type="text" value={occurrenceForm.reportedBy} onChange={e => setOccurrenceForm({...occurrenceForm, reportedBy: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs" />
                     </div>
                     <div>
                       <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2">
@@ -498,25 +722,129 @@ export default function CondominiosPage() {
                           <th className="p-3.5">Assunto</th>
                           <th className="p-3.5">Descrição</th>
                           <th className="p-3.5">Reportado Por</th>
-                          <th className="p-3.5">Status</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
                         {(selectedCondo.occurrences || []).length === 0 ? (
-                          <tr><td colSpan={4} className="p-8 text-center text-slate-400">Nenhuma ocorrência registrada.</td></tr>
+                          <tr><td colSpan={3} className="p-8 text-center text-slate-400">Nenhuma ocorrência registrada.</td></tr>
                         ) : (
                           (selectedCondo.occurrences || []).map((occ: any) => (
                             <tr key={occ.id}>
                               <td className="p-3.5 font-bold text-slate-900">{occ.title}</td>
                               <td className="p-3.5 text-slate-600">{occ.description}</td>
                               <td className="p-3.5">{occ.reportedBy}</td>
-                              <td className="p-3.5"><span className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded font-bold">{occ.status}</span></td>
                             </tr>
                           ))
                         )}
                       </tbody>
                     </table>
                   </div>
+                </div>
+              )}
+
+              {/* ABA 8: REUNIÕES & ATAS */}
+              {activeTab === 'assembleias' && (
+                <div className="space-y-6">
+                  <form onSubmit={handleAddAssembly} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm grid grid-cols-1 sm:grid-cols-5 gap-3 items-end">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Título / Reunião</label>
+                      <input required type="text" placeholder="Ex: Assembleia Geral 2026" value={assemblyForm.title} onChange={e => setAssemblyForm({...assemblyForm, title: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Data & Hora</label>
+                      <input required type="datetime-local" value={assemblyForm.assemblyDate} onChange={e => setAssemblyForm({...assemblyForm, assemblyDate: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Status</label>
+                      <select value={assemblyForm.status} onChange={e => setAssemblyForm({...assemblyForm, status: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs bg-white font-medium">
+                        <option value="Agendada">Agendada</option>
+                        <option value="Em Andamento">Em Andamento</option>
+                        <option value="Encerrada">Encerrada (Com Ata)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Link da Ata (PDF/Drive)</label>
+                      <input type="text" placeholder="https://... (Ata da reunião)" value={assemblyForm.minutesUrl} onChange={e => setAssemblyForm({...assemblyForm, minutesUrl: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs" />
+                    </div>
+                    <div>
+                      <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2">
+                        <Plus size={16}/> Publicar Reunião
+                      </button>
+                    </div>
+                    <div className="sm:col-span-5">
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Descrição / Pauta</label>
+                      <input required type="text" placeholder="Pautas a serem discutidas na assembleia..." value={assemblyForm.description} onChange={e => setAssemblyForm({...assemblyForm, description: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs" />
+                    </div>
+                  </form>
+
+                  <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-100 text-slate-600 font-bold uppercase tracking-wider">
+                        <tr>
+                          <th className="p-3.5">Reunião / Assembleia</th>
+                          <th className="p-3.5">Data</th>
+                          <th className="p-3.5">Status</th>
+                          <th className="p-3.5 text-right">Ata</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
+                        {(selectedCondo.assemblies || []).length === 0 ? (
+                          <tr><td colSpan={4} className="p-8 text-center text-slate-400">Nenhuma reunião ou assembleia cadastrada.</td></tr>
+                        ) : (
+                          (selectedCondo.assemblies || []).map((asm: any) => (
+                            <tr key={asm.id}>
+                              <td className="p-3.5 font-bold text-slate-900">
+                                {asm.title}
+                                <p className="text-[11px] text-slate-500 font-normal mt-0.5">{asm.description}</p>
+                              </td>
+                              <td className="p-3.5">{new Date(asm.assemblyDate).toLocaleString('pt-BR')}</td>
+                              <td className="p-3.5">
+                                <span className={`px-2 py-0.5 rounded font-bold text-[10px] ${asm.status === 'Encerrada' ? 'bg-slate-100 text-slate-700' : 'bg-blue-100 text-blue-800'}`}>
+                                  {asm.status}
+                                </span>
+                              </td>
+                              <td className="p-3.5 text-right">
+                                {asm.minutesUrl ? (
+                                  <a href={asm.minutesUrl} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline font-bold">
+                                    Ver Ata
+                                  </a>
+                                ) : (
+                                  <span className="text-slate-400">Pendente</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* ABA 9: CONFIGURAÇÕES DE JUROS E MULTAS */}
+              {activeTab === 'config' && (
+                <div className="space-y-6 max-w-xl">
+                  <form onSubmit={handleSaveSettings} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                    <h3 className="font-bold text-slate-800 text-sm">Parâmetros de Inadimplência & Cobrança</h3>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Multa por Atraso (%)</label>
+                      <input type="number" step="0.01" value={settingsForm.finePercent} onChange={e => setSettingsForm({...settingsForm, finePercent: Number(e.target.value)})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Juros ao Mês (%)</label>
+                      <input type="number" step="0.01" value={settingsForm.interestPercent} onChange={e => setSettingsForm({...settingsForm, interestPercent: Number(e.target.value)})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Tipo de Cálculo</label>
+                      <select value={settingsForm.calcType} onChange={e => setSettingsForm({...settingsForm, calcType: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs bg-white">
+                        <option value="PRO_RATA">Pro-rata (Proporcional Diário)</option>
+                        <option value="FIXO">Fixo Mensal</option>
+                      </select>
+                    </div>
+                    <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2">
+                      <CheckCircle2 size={16}/> Salvar Configurações
+                    </button>
+                  </form>
                 </div>
               )}
 
@@ -527,7 +855,7 @@ export default function CondominiosPage() {
       )}
 
       {/* ========================================================= */}
-      {/* MODAL: CADASTRO / EDIÇÃO DE CONDOMÍNIO                    */}
+      {/* MODAL: CADASTRO / EDIÇÃO DE CONDOMÍNIO                     */}
       {/* ========================================================= */}
       {isCondoModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
