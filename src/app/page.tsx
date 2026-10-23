@@ -15,13 +15,13 @@ export const DEFAULT_LANDING_CONFIG = {
   brand: {
     nameFirst: 'ZENIX',
     nameHighlight: 'IMOB',
-    logoUrl: '/logonavebar.png', 
+    logoUrl: '/logonavebar.png', // 1º Logo (Navbar fixa)
     whatsappNumber: '5511999999999',
     whatsappButtonText: 'Falar com Especialista',
     loginButtonText: 'Acessar Plataforma'
   },
   hero: {
-    topBannerUrl: '/IMob.svg', 
+    topBannerUrl: '/IMob (2)_2.png', // 2º Logo Maior
     badgeText: 'Ecossistema SaaS Completo • Imobiliárias, Incorporadoras & Temporada',
     titleLine1: 'Tudo o que a sua Imobiliária e Incorporadora',
     titleHighlight: 'precisam num só lugar.',
@@ -189,7 +189,7 @@ export const DEFAULT_LANDING_CONFIG = {
     {
       question: 'Posso editar todos os textos, números e imagens do site criado para a minha imobiliária?',
       answer:
-        'Sim! Basta aceder ao Painel de Configurações  > Landing Page (Site)" para alterar títulos, imagens, número de WhatsApp sem tocar numa única linha de código.'
+        'Sim! Basta aceder ao Painel de Configurações > Landing Page (Site)" para alterar títulos, imagens, número de WhatsApp sem tocar numa única linha de código.'
     }
   ],
   ctaBottom: {
@@ -205,71 +205,6 @@ export const DEFAULT_LANDING_CONFIG = {
   }
 };
 
-// SVG completo idêntico ao 2º Logo (ZENIXIMOB - SISTEMA DE GESTÃO IMOBILIÁRIA E REDE DE FRANQUIAS) sem fundo
-function SecondLogoFullSvg({ className = 'w-full max-w-2xl h-auto' }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 920 240"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      className={className}
-      role="img"
-      aria-label="ZENIXIMOB - Sistema de Gestão Imobiliária e Rede de Franquias"
-    >
-      <defs>
-        <linearGradient id="hexGradMain" x1="0%" y1="100%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="#092969" />
-          <stop offset="50%" stopColor="#0e5b8e" />
-          <stop offset="100%" stopColor="#1497a8" />
-        </linearGradient>
-        <linearGradient id="textGradMain" x1="0%" y1="50%" x2="100%" y2="50%">
-          <stop offset="0%" stopColor="#072b66" />
-          <stop offset="55%" stopColor="#0f3c7d" />
-          <stop offset="100%" stopColor="#2b5f9e" />
-        </linearGradient>
-      </defs>
-
-      {/* Ícone Hexagonal Z Tecnológico */}
-      <g transform="translate(35, 18) scale(1.6)">
-        <path d="M60 6L96 27L83 35L60 21L24 42V56L11 63V34L60 6Z" fill="url(#hexGradMain)" />
-        <path d="M60 124L24 103L37 95L60 109L96 88V74L109 67V96L60 124Z" fill="url(#hexGradMain)" />
-        <path
-          d="M22 39H96L109 47V61L54 94H98L109 87V100L96 108H18L11 100V83L66 50H22V39Z"
-          fill="url(#hexGradMain)"
-        />
-        <circle cx="52" cy="58" r="8.5" fill="url(#hexGradMain)" />
-        <circle cx="68" cy="72" r="8.5" fill="url(#hexGradMain)" />
-      </g>
-
-      {/* Tipografia Principal: ZENIXIMOB */}
-      <text
-        x="265"
-        y="138"
-        fill="url(#textGradMain)"
-        fontFamily="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"
-        fontSize="86"
-        fontWeight="800"
-        letterSpacing="4"
-      >
-        ZENIX<tspan fontWeight="500" fill="#255a99">IMOB</tspan>
-      </text>
-
-      {/* Subtítulo: SISTEMA DE GESTÃO IMOBILIÁRIA E REDE DE FRANQUIAS */}
-      <text
-        x="270"
-        y="175"
-        fill="#64748b"
-        fontFamily="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"
-        fontSize="17.5"
-        fontWeight="500"
-        letterSpacing="3.4"
-      >
-        SISTEMA DE GESTÃO IMOBILIÁRIA E REDE DE FRANQUIAS
-      </text>
-    </svg>
-  );
-}
-
 export default function LandingPage() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [config, setConfig] = useState<any>(DEFAULT_LANDING_CONFIG);
@@ -277,9 +212,8 @@ export default function LandingPage() {
   const [plans, setPlans] = useState<any[]>([]);
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
 
-  // Controle de carregamento do 1º logo (Navbar) e do 2º logo maior (Hero)
   const [navLogoError, setNavLogoError] = useState(false);
-  const [secondLogoCandidateIndex, setSecondLogoCandidateIndex] = useState(0);
+  const [topLogoError, setTopLogoError] = useState(false);
 
   useEffect(() => {
     const cached = localStorage.getItem('@ZenixImob:landingConfig');
@@ -324,36 +258,24 @@ export default function LandingPage() {
   )}`;
 
   const navLogoSrc = config.brand?.logoUrl || '/logonavebar.png';
-
-  // Lista de caminhos possíveis para o 2º logo (SVG ou JPG sem fundo) na pasta public/
-  const secondLogoCandidates = [
-    config.hero?.topBannerUrl && config.hero.topBannerUrl !== '/3.jpg' ? config.hero.topBannerUrl : '/IMob.svg',
-    '/IMob.svg',
-    '/IMob.jpg',
-    '/IMob.png'
-  ].filter(Boolean);
-
-  const currentSecondLogoSrc =
-    secondLogoCandidateIndex < secondLogoCandidates.length
-      ? secondLogoCandidates[secondLogoCandidateIndex]
-      : null;
+  const topLogoSrc = config.hero?.topBannerUrl || '/IMob (2)_2.png';
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans selection:bg-blue-200 selection:text-blue-900">
       
       {/* ================================================================= */}
-      {/* 1. NAVBAR FIXA                                                    */}
+      {/* 1. NAVBAR FIXA COM LOGÓTIPO DA NAVBAR AMPLIADO                    */}
       {/* ================================================================= */}
       <nav className="fixed top-0 w-full bg-white/95 backdrop-blur-md border-b border-slate-200 z-50 transition-all shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-28">
-            <Link href="/" className="flex items-center gap-3 focus:outline-none py-2">
+          <div className="flex justify-between items-center h-24">
+            <Link href="/" className="flex items-center gap-3 focus:outline-none py-1">
               {!navLogoError && navLogoSrc ? (
                 <img
                   src={navLogoSrc}
                   alt="ZENIX IMOB"
                   onError={() => setNavLogoError(true)}
-                  className="h-20 sm:h-24 md:h-28 w-auto object-contain mix-blend-multiply"
+                  className="h-16 sm:h-20 md:h-24 w-auto max-w-[280px] object-contain mix-blend-multiply scale-125 origin-left"
                 />
               ) : (
                 <span className="font-black text-3xl text-[#0b2447]">ZENIX<span className="text-[#1b4b79] ml-1">IMOB</span></span>
@@ -422,26 +344,25 @@ export default function LandingPage() {
       </nav>
 
       {/* ================================================================= */}
-      {/* 2. ESPAÇO DO 2º LOGO MAIOR (SEM FUNDO / SVG) ENTRE A NAVBAR FIXA  */}
+      {/* 2. LOGÓTIPO GRANDE E EM DESTAQUE NA PÁGINA                        */}
       {/* ================================================================= */}
-     <section className="relative pt-32 pb-20 lg:pt-36 lg:pb-28 overflow-hidden bg-slate-50">
+      <section className="relative pt-36 pb-20 lg:pt-40 lg:pb-28 overflow-hidden bg-slate-50">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[450px] opacity-20 pointer-events-none">
           <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-indigo-500 blur-[110px] rounded-full"></div>
         </div>
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
           
-          {/* LOGO MAIOR AMPLIADO */}
-          <div className="w-full max-w-4xl mx-auto mb-12 pt-4 pb-6 flex items-center justify-center px-4">
-            {currentSecondLogoSrc ? (
+          <div className="w-full max-w-5xl mx-auto mb-12 pt-6 pb-8 flex items-center justify-center px-4">
+            {!topLogoError && topLogoSrc ? (
               <img
-                src={currentSecondLogoSrc}
+                src={topLogoSrc}
                 alt="ZENIXIMOB - Sistema de Gestão Imobiliária e Rede de Franquias"
-                onError={() => setSecondLogoCandidateIndex((prev) => prev + 1)}
-                className="w-full max-w-4xl max-h-[320px] sm:max-h-[380px] md:max-h-[450px] object-contain mx-auto mix-blend-multiply"
+                onError={() => setTopLogoError(true)}
+                className="w-full max-w-5xl max-h-[380px] sm:max-h-[460px] md:max-h-[560px] object-contain mx-auto mix-blend-multiply"
               />
             ) : (
-              <SecondLogoFullSvg className="w-full max-w-4xl h-auto mx-auto" />
+              <div className="text-5xl sm:text-7xl font-black text-[#0b2447]">ZENIXIMOB</div>
             )}
           </div>
 
@@ -518,7 +439,7 @@ export default function LandingPage() {
       </section>
 
       {/* ================================================================= */}
-      {/* PILARES DO ECOSSISTEMA (ABAS INTERATIVAS)                         */}
+      {/* PILARES DO ECOSSISTEMA                                            */}
       {/* ================================================================= */}
       <section id="ecossistema" className="py-20 bg-white border-y border-slate-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
@@ -603,7 +524,7 @@ export default function LandingPage() {
       </section>
 
       {/* ================================================================= */}
-      {/* GRADE COMPLETA DE FUNCIONALIDADES / MÓDULOS EDITÁVEIS             */}
+      {/* GRADE COMPLETA DE FUNCIONALIDADES                                 */}
       {/* ================================================================= */}
       <section id="funcionalidades" className="py-24 bg-slate-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -646,7 +567,7 @@ export default function LandingPage() {
       </section>
 
       {/* ================================================================= */}
-      {/* GALERIA DE VITRINES E TELAS DO SISTEMA (IMAGENS EDITÁVEIS)        */}
+      {/* GALERIA DE TELAS DO SISTEMA                                       */}
       {/* ================================================================= */}
       <section id="telas" className="py-24 bg-white border-t border-slate-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
@@ -688,7 +609,7 @@ export default function LandingPage() {
       </section>
 
       {/* ================================================================= */}
-      {/* PLANOS DE ASSINATURA DINÂMICOS                                    */}
+      {/* PLANOS DE ASSINATURA                                              */}
       {/* ================================================================= */}
       {plans.length > 0 && (
         <section id="planos" className="py-24 bg-slate-50 border-t border-slate-200">
@@ -752,7 +673,7 @@ export default function LandingPage() {
       )}
 
       {/* ================================================================= */}
-      {/* FAQ — PERGUNTAS FREQUENTES EDITÁVEIS                              */}
+      {/* FAQ                                                               */}
       {/* ================================================================= */}
       <section id="faq" className="py-20 bg-white border-t border-slate-200">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
