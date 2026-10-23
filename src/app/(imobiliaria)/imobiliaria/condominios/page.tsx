@@ -455,12 +455,13 @@ export default function CondominiosPage() {
                           <th className="p-3.5">Fração Ideal</th>
                           <th className="p-3.5">Proprietário</th>
                           <th className="p-3.5">Inquilino</th>
+                          <th className="p-3.5 text-center">Status</th>
                           <th className="p-3.5 text-right">Ações</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
                         {(selectedCondo.units || []).length === 0 ? (
-                          <tr><td colSpan={5} className="p-8 text-center text-slate-400">Nenhuma unidade cadastrada.</td></tr>
+                          <tr><td colSpan={6} className="p-8 text-center text-slate-400">Nenhuma unidade cadastrada.</td></tr>
                         ) : (
                           (selectedCondo.units || []).map((u: any) => (
                             <tr key={u.id}>
@@ -468,8 +469,13 @@ export default function CondominiosPage() {
                               <td className="p-3.5">{u.fractionIdeal}</td>
                               <td className="p-3.5">{u.owner?.name || u.ownerName || 'Não vinculado'}</td>
                               <td className="p-3.5">{u.client?.name || u.tenantName || 'Nenhum'}</td>
-                              <td className="p-3.5 text-right">
-                                <button onClick={() => alert('Função de edição rápida de unidade')} className="text-indigo-600 font-bold hover:underline">Editar</button>
+                              <td className="p-3.5 text-center">
+                                <button onClick={() => alert('Alterar status da unidade')} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase border bg-emerald-50 text-emerald-700 border-emerald-200">
+                                  Ativo
+                                </button>
+                              </td>
+                              <td className="p-3.5 text-right flex items-center justify-end gap-2">
+                                <button onClick={() => alert('Editar unidade')} className="text-indigo-600 font-bold hover:underline">Editar</button>
                               </td>
                             </tr>
                           ))
@@ -524,7 +530,7 @@ export default function CondominiosPage() {
                               <td className="p-3.5"><span className="bg-slate-100 px-2 py-0.5 rounded font-bold">{exp.category}</span></td>
                               <td className="p-3.5">{new Date(exp.dueDate).toLocaleDateString('pt-BR')}</td>
                               <td className="p-3.5 font-bold text-indigo-600">R$ {Number(exp.amount).toFixed(2)}</td>
-                              <td className="p-3.5 text-right">
+                              <td className="p-3.5 text-right flex items-center justify-end gap-2">
                                 <button onClick={() => alert('Editar despesa')} className="text-indigo-600 font-bold hover:underline">Editar</button>
                               </td>
                             </tr>
@@ -592,6 +598,7 @@ export default function CondominiosPage() {
                                     Baixa Manual
                                   </button>
                                 )}
+                                <button onClick={() => alert('Editar boleto')} className="text-indigo-600 font-bold hover:underline">Editar</button>
                               </td>
                             </tr>
                           ))
@@ -691,7 +698,7 @@ export default function CondominiosPage() {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-slate-600 mb-1">Solicitante (Proprietário / Inquilino)</label>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Solicitante (Prop./Inq.)</label>
                       <select required value={reservationForm.reservedBy} onChange={e => setReservationForm({...reservationForm, reservedBy: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs bg-white font-medium">
                         <option value="">Selecione o solicitante</option>
                         {allResidents.map((res: any) => (
