@@ -638,26 +638,17 @@ export default function PortalDashboardPage() {
           </div>
         )}
 
-        {/* ======================= ABA 2: BOLETOS DE CONTRATO / ADITIVOS / CONDOMÍNIO ======================= */}
+        {/* ======================= ABA 2: BOLETOS DE CONTRATO / ALUGUEL (SEPARADOS) ======================= */}
         {activeTab === 'boletos' && (
           <div className="space-y-4">
-            <h3 className="font-bold text-slate-800 text-lg">Meus Boletos e Faturas</h3>
-            {(() => {
-              const allInvoices = [
-                ...(contracts.flatMap(c => c.invoices || []).map((inv: any) => ({ ...inv, type: 'Contrato de Locação' }))),
-                ...(condoBills.map((b: any) => ({ ...b, type: 'Taxa Condominial', totalAmount: b.amount })))
-              ];
-
-              if (allInvoices.length === 0) {
-                return (
-                  <div className="bg-white p-8 rounded-2xl text-center border border-slate-200 shadow-sm">
-                    <DollarSign size={36} className="mx-auto text-slate-300 mb-2"/>
-                    <p className="text-sm text-slate-500">Nenhum boleto gerado no momento.</p>
-                  </div>
-                );
-              }
-
-              return allInvoices.map((invoice: any) => {
+            <h3 className="font-bold text-slate-800 text-lg">Meus Boletos de Aluguel</h3>
+            {contracts.flatMap(c => c.invoices || []).length === 0 ? (
+              <div className="bg-white p-8 rounded-2xl text-center border border-slate-200 shadow-sm">
+                <DollarSign size={36} className="mx-auto text-slate-300 mb-2"/>
+                <p className="text-sm text-slate-500">Nenhum boleto de aluguel gerado no momento.</p>
+              </div>
+            ) : (
+              contracts.flatMap(c => c.invoices || []).map((invoice: any) => {
                 const isPaid = invoice.status === 'Pago';
                 const isLate = invoice.status === 'Atrasado';
                 return (
@@ -668,11 +659,11 @@ export default function PortalDashboardPage() {
                       </div>
                       <div>
                         <div className="flex items-center gap-2 mb-0.5">
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700">{invoice.type}</span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-50 text-blue-700">Contrato de Locação</span>
                           <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${isPaid ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>{invoice.status || 'Pendente'}</span>
                         </div>
                         <p className="font-bold text-slate-800">Vencimento: {new Date(invoice.dueDate).toLocaleDateString('pt-BR')}</p>
-                        <p className="text-sm text-slate-500">{invoice.description || invoice.referenceMonth || 'Parcela Mensal'}</p>
+                        <p className="text-sm text-slate-500">{invoice.description || 'Parcela Mensal'}</p>
                       </div>
                     </div>
                     <div className="flex items-center justify-between w-full sm:w-auto gap-4">
@@ -685,8 +676,8 @@ export default function PortalDashboardPage() {
                     </div>
                   </div>
                 );
-              });
-            })()}
+              })
+            )}
           </div>
         )}
 
