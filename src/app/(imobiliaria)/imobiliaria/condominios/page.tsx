@@ -39,6 +39,18 @@ export default function CondominiosPage() {
   const [isConsumptionEditModalOpen, setIsConsumptionEditModalOpen] = useState(false);
   const [editingConsumption, setEditingConsumption] = useState<any | null>(null);
 
+  const [isReservationEditModalOpen, setIsReservationEditModalOpen] = useState(false);
+  const [editingReservation, setEditingReservation] = useState<any | null>(null);
+
+  const [isOccurrenceEditModalOpen, setIsOccurrenceEditModalOpen] = useState(false);
+  const [editingOccurrence, setEditingOccurrence] = useState<any | null>(null);
+
+  const [isAgreementEditModalOpen, setIsAgreementEditModalOpen] = useState(false);
+  const [editingAgreement, setEditingAgreement] = useState<any | null>(null);
+
+  const [isAssemblyEditModalOpen, setIsAssemblyEditModalOpen] = useState(false);
+  const [editingAssembly, setEditingAssembly] = useState<any | null>(null);
+
   // Modal de Detalhes / Gestão Avançada do Condomínio
   const [selectedCondo, setSelectedCondo] = useState<any | null>(null);
   const [activeTab, setActiveTab] = useState<'unidades' | 'rateio' | 'boletos' | 'consumo' | 'acordos' | 'reservas' | 'ocorrencias' | 'assembleias' | 'config'>('unidades');
@@ -275,6 +287,119 @@ export default function CondominiosPage() {
     } catch (err) { alert('Erro ao atualizar leitura.'); }
   };
 
+  // Funções de Acordos / Inadimplência
+  const handleCreateAgreement = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await api.post(`/condominiums/${selectedCondo.id}/agreements`, agreementForm);
+      alert('Acordo formalizado e parcelas geradas!');
+      setAgreementForm({ unitId: '', totalDebt: '', installments: '3' });
+      fetchInitialData();
+    } catch (err) { alert('Erro ao registrar acordo.'); }
+  };
+
+  const handleUpdateAgreement = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingAgreement) return;
+    try {
+      await api.put(`/condominiums/agreements/${editingAgreement.id}`, {
+        totalDebt: Number(editingAgreement.totalDebt),
+        installments: Number(editingAgreement.installments),
+        status: editingAgreement.status
+      });
+      alert('Acordo atualizado com sucesso!');
+      setIsAgreementEditModalOpen(false);
+      setEditingAgreement(null);
+      fetchInitialData();
+    } catch (err) { alert('Erro ao atualizar acordo.'); }
+  };
+
+  // Funções de Reservas (Áreas Comuns)
+  const handleAddReservation = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await api.post(`/condominiums/${selectedCondo.id}/reservations`, reservationForm);
+      alert('Reserva agendada com sucesso!');
+      setReservationForm({ areaName: 'Salão de Festas', reservedBy: '', reservationDate: '', notes: '' });
+      fetchInitialData();
+    } catch (err) { alert('Erro ao registrar reserva.'); }
+  };
+
+  const handleUpdateReservation = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingReservation) return;
+    try {
+      await api.put(`/condominiums/reservations/${editingReservation.id}`, {
+        areaName: editingReservation.areaName,
+        reservedBy: editingReservation.reservedBy,
+        reservationDate: editingReservation.reservationDate,
+        notes: editingReservation.notes
+      });
+      alert('Reserva atualizada com sucesso!');
+      setIsReservationEditModalOpen(false);
+      setEditingReservation(null);
+      fetchInitialData();
+    } catch (err) { alert('Erro ao atualizar reserva.'); }
+  };
+
+  // Funções de Ocorrências
+  const handleAddOccurrence = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await api.post(`/condominiums/${selectedCondo.id}/occurrences`, occurrenceForm);
+      alert('Ocorrência registrada!');
+      setOccurrenceForm({ title: '', description: '', reportedBy: '', priority: 'Normal' });
+      fetchInitialData();
+    } catch (err) { alert('Erro ao registrar ocorrência.'); }
+  };
+
+  const handleUpdateOccurrence = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingOccurrence) return;
+    try {
+      await api.put(`/condominiums/occurrences/${editingOccurrence.id}`, {
+        title: editingOccurrence.title,
+        description: editingOccurrence.description,
+        reportedBy: editingOccurrence.reportedBy,
+        priority: editingOccurrence.priority,
+        status: editingOccurrence.status
+      });
+      alert('Ocorrência atualizada com sucesso!');
+      setIsOccurrenceEditModalOpen(false);
+      setEditingOccurrence(null);
+      fetchInitialData();
+    } catch (err) { alert('Erro ao atualizar ocorrência.'); }
+  };
+
+  // Funções de Reuniões & Atas (Assembleias)
+  const handleAddAssembly = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await api.post(`/condominiums/${selectedCondo.id}/assemblies`, assemblyForm);
+      alert('Assembleia / Reunião cadastrada e publicada no portal!');
+      setAssemblyForm({ title: '', assemblyDate: '', description: '', status: 'Agendada', minutesUrl: '' });
+      fetchInitialData();
+    } catch (err) { alert('Erro ao cadastrar assembleia.'); }
+  };
+
+  const handleUpdateAssembly = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingAssembly) return;
+    try {
+      await api.put(`/condominiums/assemblies/${editingAssembly.id}`, {
+        title: editingAssembly.title,
+        assemblyDate: editingAssembly.assemblyDate,
+        description: editingAssembly.description,
+        status: editingAssembly.status,
+        minutesUrl: editingAssembly.minutesUrl
+      });
+      alert('Assembleia / Reunião atualizada com sucesso!');
+      setIsAssemblyEditModalOpen(false);
+      setEditingAssembly(null);
+      fetchInitialData();
+    } catch (err) { alert('Erro ao atualizar assembleia.'); }
+  };
+
   const handleGenerateBills = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -302,16 +427,6 @@ export default function CondominiosPage() {
     } catch (err) { alert('Erro ao registrar leitura de consumo.'); }
   };
 
-  const handleCreateAgreement = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      await api.post(`/condominiums/${selectedCondo.id}/agreements`, agreementForm);
-      alert('Acordo formalizado e parcelas geradas!');
-      setAgreementForm({ unitId: '', totalDebt: '', installments: '3' });
-      fetchInitialData();
-    } catch (err) { alert('Erro ao registrar acordo.'); }
-  };
-
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -319,36 +434,6 @@ export default function CondominiosPage() {
       alert('Configurações de juros e multa atualizadas!');
       fetchInitialData();
     } catch (err) { alert('Erro ao salvar configurações.'); }
-  };
-
-  const handleAddReservation = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      await api.post(`/condominiums/${selectedCondo.id}/reservations`, reservationForm);
-      alert('Reserva agendada com sucesso!');
-      setReservationForm({ areaName: 'Salão de Festas', reservedBy: '', reservationDate: '', notes: '' });
-      fetchInitialData();
-    } catch (err) { alert('Erro ao registrar reserva.'); }
-  };
-
-  const handleAddOccurrence = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      await api.post(`/condominiums/${selectedCondo.id}/occurrences`, occurrenceForm);
-      alert('Ocorrência registrada!');
-      setOccurrenceForm({ title: '', description: '', reportedBy: '', priority: 'Normal' });
-      fetchInitialData();
-    } catch (err) { alert('Erro ao registrar ocorrência.'); }
-  };
-
-  const handleAddAssembly = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      await api.post(`/condominiums/${selectedCondo.id}/assemblies`, assemblyForm);
-      alert('Assembleia / Reunião cadastrada e publicada no portal!');
-      setAssemblyForm({ title: '', assemblyDate: '', description: '', status: 'Agendada', minutesUrl: '' });
-      fetchInitialData();
-    } catch (err) { alert('Erro ao cadastrar assembleia.'); }
   };
 
   if (isLoading) {
@@ -467,10 +552,10 @@ export default function CondominiosPage() {
                 { id: 'rateio', label: `Despesas (${selectedCondo.expenses?.length || 0})`, icon: DollarSign },
                 { id: 'boletos', label: `Boletos & Rateio (${selectedCondo.bills?.length || 0})`, icon: FileText },
                 { id: 'consumo', label: `Consumo IA (${selectedCondo.readings?.length || 0})`, icon: Zap },
-                { id: 'acordos', label: `Acordos`, icon: Calculator },
-                { id: 'reservas', label: `Áreas Comuns`, icon: Calendar },
-                { id: 'ocorrencias', label: `Ocorrências`, icon: AlertTriangle },
-                { id: 'assembleias', label: `Reuniões & Atas`, icon: Users },
+                { id: 'acordos', label: `Acordos (${selectedCondo.agreements?.length || 0})`, icon: Calculator },
+                { id: 'reservas', label: `Áreas Comuns (${selectedCondo.reservations?.length || 0})`, icon: Calendar },
+                { id: 'ocorrencias', label: `Ocorrências (${selectedCondo.occurrences?.length || 0})`, icon: AlertTriangle },
+                { id: 'assembleias', label: `Reuniões & Atas (${selectedCondo.assemblies?.length || 0})`, icon: Users },
                 { id: 'config', label: `Juros & Multas`, icon: Edit },
               ].map(tab => {
                 const Icon = tab.icon;
@@ -772,7 +857,7 @@ export default function CondominiosPage() {
                 </div>
               )}
 
-              {/* ABA 5: ACORDOS */}
+              {/* ABA 5: ACORDOS / INADIMPLÊNCIA (COM LISTAGEM E EDIÇÃO) */}
               {activeTab === 'acordos' && (
                 <div className="space-y-6">
                   <form onSubmit={handleCreateAgreement} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
@@ -799,6 +884,41 @@ export default function CondominiosPage() {
                       </button>
                     </div>
                   </form>
+
+                  <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-100 text-slate-600 font-bold uppercase tracking-wider">
+                        <tr>
+                          <th className="p-3.5">Unidade</th>
+                          <th className="p-3.5">Dívida Total</th>
+                          <th className="p-3.5">Parcelas</th>
+                          <th className="p-3.5 text-center">Status</th>
+                          <th className="p-3.5 text-right">Ações</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
+                        {(selectedCondo.agreements || []).length === 0 ? (
+                          <tr><td colSpan={5} className="p-8 text-center text-slate-400">Nenhum acordo registrado.</td></tr>
+                        ) : (
+                          (selectedCondo.agreements || []).map((ag: any) => (
+                            <tr key={ag.id}>
+                              <td className="p-3.5 font-bold text-slate-900">Unidade {ag.unit?.unitNumber}</td>
+                              <td className="p-3.5 font-bold text-indigo-600">R$ {Number(ag.totalDebt).toFixed(2)}</td>
+                              <td className="p-3.5">{ag.installments}x</td>
+                              <td className="p-3.5 text-center">
+                                <span className="px-2 py-0.5 rounded font-bold text-[10px] bg-emerald-100 text-emerald-800">
+                                  {ag.status || 'Ativo'}
+                                </span>
+                              </td>
+                              <td className="p-3.5 text-right">
+                                <button onClick={() => { setEditingAgreement(ag); setIsAgreementEditModalOpen(true); }} className="text-indigo-600 font-bold hover:underline">Editar</button>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               )}
 
@@ -858,7 +978,7 @@ export default function CondominiosPage() {
                               <td className="p-3.5">{resv.reservedBy}</td>
                               <td className="p-3.5">{new Date(resv.reservationDate).toLocaleString('pt-BR')}</td>
                               <td className="p-3.5 text-right">
-                                <button onClick={() => alert('Editar reserva')} className="text-indigo-600 font-bold hover:underline">Editar</button>
+                                <button onClick={() => { setEditingReservation(resv); setIsReservationEditModalOpen(true); }} className="text-indigo-600 font-bold hover:underline">Editar</button>
                               </td>
                             </tr>
                           ))
@@ -917,7 +1037,7 @@ export default function CondominiosPage() {
                               <td className="p-3.5 text-slate-600">{occ.description}</td>
                               <td className="p-3.5">{occ.reportedBy}</td>
                               <td className="p-3.5 text-right">
-                                <button onClick={() => alert('Editar ocorrência')} className="text-indigo-600 font-bold hover:underline">Editar</button>
+                                <button onClick={() => { setEditingOccurrence(occ); setIsOccurrenceEditModalOpen(true); }} className="text-indigo-600 font-bold hover:underline">Editar</button>
                               </td>
                             </tr>
                           ))
@@ -997,7 +1117,7 @@ export default function CondominiosPage() {
                                 ) : (
                                   <span className="text-slate-400">Pendente</span>
                                 )}
-                                <button onClick={() => alert('Editar assembleia')} className="text-indigo-600 font-bold hover:underline">Editar</button>
+                                <button onClick={() => { setEditingAssembly(asm); setIsAssemblyEditModalOpen(true); }} className="text-indigo-600 font-bold hover:underline">Editar</button>
                               </td>
                             </tr>
                           ))
@@ -1201,6 +1321,173 @@ export default function CondominiosPage() {
               </div>
               <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition-all">
                 Salvar Alterações da Leitura
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL: EDITAR ACORDO (INADIMPLÊNCIA)                      */}
+      {/* ========================================================= */}
+      {isAgreementEditModalOpen && editingAgreement && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <h2 className="font-bold text-slate-800 flex items-center gap-2"><Edit size={18}/> Editar Acordo / Inadimplência</h2>
+              <button onClick={() => setIsAgreementEditModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-600"><X size={18} /></button>
+            </div>
+            <form onSubmit={handleUpdateAgreement} className="p-6 space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-slate-600 mb-1">Valor Total da Dívida (R$)</label>
+                <input required type="number" step="0.01" value={editingAgreement.totalDebt} onChange={e => setEditingAgreement({...editingAgreement, totalDebt: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl" />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-600 mb-1">Nº de Parcelas</label>
+                <input required type="number" min="1" max="24" value={editingAgreement.installments} onChange={e => setEditingAgreement({...editingAgreement, installments: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl" />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-600 mb-1">Status</label>
+                <select value={editingAgreement.status || 'Ativo'} onChange={e => setEditingAgreement({...editingAgreement, status: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white">
+                  <option value="Ativo">Ativo</option>
+                  <option value="Quitado">Quitado</option>
+                  <option value="Cancelado">Cancelado</option>
+                </select>
+              </div>
+              <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition-all">
+                Salvar Alterações do Acordo
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL: EDITAR RESERVA (ÁREAS COMUNS)                      */}
+      {/* ========================================================= */}
+      {isReservationEditModalOpen && editingReservation && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <h2 className="font-bold text-slate-800 flex items-center gap-2"><Edit size={18}/> Editar Reserva de Área Comum</h2>
+              <button onClick={() => setIsReservationEditModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-600"><X size={18} /></button>
+            </div>
+            <form onSubmit={handleUpdateReservation} className="p-6 space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-slate-600 mb-1">Área Comum</label>
+                <select value={editingReservation.areaName} onChange={e => setEditingReservation({...editingReservation, areaName: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white font-medium">
+                  <option value="Salão de Festas">Salão de Festas</option>
+                  <option value="Churrasqueira">Churrasqueira</option>
+                  <option value="Quadra Esportiva">Quadra Esportiva</option>
+                  <option value="Espaço Gourmet">Espaço Gourmet</option>
+                </select>
+              </div>
+              <div>
+                <label className="block font-bold text-slate-600 mb-1">Solicitante</label>
+                <select value={editingReservation.reservedBy} onChange={e => setEditingReservation({...editingReservation, reservedBy: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white font-medium">
+                  <option value="">Selecione o solicitante</option>
+                  {allResidents.map((res: any) => (
+                    <option key={res.id} value={res.name}>{res.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block font-bold text-slate-600 mb-1">Data & Hora</label>
+                <input required type="datetime-local" value={editingReservation.reservationDate ? editingReservation.reservationDate.slice(0, 16) : ''} onChange={e => setEditingReservation({...editingReservation, reservationDate: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl" />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-600 mb-1">Observações</label>
+                <input type="text" value={editingReservation.notes || ''} onChange={e => setEditingReservation({...editingReservation, notes: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl" />
+              </div>
+              <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition-all">
+                Salvar Alterações da Reserva
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL: EDITAR OCORRÊNCIA                                  */}
+      {/* ========================================================= */}
+      {isOccurrenceEditModalOpen && editingOccurrence && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <h2 className="font-bold text-slate-800 flex items-center gap-2"><Edit size={18}/> Editar Ocorrência</h2>
+              <button onClick={() => setIsOccurrenceEditModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-600"><X size={18} /></button>
+            </div>
+            <form onSubmit={handleUpdateOccurrence} className="p-6 space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-slate-600 mb-1">Assunto</label>
+                <input required type="text" value={editingOccurrence.title} onChange={e => setEditingOccurrence({...editingOccurrence, title: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl" />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-600 mb-1">Descrição</label>
+                <textarea required rows={3} value={editingOccurrence.description} onChange={e => setEditingOccurrence({...editingOccurrence, description: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl resize-none" />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-600 mb-1">Reportado Por</label>
+                <select value={editingOccurrence.reportedBy} onChange={e => setEditingOccurrence({...editingOccurrence, reportedBy: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white font-medium">
+                  <option value="">Selecione o morador</option>
+                  {allResidents.map((res: any) => (
+                    <option key={res.id} value={res.name}>{res.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block font-bold text-slate-600 mb-1">Prioridade</label>
+                <select value={editingOccurrence.priority} onChange={e => setEditingOccurrence({...editingOccurrence, priority: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white font-medium">
+                  <option value="Baixa">Baixa</option>
+                  <option value="Normal">Normal</option>
+                  <option value="Alta">Alta</option>
+                </select>
+              </div>
+              <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition-all">
+                Salvar Alterações da Ocorrência
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL: EDITAR ASSEMBLEIA / ATA (REUNIÕES)                 */}
+      {/* ========================================================= */}
+      {isAssemblyEditModalOpen && editingAssembly && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <h2 className="font-bold text-slate-800 flex items-center gap-2"><Edit size={18}/> Editar Reunião / Assembleia</h2>
+              <button onClick={() => setIsAssemblyEditModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-600"><X size={18} /></button>
+            </div>
+            <form onSubmit={handleUpdateAssembly} className="p-6 space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-slate-600 mb-1">Título / Reunião</label>
+                <input required type="text" value={editingAssembly.title} onChange={e => setEditingAssembly({...editingAssembly, title: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl" />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-600 mb-1">Data & Hora</label>
+                <input required type="datetime-local" value={editingAssembly.assemblyDate ? editingAssembly.assemblyDate.slice(0, 16) : ''} onChange={e => setEditingAssembly({...editingAssembly, assemblyDate: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl" />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-600 mb-1">Status</label>
+                <select value={editingAssembly.status} onChange={e => setEditingAssembly({...editingAssembly, status: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl bg-white font-medium">
+                  <option value="Agendada">Agendada</option>
+                  <option value="Em Andamento">Em Andamento</option>
+                  <option value="Encerrada">Encerrada (Com Ata)</option>
+                </select>
+              </div>
+              <div>
+                <label className="block font-bold text-slate-600 mb-1">Link da Ata (PDF/Drive)</label>
+                <input type="text" value={editingAssembly.minutesUrl || ''} onChange={e => setEditingAssembly({...editingAssembly, minutesUrl: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl" />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-600 mb-1">Descrição / Pauta</label>
+                <textarea required rows={3} value={editingAssembly.description} onChange={e => setEditingAssembly({...editingAssembly, description: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl resize-none" />
+              </div>
+              <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition-all">
+                Salvar Alterações da Reunião
               </button>
             </form>
           </div>
