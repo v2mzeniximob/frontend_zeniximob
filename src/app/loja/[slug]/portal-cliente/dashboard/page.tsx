@@ -7,7 +7,7 @@ import {
   LogOut, Home, FileText, Wrench, DollarSign, AlertCircle, 
   CheckCircle, Clock, Plus, Building, User, Loader2, X,
   MapPin, MessageSquare, Send, Globe, Calendar, Key, Sparkles, RefreshCw,
-  HardHat, Layers, Copy, ExternalLink, Compass, Building2, Users
+  HardHat, Layers, Copy, ExternalLink, Compass, Building2, Users, AlertTriangle
 } from 'lucide-react';
 import { api } from '@/src/lib/api';
 
@@ -22,9 +22,12 @@ export default function PortalDashboardPage() {
   const [contracts, setContracts] = useState<any[]>([]);
   const [tickets, setTickets] = useState<any[]>([]);
   const [properties, setProperties] = useState<any[]>([]);
+  
+  // Estados do Condomínio
   const [condoBills, setCondoBills] = useState<any[]>([]);
   const [condoReservations, setCondoReservations] = useState<any[]>([]);
   const [condoAssemblies, setCondoAssemblies] = useState<any[]>([]);
+  const [condoOccurrences, setCondoOccurrences] = useState<any[]>([]);
    
   // Estados para Temporada (Reais)
   const [seasonProperties, setSeasonProperties] = useState<any[]>([]);
@@ -47,7 +50,12 @@ export default function PortalDashboardPage() {
   const [reservationForm, setReservationForm] = useState({ areaName: 'Salão de Festas', reservationDate: '', notes: '' });
   const [isSavingReservation, setIsSavingReservation] = useState(false);
 
-  // Modal Novo Chamado
+  // Modal Nova Ocorrência do Condomínio
+  const [isOccurrenceModalOpen, setIsOccurrenceModalOpen] = useState(false);
+  const [occurrenceForm, setOccurrenceForm] = useState({ title: '', description: '', priority: 'Normal' });
+  const [isSavingOccurrence, setIsSavingOccurrence] = useState(false);
+
+  // Modal Novo Chamado de Manutenção
   const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
   const [isSavingTicket, setIsSavingTicket] = useState(false);
   const [ticketForm, setTicketForm] = useState({
@@ -93,6 +101,7 @@ export default function PortalDashboardPage() {
       if (response.data.condoBills) setCondoBills(response.data.condoBills);
       if (response.data.condoReservations) setCondoReservations(response.data.condoReservations);
       if (response.data.condoAssemblies) setCondoAssemblies(response.data.condoAssemblies);
+      if (response.data.condoOccurrences) setCondoOccurrences(response.data.condoOccurrences);
        
       // Dados reais de temporada retornados pelo backend
       if (response.data.seasonProperties) {
@@ -170,6 +179,22 @@ export default function PortalDashboardPage() {
       alert(error.response?.data?.error || 'Erro ao registrar reserva.');
     } finally {
       setIsSavingReservation(false);
+    }
+  };
+
+  const handleCreateOccurrence = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSavingOccurrence(true);
+    try {
+      await api.post('/portal/condo/occurrences', occurrenceForm);
+      alert('Ocorrência registrada no condomínio com sucesso!');
+      setIsOccurrenceModalOpen(false);
+      setOccurrenceForm({ title: '', description: '', priority: 'Normal' });
+      fetchDashboardData();
+    } catch (error: any) {
+      alert(error.response?.data?.error || 'Erro ao registrar ocorrência.');
+    } finally {
+      setIsSavingOccurrence(false);
     }
   };
 
@@ -538,68 +563,121 @@ export default function PortalDashboardPage() {
             <Building2 size={16}/> Condomínio & Atas
           </button>
           <button onClick={() => setActiveTab('incorporadora')} className={`flex-1 py-2.5 px-3 text-xs sm:text-sm font-bold rounded-lg transition-colors flex items-center justify-center gap-2 whitespace-nowrap ${activeTab === 'incorporadora' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:text-slate-700'}`}>
-            <HardHat size={16}/> Obras
+            <HardHat size={16}/> Obra & Personalização
+          </button>
+          <button onClick={() => setActiveTab('temporada')} className={`flex-1 py-2.5 px-3 text-xs sm:text-sm font-bold rounded-lg transition-colors flex items-center justify-center gap-2 whitespace-nowrap ${activeTab === 'temporada' ? 'bg-blue-50 text-blue-700' : 'text-slate-500 hover:text-slate-700'}`}>
+            <Calendar size={16}/> Temporada & OTAs
           </button>
           <button onClick={() => setActiveTab('manutencao')} className={`flex-1 py-2.5 px-3 text-xs sm:text-sm font-bold rounded-lg transition-colors flex items-center justify-center gap-2 whitespace-nowrap ${activeTab === 'manutencao' ? 'bg-blue-50 text-blue-700' : 'text-slate-500 hover:text-slate-700'}`}>
             <Wrench size={16}/> Manutenção
           </button>
         </div>
 
-        {/* ======================= CONTEÚDO DAS ABAS ======================= */}
+        {/* ======================= ABA 1: RESUMO (MEU CONTRATO / MEUS IMÓVEIS) ======================= */}
         {activeTab === 'resumo' && (
           <div className="space-y-4">
             {user?.role === 'CLIENT' ? (
               contracts.length === 0 ? (
-                <div className="bg-white p-8 rounded-2xl text-center border border-slate-200 shadow-sm"><AlertCircle size={40} className="mx-auto text-slate-300 mb-3" /><h3 className="font-bold text-slate-700">Nenhum contrato ativo</h3></div>
+                <div className="bg-white p-8 rounded-2xl text-center border border-slate-200 shadow-sm">
+                  <AlertCircle size={40} className="mx-auto text-slate-300 mb-3" />
+                  <h3 className="font-bold text-slate-700">Nenhum contrato ativo</h3>
+                </div>
               ) : (
                 contracts.map(contract => (
-                  <div key={contract.id} className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-                    <h2 className="text-lg font-black text-slate-800">{contract.property?.title}</h2>
-                    <p className="text-sm text-slate-500 flex items-center gap-1.5 mt-1"><MapPin size={14}/> {contract.property?.address}</p>
-                    <p className="text-blue-600 font-bold mt-4">Valor Mensal: {formatCurrency(contract.rentValue)}</p>
+                  <div key={contract.id} className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div className="h-32 bg-slate-200 relative">
+                      {contract.property?.coverImage ? (
+                        <img src={contract.property.coverImage} alt="Imóvel" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full bg-blue-100 flex items-center justify-center text-blue-300"><Building size={40}/></div>
+                      )}
+                      <div className="absolute top-4 left-4 bg-white/90 backdrop-blur px-3 py-1 rounded-full text-xs font-bold text-slate-700 shadow-sm">Contrato Ativo</div>
+                    </div>
+                    <div className="p-6">
+                      <h2 className="text-lg font-black text-slate-800">{contract.property?.title}</h2>
+                      <p className="text-sm text-slate-500 flex items-center gap-1.5 mt-1"><MapPin size={14}/> {contract.property?.address}</p>
+                      <div className="mt-6 grid grid-cols-2 gap-4 border-t border-slate-100 pt-6">
+                        <div>
+                          <p className="text-xs font-bold text-slate-400 uppercase">Valor Mensal / Parcela</p>
+                          <p className="text-lg font-black text-blue-600">{formatCurrency(contract.rentValue)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-slate-400 uppercase">Vencimento</p>
+                          <p className="text-lg font-black text-slate-700">Dia {contract.dueDate || '10'}</p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 ))
               )
             ) : (
               properties.length === 0 ? (
-                <div className="bg-white p-8 rounded-2xl text-center border border-slate-200 shadow-sm"><AlertCircle size={40} className="mx-auto text-slate-300 mb-3" /><h3 className="font-bold text-slate-700">Nenhum imóvel vinculado</h3></div>
+                <div className="bg-white p-8 rounded-2xl text-center border border-slate-200 shadow-sm">
+                  <AlertCircle size={40} className="mx-auto text-slate-300 mb-3" />
+                  <h3 className="font-bold text-slate-700">Nenhum imóvel vinculado</h3>
+                </div>
               ) : (
-                properties.map(prop => (
-                  <div key={prop.id} className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-                    <h3 className="text-lg font-black text-slate-800">{prop.title}</h3>
-                    <p className="text-sm text-slate-500 mt-1">{prop.address}</p>
-                  </div>
-                ))
+                properties.map(property => {
+                  const isRented = property.rentStatus === 'Alugado';
+                  return (
+                    <div key={property.id} className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                      <div className="p-6 flex justify-between items-start">
+                        <div>
+                          <h3 className="text-lg font-black text-slate-800">{property.title}</h3>
+                          <p className="text-sm text-slate-500 mt-1 flex items-center gap-1.5"><MapPin size={14}/> {property.address}</p>
+                        </div>
+                        <span className={`text-[10px] font-bold px-2.5 py-1 rounded border uppercase tracking-wider ${isRented ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>
+                          {isRented ? 'Alugado' : 'Vago'}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })
               )
             )}
           </div>
         )}
 
+        {/* ======================= ABA 2: BOLETOS DE CONTRATO / ADITIVOS ======================= */}
         {activeTab === 'boletos' && (
           <div className="space-y-4">
-            <h3 className="font-bold text-slate-800 text-lg">Meus Boletos</h3>
+            <h3 className="font-bold text-slate-800 text-lg">Meus Boletos e Aditivos</h3>
             {contracts.flatMap(c => c.invoices || []).length === 0 ? (
-              <p className="text-sm text-slate-500">Nenhum boleto gerado no momento.</p>
+              <div className="bg-white p-8 rounded-2xl text-center border border-slate-200 shadow-sm">
+                <DollarSign size={36} className="mx-auto text-slate-300 mb-2"/>
+                <p className="text-sm text-slate-500">Nenhum boleto gerado no momento.</p>
+              </div>
             ) : (
-              contracts.flatMap(c => c.invoices || []).map((invoice: any) => (
-                <div key={invoice.id} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex justify-between items-center">
-                  <div>
-                    <p className="font-bold text-slate-800">Vencimento: {new Date(invoice.dueDate).toLocaleDateString('pt-BR')}</p>
-                    <p className="text-sm text-slate-500">{invoice.description || 'Parcela Mensal'}</p>
+              contracts.flatMap(c => c.invoices || []).map((invoice: any) => {
+                const isPaid = invoice.status === 'Pago';
+                const isLate = invoice.status === 'Atrasado';
+                return (
+                  <div key={invoice.id} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div className="flex items-center gap-4">
+                      <div className={`w-12 h-12 rounded-full flex items-center justify-center ${isPaid ? 'bg-emerald-50 text-emerald-600' : isLate ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-600'}`}>
+                        {isPaid ? <CheckCircle size={24}/> : isLate ? <AlertCircle size={24}/> : <Clock size={24}/>}
+                      </div>
+                      <div>
+                        <p className="font-bold text-slate-800">Vencimento: {new Date(invoice.dueDate).toLocaleDateString('pt-BR')}</p>
+                        <p className="text-sm text-slate-500">{invoice.description || 'Parcela Mensal'}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between w-full sm:w-auto gap-4">
+                      <p className="font-black text-lg text-slate-800">{formatCurrency(invoice.totalAmount || invoice.value || invoice.amount)}</p>
+                      {!isPaid && (
+                        <button onClick={() => handlePayment(invoice)} className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-4 py-2 rounded-lg shadow-sm transition-colors flex items-center gap-1.5">
+                          <DollarSign size={14}/> Pagar
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-4">
-                    <p className="font-black text-lg text-slate-800">{formatCurrency(invoice.totalAmount)}</p>
-                    {invoice.status !== 'Pago' && (
-                      <button onClick={() => handlePayment(invoice)} className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-4 py-2 rounded-lg"><DollarSign size={14}/> Pagar</button>
-                    )}
-                  </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         )}
 
-        {/* ======================= CONDOMÍNIO, ÁREAS COMUNS & ATAS ======================= */}
+        {/* ======================= ABA 3: CONDOMÍNIO, RESERVAS, ATAS & OCORRÊNCIAS ======================= */}
         {activeTab === 'condominio' && (
           <div className="space-y-8">
             
@@ -608,50 +686,67 @@ export default function PortalDashboardPage() {
               <div className="bg-gradient-to-r from-indigo-600 to-slate-900 p-6 rounded-2xl text-white shadow-md">
                 <span className="bg-white/20 text-white text-xs font-extrabold px-3 py-1 rounded-full uppercase tracking-wider">Taxas Condominiais</span>
                 <h3 className="text-xl font-bold mt-2">Boletos do Condomínio & Rateios</h3>
-                <p className="text-xs text-indigo-100 mt-1">Acompanhe as taxas ordinárias, fundos de reserva e consumo da sua unidade.</p>
+                <p className="text-xs text-indigo-100 mt-1">Acompanhe as taxas ordinárias, rateios de despesas e consumo individual da sua unidade.</p>
               </div>
               {condoBills.length === 0 ? (
-                <div className="bg-white p-6 rounded-2xl text-center border text-slate-400 text-xs">Nenhum boleto de condomínio em aberto.</div>
+                <div className="bg-white p-6 rounded-2xl text-center border border-slate-200 text-slate-400 text-xs">
+                  Nenhum boleto de condomínio em aberto para sua unidade.
+                </div>
               ) : (
-                condoBills.map((bill: any) => (
-                  <div key={bill.id} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex justify-between items-center">
-                    <div>
-                      <p className="font-bold text-slate-800">{bill.condominium?.name} — Unidade {bill.unit?.unitNumber}</p>
-                      <p className="text-xs text-slate-500">Ref: {bill.referenceMonth} • Vencimento: {new Date(bill.dueDate).toLocaleDateString('pt-BR')}</p>
+                condoBills.map((bill: any) => {
+                  const isPaid = bill.status === 'Pago';
+                  return (
+                    <div key={bill.id} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                      <div className="flex items-center gap-4">
+                        <div className={`w-12 h-12 rounded-full flex items-center justify-center ${isPaid ? 'bg-emerald-50 text-emerald-600' : 'bg-indigo-50 text-indigo-600'}`}>
+                          <Building2 size={24}/>
+                        </div>
+                        <div>
+                          <p className="font-bold text-slate-800">{bill.condominium?.name} — Unidade {bill.unit?.unitNumber}</p>
+                          <p className="text-xs text-slate-500">Ref: {bill.referenceMonth} • Vencimento: {new Date(bill.dueDate).toLocaleDateString('pt-BR')}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between w-full sm:w-auto gap-4">
+                        <p className="font-black text-lg text-indigo-600">{formatCurrency(bill.amount)}</p>
+                        {!isPaid && (
+                          <button onClick={() => handlePayment(bill)} className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2 rounded-lg shadow-sm flex items-center gap-1.5">
+                            <DollarSign size={14}/> Pagar Boleto
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-4">
-                      <p className="font-black text-lg text-indigo-600">{formatCurrency(bill.amount)}</p>
-                      {bill.status !== 'Pago' && (
-                        <button onClick={() => handlePayment(bill)} className="bg-indigo-600 text-white text-xs font-bold px-4 py-2 rounded-lg">Pagar</button>
-                      )}
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
 
             {/* 2. Reserva de Áreas Comuns */}
             <div className="space-y-4">
-              <div className="flex justify-between items-center">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                 <div>
-                  <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2"><Calendar size={20} className="text-indigo-600"/> Reserva de Áreas Comuns</h3>
-                  <p className="text-xs text-slate-500">Agende salão de festas, churrasqueira ou quadra esportiva.</p>
+                  <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">
+                    <Calendar size={20} className="text-indigo-600"/> Reserva de Áreas Comuns
+                  </h3>
+                  <p className="text-xs text-slate-500">Agende salão de festas, churrasqueira, espaço gourmet ou quadra esportiva.</p>
                 </div>
                 <button onClick={() => setIsReservationModalOpen(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl flex items-center gap-1.5 shadow-sm">
-                  <Plus size={16}/> Nova Reserva
+                  <Plus size={16}/> Agendar Espaço
                 </button>
               </div>
 
               {condoReservations.length === 0 ? (
-                <div className="bg-white p-6 rounded-2xl text-center border text-slate-400 text-xs">Nenhuma reserva realizada.</div>
+                <div className="bg-white p-6 rounded-2xl text-center border border-slate-200 text-slate-400 text-xs">
+                  Nenhum agendamento de área comum registrado neste condomínio.
+                </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {condoReservations.map((resv: any) => (
                     <div key={resv.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-2">
                       <div className="flex justify-between items-start">
                         <span className="font-bold text-slate-800 text-sm">{resv.areaName}</span>
-                        <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded">Confirmado</span>
+                        <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded">Agendado</span>
                       </div>
+                      <p className="text-xs text-slate-600 font-medium">Solicitante: {resv.reservedBy}</p>
                       <p className="text-xs text-slate-500">Data: {new Date(resv.reservationDate).toLocaleString('pt-BR')}</p>
                       {resv.notes && <p className="text-xs text-slate-400 italic">{resv.notes}</p>}
                     </div>
@@ -663,12 +758,16 @@ export default function PortalDashboardPage() {
             {/* 3. Reuniões, Assembleias & Atas */}
             <div className="space-y-4">
               <div>
-                <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2"><Users size={20} className="text-indigo-600"/> Reuniões, Assembleias & Atas</h3>
-                <p className="text-xs text-slate-500">Fique por dentro das datas de reuniões marcadas e consulte as atas de reuniões passadas.</p>
+                <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">
+                  <Users size={20} className="text-indigo-600"/> Reuniões, Assembleias & Atas
+                </h3>
+                <p className="text-xs text-slate-500">Fique por dentro das datas de reuniões marcadas e consulte ou baixe as atas das assembleias realizadas.</p>
               </div>
 
               {condoAssemblies.length === 0 ? (
-                <div className="bg-white p-6 rounded-2xl text-center border text-slate-400 text-xs">Nenhuma assembleia ou reunião registrada.</div>
+                <div className="bg-white p-6 rounded-2xl text-center border border-slate-200 text-slate-400 text-xs">
+                  Nenhuma assembleia ou reunião registrada no condomínio até o momento.
+                </div>
               ) : (
                 <div className="space-y-3">
                   {condoAssemblies.map((asm: any) => (
@@ -694,19 +793,178 @@ export default function PortalDashboardPage() {
               )}
             </div>
 
+            {/* 4. Ocorrências do Condomínio */}
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                <div>
+                  <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">
+                    <AlertTriangle size={20} className="text-amber-600"/> Ocorrências & Avisos do Condomínio
+                  </h3>
+                  <p className="text-xs text-slate-500">Acompanhe as ocorrências registradas ou comunique a administração.</p>
+                </div>
+                <button onClick={() => setIsOccurrenceModalOpen(true)} className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl flex items-center gap-1.5 shadow-sm">
+                  <Plus size={16}/> Registrar Ocorrência
+                </button>
+              </div>
+
+              {condoOccurrences.length === 0 ? (
+                <div className="bg-white p-6 rounded-2xl text-center border border-slate-200 text-slate-400 text-xs">
+                  Nenhuma ocorrência registrada neste condomínio.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {condoOccurrences.map((occ: any) => (
+                    <div key={occ.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-1.5">
+                      <div className="flex justify-between items-center">
+                        <h4 className="font-bold text-slate-800 text-sm">{occ.title}</h4>
+                        <span className="text-[10px] font-bold px-2.5 py-0.5 rounded bg-amber-100 text-amber-800">
+                          {occ.priority || 'Normal'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-600">{occ.description}</p>
+                      <p className="text-[11px] text-slate-400">Reportado por: {occ.reportedBy}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
           </div>
         )}
 
+        {/* ======================= ABA 4: INCORPORADORA ======================= */}
         {activeTab === 'incorporadora' && <IncorporadoraPortalSection />}
 
+        {/* ======================= ABA 5: TEMPORADA & OTAs (COMPLETA) ======================= */}
+        {activeTab === 'temporada' && (
+          <div className="space-y-6">
+            <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-6 rounded-2xl text-white shadow-md">
+              <span className="bg-white/20 text-white text-xs font-extrabold px-3 py-1 rounded-full uppercase tracking-wider">Short-Stay & OTAs</span>
+              <h3 className="text-xl font-bold mt-2">
+                {user?.role === 'OWNER' ? 'Gestão de Imóveis de Temporada & Sincronização iCal' : 'Suas Reservas de Aluguel por Temporada'}
+              </h3>
+              <p className="text-xs text-blue-100 mt-1">
+                {user?.role === 'OWNER'
+                  ? 'Sincronize a agenda dos seus imóveis com Airbnb, Booking.com e VRBO para evitar overbooking.'
+                  : 'Confira os detalhes das suas estadias e reservas de temporada.'}
+              </p>
+            </div>
+
+            {user?.role === 'OWNER' && seasonProperties.length > 0 && (
+              <div className="space-y-4">
+                <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                  <Globe size={18} className="text-blue-600"/> Integração de Calendários iCal (Airbnb / Booking / VRBO)
+                </h4>
+                {seasonProperties.map((prop: any) => (
+                  <div key={prop.id} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+                    <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                      <div>
+                        <h5 className="font-bold text-slate-800">{prop.title}</h5>
+                        <p className="text-xs text-slate-500">{prop.address}</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                      <div>
+                        <label className="block font-bold text-slate-600 mb-1">URL iCal Airbnb</label>
+                        <input
+                          type="text"
+                          placeholder="https://www.airbnb.com/calendar/ical/..."
+                          value={icalForm[prop.id]?.airbnbIcalUrl || ''}
+                          onChange={e => setIcalForm({
+                            ...icalForm,
+                            [prop.id]: { ...icalForm[prop.id], airbnbIcalUrl: e.target.value }
+                          })}
+                          className="w-full p-2.5 border border-slate-300 rounded-xl"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-bold text-slate-600 mb-1">URL iCal Booking.com</label>
+                        <input
+                          type="text"
+                          placeholder="https://admin.booking.com/..."
+                          value={icalForm[prop.id]?.bookingIcalUrl || ''}
+                          onChange={e => setIcalForm({
+                            ...icalForm,
+                            [prop.id]: { ...icalForm[prop.id], bookingIcalUrl: e.target.value }
+                          })}
+                          className="w-full p-2.5 border border-slate-300 rounded-xl"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-bold text-slate-600 mb-1">URL iCal VRBO / Expedia</label>
+                        <input
+                          type="text"
+                          placeholder="https://www.vrbo.com/icalendar/..."
+                          value={icalForm[prop.id]?.vrboIcalUrl || ''}
+                          onChange={e => setIcalForm({
+                            ...icalForm,
+                            [prop.id]: { ...icalForm[prop.id], vrboIcalUrl: e.target.value }
+                          })}
+                          className="w-full p-2.5 border border-slate-300 rounded-xl"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex justify-end">
+                      <button
+                        onClick={() => handleSaveIcal(prop.id)}
+                        disabled={isSavingIcal === prop.id}
+                        className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl flex items-center gap-1.5 disabled:opacity-50"
+                      >
+                        {isSavingIcal === prop.id ? <Loader2 size={14} className="animate-spin"/> : <RefreshCw size={14}/>}
+                        Salvar e Sincronizar Calendários
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="space-y-4">
+              <h4 className="font-bold text-slate-800 text-sm">Reservas de Temporada</h4>
+              {seasonBookings.length === 0 ? (
+                <div className="bg-white p-8 rounded-2xl text-center border border-slate-200 shadow-sm">
+                  <Calendar size={40} className="mx-auto text-slate-300 mb-3" />
+                  <h3 className="font-bold text-slate-700">Nenhuma estadia por temporada registrada</h3>
+                </div>
+              ) : (
+                seasonBookings.map((b: any) => (
+                  <div key={b.id} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div>
+                      <h4 className="font-bold text-slate-800 text-base">{b.property?.title || 'Imóvel de Temporada'}</h4>
+                      <p className="text-xs text-slate-500 flex items-center gap-1 mt-1"><MapPin size={14}/> {b.property?.address}</p>
+                      {b.checkIn && b.checkOut && (
+                        <p className="text-xs text-blue-600 font-bold mt-2">
+                          Check-in: {new Date(b.checkIn).toLocaleDateString('pt-BR')} • Check-out: {new Date(b.checkOut).toLocaleDateString('pt-BR')}
+                        </p>
+                      )}
+                    </div>
+                    {b.totalAmount && (
+                      <div className="text-right">
+                        <span className="text-[10px] font-bold uppercase text-slate-400 block">Total da Reserva</span>
+                        <span className="text-lg font-black text-emerald-600">{formatCurrency(b.totalAmount)}</span>
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ======================= ABA 6: MANUTENÇÃO ======================= */}
         {activeTab === 'manutencao' && (
           <div className="space-y-4">
             <div className="flex justify-between items-center">
               <h3 className="font-bold text-slate-800">Chamados Abertos</h3>
-              <button onClick={() => setIsTicketModalOpen(true)} className="bg-blue-600 text-white text-xs font-bold px-4 py-2 rounded-lg flex items-center gap-1.5 shadow-sm hover:bg-blue-700"><Plus size={14}/> Novo Chamado</button>
+              <button onClick={() => setIsTicketModalOpen(true)} className="bg-blue-600 text-white text-xs font-bold px-4 py-2 rounded-lg flex items-center gap-1.5 shadow-sm hover:bg-blue-700">
+                <Plus size={14}/> Novo Chamado
+              </button>
             </div>
             {tickets.length === 0 ? (
-              <div className="bg-white p-8 rounded-2xl text-center border border-slate-200 border-dashed"><Wrench size={32} className="mx-auto text-slate-300 mb-3" /><p className="text-sm font-medium text-slate-500">Nenhum chamado aberto.</p></div>
+              <div className="bg-white p-8 rounded-2xl text-center border border-slate-200 border-dashed">
+                <Wrench size={32} className="mx-auto text-slate-300 mb-3" />
+                <p className="text-sm font-medium text-slate-500">Nenhum chamado aberto.</p>
+              </div>
             ) : (
               tickets.map(ticket => <TicketCard key={ticket.id} ticket={ticket} />)
             )}
@@ -748,6 +1006,39 @@ export default function PortalDashboardPage() {
         </div>
       )}
 
+      {/* MODAL: NOVA OCORRÊNCIA DO CONDOMÍNIO */}
+      {isOccurrenceModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <h2 className="font-bold text-slate-800 flex items-center gap-2"><AlertTriangle size={20} className="text-amber-600"/> Registrar Ocorrência</h2>
+              <button onClick={() => setIsOccurrenceModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-600"><X size={18} /></button>
+            </div>
+            <form onSubmit={handleCreateOccurrence} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">Assunto / Título</label>
+                <input required type="text" placeholder="Ex: Barulho após horário ou lâmpada queimada" value={occurrenceForm.title} onChange={e => setOccurrenceForm({...occurrenceForm, title: e.target.value})} className="w-full p-3 border border-slate-300 rounded-xl text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">Prioridade</label>
+                <select value={occurrenceForm.priority} onChange={e => setOccurrenceForm({...occurrenceForm, priority: e.target.value})} className="w-full p-3 border border-slate-300 rounded-xl text-sm bg-white">
+                  <option value="Baixa">Baixa</option>
+                  <option value="Normal">Normal</option>
+                  <option value="Alta">Alta</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">Descrição Detalhada</label>
+                <textarea required rows={4} placeholder="Descreva os detalhes da ocorrência..." value={occurrenceForm.description} onChange={e => setOccurrenceForm({...occurrenceForm, description: e.target.value})} className="w-full p-3 border border-slate-300 rounded-xl text-sm resize-none" />
+              </div>
+              <button type="submit" disabled={isSavingOccurrence} className="w-full bg-amber-600 hover:bg-amber-700 text-white py-3.5 rounded-xl font-bold text-sm shadow-sm transition-all disabled:opacity-50">
+                {isSavingOccurrence ? <Loader2 size={18} className="animate-spin mx-auto"/> : 'Enviar Ocorrência'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* MODAL: NOVO CHAMADO */}
       {isTicketModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -757,9 +1048,17 @@ export default function PortalDashboardPage() {
               <button onClick={() => setIsTicketModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-600"><X size={18} /></button>
             </div>
             <form onSubmit={handleCreateTicket} className="p-6 space-y-4">
-              <div><label className="block text-xs font-bold text-slate-600 mb-1">Assunto</label><input required type="text" value={ticketForm.title} onChange={e => setTicketForm({...ticketForm, title: e.target.value})} placeholder="Ex: Manutenção condomínio" className="w-full p-3 border border-slate-300 rounded-xl text-sm" /></div>
-              <div><label className="block text-xs font-bold text-slate-600 mb-1">Descrição</label><textarea required rows={4} value={ticketForm.description} onChange={e => setTicketForm({...ticketForm, description: e.target.value})} placeholder="Detalhes..." className="w-full p-3 border border-slate-300 rounded-xl text-sm" /></div>
-              <button type="submit" className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold text-sm">Enviar Chamado</button>
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">Assunto</label>
+                <input required type="text" value={ticketForm.title} onChange={e => setTicketForm({...ticketForm, title: e.target.value})} placeholder="Ex: Manutenção no imóvel" className="w-full p-3 border border-slate-300 rounded-xl text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">Descrição</label>
+                <textarea required rows={4} value={ticketForm.description} onChange={e => setTicketForm({...ticketForm, description: e.target.value})} placeholder="Detalhes..." className="w-full p-3 border border-slate-300 rounded-xl text-sm" />
+              </div>
+              <button type="submit" disabled={isSavingTicket} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold text-sm disabled:opacity-50">
+                {isSavingTicket ? <Loader2 size={18} className="animate-spin mx-auto"/> : 'Enviar Chamado'}
+              </button>
             </form>
           </div>
         </div>
@@ -783,7 +1082,9 @@ export default function PortalDashboardPage() {
             </div>
             <form onSubmit={handleSendMessage} className="p-4 bg-white border-t flex gap-2">
               <input type="text" value={newMessage} onChange={e => setNewMessage(e.target.value)} placeholder="Escreva sua mensagem..." className="flex-1 p-3 bg-slate-50 border rounded-xl text-sm" />
-              <button type="submit" className="px-5 bg-blue-600 text-white rounded-xl font-bold"><Send size={18} /></button>
+              <button type="submit" disabled={isSendingMessage} className="px-5 bg-blue-600 text-white rounded-xl font-bold">
+                <Send size={18} />
+              </button>
             </form>
           </div>
         </div>
